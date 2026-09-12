@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Coding Interview Visual Labs</title>
+  <link rel="stylesheet" href="lab.css">
+  <style>
+    .hub{max-width:1250px;margin:auto;padding:65px clamp(20px,5vw,70px)}.hub h1 em{font-style:normal;color:var(--cyan)}
+    .topic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px;margin:30px 0}.topic-card{display:block;padding:20px;border:1px solid #ffffff14;border-radius:17px;background:linear-gradient(145deg,#172944,#0e1b2e);text-decoration:none;color:var(--ink);transition:.2s}.topic-card:hover{transform:translateY(-4px);border-color:#4de2ff66;box-shadow:0 15px 35px #0005}.topic-card i{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#4de2ff13;color:var(--cyan);font-style:normal;font-size:21px}.topic-card h3{margin-top:14px}.topic-card p{color:var(--muted);font-size:14px}.topic-card span{color:var(--cyan);font-size:13px}
+    .route{display:grid;grid-template-columns:80px 1fr;gap:14px;padding:13px 15px;border-left:3px solid var(--blue);background:#ffffff06;margin:8px 0;border-radius:0 12px 12px 0}.route b{color:var(--cyan)}.route p{margin:0;color:var(--muted)}
+    .pattern-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.pattern-map div{padding:13px;border:1px solid #ffffff10;border-radius:11px;background:#ffffff06}.pattern-map b{color:var(--yellow);display:block}.pattern-map a{color:var(--cyan)}
+  </style>
+</head>
+<body>
+  <main class="hub">
+    <div class="eyebrow">Visual + interactive · C# edition</div>
+    <h1>Coding Interview <em>Data Structure Labs</em></h1>
+    <p class="lede">A linked set of visual mental models, animated walkthroughs, C# templates, pattern-recognition guides, pitfalls, and active-recall prompts. The pages emphasize reusable archetypes behind common interview and LeetCode-style problems.</p>
+    <div class="hero-note"><b>Recommended method:</b> predict each animation step before clicking, state the invariant aloud, then implement the C# template from memory. Pattern recognition matters more than memorizing individual solutions.</div>
+
+    <h2 style="margin-top:55px">Core structures</h2>
+    <div class="topic-grid">
+      <a class="topic-card" href="arrays.html"><i>▦</i><h3>Arrays</h3><p>Two pointers, windows, prefix sums, binary search, Kadane.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="strings.html"><i>Aa</i><h3>Strings</h3><p>Frequency windows, palindromes, parsing, subsequences, matching.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="linked-lists.html"><i>⛓</i><h3>Linked Lists</h3><p>Reversal, dummy heads, fast/slow, merging, intersections.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="stacks.html"><i>▤</i><h3>Stacks</h3><p>Nested syntax, monotonic stacks, iterative DFS, expression evaluation.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="queues-deques.html"><i>⇥</i><h3>Queues & Deques</h3><p>BFS layers, multi-source search, monotonic deque, scheduling.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="hash-tables.html"><i>#</i><h3>Hash Tables & Sets</h3><p>Complements, frequency, canonical grouping, prefix maps, LRU.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="trees-bst.html"><i>♧</i><h3>Trees & BSTs</h3><p>Traversal timing, postorder returns, LCA, validation, tree DP.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="heaps.html"><i>△</i><h3>Heaps</h3><p>Top K, streaming median, k-way merge, scheduling, best-first search.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="tries.html"><i>Ψ</i><h3>Tries</h3><p>Prefix lookup, autocomplete, wildcard search, grid pruning.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="graph-interview-lab.html"><i>◉</i><h3>Graphs</h3><p>BFS, DFS, Dijkstra, Bellman–Ford, Floyd–Warshall, topo, MST.</p><span>Open extended lab →</span></a>
+      <a class="topic-card" href="union-find.html"><i>∪</i><h3>Union-Find</h3><p>Dynamic connectivity, components, cycle detection, Kruskal.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="grids-matrices.html"><i>▦</i><h3>Grids & Matrices</h3><p>Flood fill, multi-source BFS, backtracking, 2D prefix sums.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="intervals.html"><i>↔</i><h3>Intervals</h3><p>Merging, scheduling, sweep lines, intersections, range events.</p><span>Open lab →</span></a>
+      <a class="topic-card" href="range-query-trees.html"><i>⌁</i><h3>Segment & Fenwick Trees</h3><p>Dynamic range queries, point updates, lazy propagation.</p><span>Open lab →</span></a>
+    </div>
+
+    <h2 style="margin-top:55px">Systems mental models</h2>
+    <div class="topic-grid">
+      <a class="topic-card" href="agents.html"><i>◎</i><h3>AI Agents</h3><p>Agent loops, RAG, MCP, agentic identity, sandboxes, memory, orchestration, evaluation, and security.</p><span>Open extended lab →</span></a>
+    </div>
+
+    <h2 style="margin-top:55px">A practical study route</h2>
+    <div class="route"><b>Day 1</b><p>Arrays → Strings → Hash Tables. Learn lookup, counting, two pointers, windows, and prefix sums.</p></div>
+    <div class="route"><b>Day 2</b><p>Linked Lists → Stacks → Queues. Learn pointer state, unfinished work, monotonic structures, and BFS.</p></div>
+    <div class="route"><b>Day 3</b><p>Trees → Heaps. Practice recursive contracts, traversal order, top-k, and scheduling.</p></div>
+    <div class="route"><b>Day 4</b><p>Graphs → Union-Find → Grids. Practice traversal, shortest paths, dependencies, and connectivity.</p></div>
+    <div class="route"><b>Day 5</b><p>Tries → Intervals → Range Query Trees. Cover specialized high-signal patterns, then revisit weak areas.</p></div>
+    <div class="route"><b>Day 6</b><p>AI Agents. Trace the control loop, then explain RAG, MCP, identity, sandbox, and production safety as separate trust boundaries.</p></div>
+
+    <h2 style="margin-top:55px">Cross-cutting pattern finder</h2>
+    <div class="pattern-map">
+      <div><b>Two pointers</b><a href="arrays.html#patterns">Arrays</a>, <a href="strings.html#patterns">strings</a>, <a href="intervals.html#patterns">interval lists</a></div>
+      <div><b>Sliding window</b><a href="arrays.html#patterns">Arrays</a>, <a href="strings.html#visual">strings</a>, <a href="queues-deques.html#visual">monotonic deque</a></div>
+      <div><b>Recursion / backtracking</b><a href="trees-bst.html#patterns">Trees</a>, <a href="grids-matrices.html#patterns">grids</a>, <a href="tries.html#patterns">tries</a></div>
+      <div><b>Greedy</b><a href="intervals.html#patterns">Intervals</a>, <a href="heaps.html#patterns">heaps</a>, <a href="graph-interview-lab.html#algorithms">MST algorithms</a></div>
+      <div><b>Dynamic programming</b><a href="arrays.html#patterns">Array states</a>, <a href="strings.html#patterns">string segmentation</a>, <a href="trees-bst.html#patterns">tree DP</a></div>
+      <div><b>Binary search</b><a href="arrays.html#templates">Index and answer search</a>, <a href="trees-bst.html#patterns">BST search</a></div>
+      <div><b>Shortest paths</b><a href="queues-deques.html#patterns">Unweighted BFS</a>, <a href="graph-interview-lab.html#shortest">Dijkstra</a>, <a href="graph-interview-lab.html#theater">negative/all-pairs</a></div>
+      <div><b>Connectivity</b><a href="graph-interview-lab.html#traversal">Graph traversal</a>, <a href="union-find.html#visual">Union-Find</a>, <a href="grids-matrices.html#visual">grid traversal</a></div>
+      <div><b>Range queries</b><a href="arrays.html#patterns">Prefix sums</a>, <a href="range-query-trees.html#patterns">Fenwick/segment trees</a></div>
+    </div>
+  </main>
+</body>
+</html>
