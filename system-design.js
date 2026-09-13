@@ -149,10 +149,65 @@ function makeConceptModel(entry){
 }
 function nodeState(index,step){return index===step[0]?'active':step[1].includes(index)?'done':''}
 function nodeCard(node,index,step,className='system-node'){return `<div class="${className} ${nodeState(index,step)}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}
+function componentIcon(label){
+  if(/client|user|caller|reader|writer|producer|consumer/i.test(label))return '●';
+  if(/database|primary|replica|store|shard|sstable|table/i.test(label))return '▰';
+  if(/cache|memory|memtable/i.test(label))return '▤';
+  if(/queue|log|broker|stream/i.test(label))return '≡';
+  if(/router|gateway|load balancer|coordinator|leader|scheduler/i.test(label))return '◆';
+  if(/token|key|credential|identity|policy/i.test(label))return '◇';
+  return '▣';
+}
+function architectureScene(name){
+  if(name==='Gossip protocols')return {
+    components:[['Node A','knows update v5'],['Node B','state v4'],['Node C','state v3'],['Node D','state v4'],['Node E','state v3']],
+    points:[[50,12],[86,38],[72,82],[28,82],[14,38]],
+    edges:[[0,1,'gossip v5'],[1,2,'spread'],[0,4,'random peer'],[4,3,'spread'],[2,3,'digest'],[3,1,'converge']],
+    frames:[
+      {edge:0,states:{0:'active'}},{edge:1,states:{0:'done',1:'active'}},{edge:3,states:{0:'done',1:'done',4:'active'}},{edge:5,states:{0:'done',1:'done',2:'done',3:'done',4:'done'}}
+    ]
+  };
+  if(name==='Eventual consistency')return {
+    components:[['Client','write v2'],['Primary DB','v2 committed'],['Replica A','v1 → v2'],['Replica B','v1 → v2'],['Reader','stale then fresh']],
+    points:[[8,50],[34,50],[68,22],[68,78],[92,50]],
+    edges:[[0,1,'write v2'],[1,2,'async copy'],[1,3,'delayed copy'],[4,3,'read v1'],[2,3,'repair v2'],[3,4,'read v2']],
+    frames:[
+      {edge:0,states:{0:'active',1:'active'}},{edge:1,states:{1:'done',2:'active',3:'risk'}},{edge:2,states:{1:'done',2:'done',3:'active'}},{edge:5,states:{1:'done',2:'done',3:'done',4:'done'}}
+    ]
+  };
+  if(/\b(failover|standby|active-passive)\b/i.test(name))return {
+    components:[['Client','live traffic'],['Load balancer','health-aware route'],['Primary DB','serving writes'],['Replica A','synchronous standby'],['Replica B','asynchronous copy']],
+    points:[[8,50],[32,50],[62,22],[62,76],[90,76]],
+    edges:[[0,1,'request'],[1,2,'active route'],[2,3,'replicate'],[2,4,'replicate'],[1,3,'failover route']],
+    frames:[
+      {edge:1,states:{1:'done',2:'active'}},{edge:2,states:{2:'risk',3:'active'}},{edge:3,states:{2:'risk',3:'active',4:'active'}},{edge:4,states:{2:'risk',3:'active'}},{edge:4,states:{2:'risk',3:'done',1:'done'}}
+    ]
+  };
+  if(/\b(cache-aside|read-through cache|write-through cache|write-behind cache|refresh-ahead|cache invalidation|local \+ distributed cache)\b/i.test(name)){
+    const writeBehind=/write-behind/i.test(name),readThrough=/read-through/i.test(name),writeThrough=/write-through/i.test(name),refresh=/refresh-ahead/i.test(name),local=/local \+/i.test(name),invalidation=/invalidation/i.test(name);
+    const middle=writeBehind?['Write queue','durable async buffer']:refresh?['Refresher','before expiry']:local?['Distributed cache','shared copy']:invalidation?['Invalidation bus','version event']:['Cache loader','miss path'];
+    const edges=writeBehind?[[0,1,'write'],[1,4,'fast ack'],[1,2,'enqueue'],[2,3,'async flush']]:writeThrough?[[0,1,'write'],[1,3,'sync write'],[3,1,'ack'],[1,4,'response']]:readThrough?[[0,1,'read'],[1,2,'miss'],[2,3,'load'],[3,1,'fill'],[1,4,'hit']]:refresh?[[0,1,'hit'],[1,4,'serve'],[2,3,'refresh'],[3,1,'new value']]:local?[[0,1,'local miss'],[1,2,'shared miss'],[2,3,'source read'],[3,2,'fill'],[2,1,'promote']]:invalidation?[[0,3,'write'],[3,2,'publish version'],[2,1,'invalidate'],[0,1,'next read']]:[[0,1,'lookup'],[1,0,'miss'],[0,3,'source read'],[3,0,'value'],[0,1,'fill'],[0,4,'response']];
+    return {
+      components:[['Application','request owner'],['Cache','fast copy'],middle,['Database','source of truth'],['Client','response']],
+      points:[[12,48],[40,20],[66,20],[66,78],[92,48]],
+      edges,
+      frames:edges.map((_,index)=>({edge:index,states:{[edges[index][0]]:'done',[edges[index][1]]:'active'}}))
+    };
+  }
+  return null;
+}
+function renderArchitecture(scene,step,stepCount){
+  const frameIndex=Math.round(conceptStep*(scene.frames.length-1)/Math.max(1,stepCount-1));
+  const frame=scene.frames[frameIndex]||{edge:-1,states:{}};
+  const edge=scene.edges[frame.edge],defs='<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>';
+  const links=scene.edges.map(([from,to,label],index)=>{const a=scene.points[from],b=scene.points[to],state=index===frame.edge?'active':index<frame.edge?'done':'';return `<g class="architecture-link ${state}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/><text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(label)}</text></g>`}).join('');
+  const components=scene.components.map((node,index)=>{const state=frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${scene.points[index][0]}%;top:${scene.points[index][1]}%"><i>${componentIcon(node[0])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
+  return `<svg class="architecture-links" viewBox="0 0 100 100" preserveAspectRatio="none">${defs}${links}</svg>${components}`;
+}
 function radialScene(nodes,step,ring=false){
   const points=nodes.map((_,index)=>{const angle=-Math.PI/2+index*2*Math.PI/nodes.length;return [50+36*Math.cos(angle),50+36*Math.sin(angle)]});
   const edges=[];if(ring){points.forEach((point,index)=>edges.push([point,points[(index+1)%points.length],index]))}else{points.forEach((point,index)=>{for(let other=index+1;other<points.length;other++)edges.push([point,points[other],Math.max(index,other)-1])})}
-  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${ring?'<circle cx="50" cy="50" r="36" class="ring-track"/>':''}${edges.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%">${ring?`<i>${index}</i>`:''}<b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
+  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="sceneArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${ring?'<circle cx="50" cy="50" r="36" class="ring-track"/>':''}${edges.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#sceneArrow)" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%">${ring?`<i>${index}</i>`:''}<b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
 }
 function positionedScene(nodes,step,kind){
   let points;
@@ -161,10 +216,16 @@ function positionedScene(nodes,step,kind){
   else if(kind==='cache'){const slots=[[10,50],[36,22],[36,78],[66,78],[90,50],[66,22]];points=nodes.map((_,i)=>slots[i])}
   else points=nodes.map((_,i)=>i===0?[50,12]:i<3?[25+(i-1)*50,47]:[18+(i-3)*(64/Math.max(1,nodes.length-4)),82]);
   const lines=[];for(let i=1;i<nodes.length;i++){const from=kind==='cache'?points[i-1]:kind==='tree'&&i>2?points[i%2?1:2]:points[0];lines.push([from,points[i],i-1])}if(kind==='cache'&&nodes.length>3)lines.push([points[1],points[nodes.length-1],1]);
-  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${lines.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
+  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="topologyArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${lines.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#topologyArrow)" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
+}
+function shardScene(nodes,step){
+  const points=nodes.map((_,index)=>index===0?[9,50]:index===1?[35,50]:[76,15+(index-2)*(70/Math.max(1,nodes.length-3))]);
+  const edges=nodes.slice(1).map((_,index)=>index===0?[points[0],points[1],0]:[points[1],points[index+1],index]);
+  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="shardArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${edges.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#shardArrow)" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node shard-component ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
 }
 function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
+  const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
   if(kind==='network'||kind==='ring')return radialScene(nodes,step,kind==='ring');
   if(['fanout','quorum','tree','cache'].includes(kind))return positionedScene(nodes,step,kind);
   if(kind==='timeline')return `<div class="timeline-track"></div>${nodes.map((node,index)=>`<div class="timeline-event ${nodeState(index,step)}" style="left:${8+index*(84/Math.max(1,nodes.length-1))}%"><i>T${index}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
@@ -172,7 +233,7 @@ function renderConceptScene(model,step){
   if(kind==='swimlane')return `<div class="swimlanes">${nodes.map((node,index)=>`<div class="swimlane ${nodeState(index,step)}"><i>${String(index+1).padStart(2,'0')}</i><b>${esc(node[0])}</b><span>${esc(node[1])}</span><em>${index===step[0]?'message in flight →':''}</em></div>`).join('')}</div>`;
   if(kind==='meter')return `<div class="meter-gauge"><span style="width:${Math.max(12,(conceptStep+1)/model.steps.length*100)}%"></span></div><div class="token-row">${Array.from({length:10},(_,i)=>`<i class="${i<Math.max(2,8-conceptStep)?'full':''}"></i>`).join('')}</div><div class="meter-nodes">${nodes.map((node,index)=>nodeCard(node,index,step)).join('')}</div>`;
   if(kind==='bits')return `<div class="hash-arrows">hash₁ ↘ &nbsp; hash₂ ↓ &nbsp; hash₃ ↙</div><div class="bit-array">${Array.from({length:16},(_,i)=>`<i class="${(i*3+conceptStep)%7<3?'on':''}">${(i*3+conceptStep)%7<3?1:0}</i>`).join('')}</div><div class="bit-nodes">${nodes.map((node,index)=>nodeCard(node,index,step)).join('')}</div>`;
-  if(kind==='shards')return `<div class="shard-map">${nodes.map((node,index)=>`<div class="shard ${nodeState(index,step)}"><i>${String.fromCharCode(65+index)}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small><span style="width:${25+((index+conceptStep)*17)%65}%"></span></div>`).join('')}</div>`;
+  if(kind==='shards')return shardScene(nodes,step);
   if(kind==='layers')return `<div class="layer-diagram">${nodes.map((node,index)=>`<div class="semantic-layer ${nodeState(index,step)}"><i>${index+1}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}</div>`;
   if(kind==='split'){const midpoint=Math.ceil(nodes.length/2);return `<div class="split-scene"><div class="split-zone old"><strong>PATH A</strong>${nodes.slice(0,midpoint).map((node,index)=>nodeCard(node,index,step)).join('')}</div><div class="split-switch ${conceptStep>=midpoint?'moved':''}">traffic ⇢</div><div class="split-zone next"><strong>PATH B</strong>${nodes.slice(midpoint).map((node,index)=>nodeCard(node,index+midpoint,step)).join('')}</div></div>`}
   return nodes.map((node,index)=>`${nodeCard(node,index,step)}${index<nodes.length-1?`<span class="system-arrow ${conceptStep===index?'active':''}">→</span>`:''}`).join('');
