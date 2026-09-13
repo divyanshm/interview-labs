@@ -16,7 +16,7 @@ if(!$('#content'))document.body.insertAdjacentHTML('afterbegin',`
   <div class="app">
     <aside class="sidebar">
       <div class="brand"><div class="logo" id="sideIcon"></div><div><b id="sideTitle"></b><small>Interview lab</small></div></div>
-      <a class="back" href="index.html">← All data structures</a>
+      <a class="back" href="data-structures.html">← All data structures</a>
       <nav><a href="#start">01 · Mental model</a><a href="#visual">02 · Visual walkthrough</a><a href="#patterns">03 · Pattern map</a><a href="#templates">04 · C# templates</a><a href="#pitfalls">05 · Pitfalls</a><a href="#practice">06 · Practice</a></nav>
     </aside>
     <main id="content"></main>

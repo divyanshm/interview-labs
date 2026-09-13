@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>System Design Mental Model Lab</title>
+  <link rel="stylesheet" href="lab.css">
+  <link rel="stylesheet" href="system-design.css">
+</head>
+<body>
+<button class="control present" id="present">⛶ Presentation</button>
+<div class="progress"><i id="progress"></i></div>
+<div class="app sd-shell">
+  <aside class="sidebar sd-sidebar">
+    <div class="brand"><div class="logo sd-logo">⌘</div><div><b>System Design</b><small>Single-stop handbook</small></div></div>
+    <a class="back" href="index.html">← All tracks</a>
+    <input class="side-search" id="sideSearch" placeholder="Find any concept…">
+    <div class="nav-label">Explore</div>
+    <nav><a href="#start">Overview</a><a href="#method">Design method</a><a href="#visuals">Visual theater</a><a href="#catalog">Concept catalog</a></nav>
+    <div class="nav-label">26 chapters</div><nav class="chapter-nav" id="chapterNav"></nav>
+  </aside>
+  <main class="sd-main">
+    <section id="start" class="sd-hero">
+      <div class="eyebrow">Senior / staff system design</div><h1>Reason from <span style="color:var(--sd)">invariants and tradeoffs</span>.</h1>
+      <p class="lede">A concise visual handbook for distributed systems, storage, messaging, reliability, identity, observability, migration, and large-scale architecture.</p>
+      <input class="hero-search" id="heroSearch" placeholder="Search CAP, fencing tokens, Bloom filters, outbox, watermarks, SPIFFE…">
+      <div class="stats"><span class="stat"><b id="chapterCount">26</b> chapters</span><span class="stat"><b id="conceptCount">—</b> concepts</span><span class="stat"><b>14</b> visual models</span></div>
+      <div class="hero-note"><b>Use it actively:</b> search a term, open its chapter, explain the failure it addresses, then name the cost it introduces. Architecture quality lives in that tradeoff.</div>
+    </section>
+    <section id="method">
+      <div class="eyebrow">A repeatable interview method</div><h2>Design outside-in, then pressure-test.</h2>
+      <div class="method">
+        <div class="method-step"><b>01 · Requirements</b><span>Clarify users, core flows, consistency, latency, availability, durability, privacy, and exclusions.</span></div>
+        <div class="method-step"><b>02 · Scale</b><span>Estimate requests, read/write ratio, objects, bytes, growth, fan-out, hot keys, and geography.</span></div>
+        <div class="method-step"><b>03 · Contracts</b><span>Define APIs/events, idempotency, pagination, errors, versioning, and authorization boundaries.</span></div>
+        <div class="method-step"><b>04 · Data</b><span>Choose entities, access patterns, indexes, partition key, replication, retention, and consistency.</span></div>
+        <div class="method-step"><b>05 · Architecture</b><span>Draw request, data, and control flows. Keep ownership and trust boundaries explicit.</span></div>
+        <div class="method-step"><b>06 · Deep dive</b><span>Explore the hardest bottleneck: coordination, hot partition, fan-out, ordering, or failure recovery.</span></div>
+        <div class="method-step"><b>07 · Failure</b><span>Apply timeouts, retries, backpressure, isolation, failover, reconciliation, RPO, and RTO.</span></div>
+        <div class="method-step"><b>08 · Operability</b><span>Define SLOs, signals, rollout, migration, capacity, cost, audit, and disaster drills.</span></div>
+      </div>
+      <div class="compare-strip"><div class="compare-card"><b>Data plane</b><span>High-volume user traffic. Optimize throughput, latency, and horizontal scalability.</span></div><div class="compare-card"><b>Control plane</b><span>Configuration and orchestration. Optimize correctness, consistency, audit, and safe rollout.</span></div><div class="compare-card"><b>Failure plane</b><span>How the system degrades, contains damage, recovers, and proves recovery worked.</span></div></div>
+    </section>
+    <section id="visuals">
+      <div class="eyebrow">Interactive system theater</div><h2>Watch the distributed invariant move.</h2>
+      <div class="theater">
+        <div class="theater-stage"><div class="controls"><select class="control" id="visualType"></select><button class="control" id="visualReset">↺ Reset</button><button class="control primary" id="visualStep">Step →</button><button class="control" id="visualPlay">▶ Play</button></div><div class="system-flow" id="systemFlow"></div></div>
+        <div class="theater-info"><h3 id="visualTitle"></h3><div class="status" id="visualStatus"></div><div class="label">Mental model</div><p class="muted" id="visualMental"></p><div class="label">Invariant</div><div class="invariant" id="visualInvariant"></div><div class="label">Tradeoff</div><p class="muted" id="visualTradeoff"></p></div>
+      </div>
+    </section>
+    <section id="catalog" class="catalog">
+      <div class="catalog-head"><div><div class="eyebrow">Searchable concept catalog</div><h2>Everything in one place.</h2></div><p class="muted">Chapters stay collapsed to reduce clutter. Search opens only matching chapters and concepts.</p></div>
+      <div id="chapters"></div><div class="empty-search" id="emptySearch">No matching concept. Try a broader term.</div>
+    </section>
+  </main>
+</div>
+<script src="system-design-data-1.js"></script>
+<script src="system-design-data-2.js"></script>
+<script src="system-design-data-3.js"></script>
+<script src="system-design.js"></script>
+</body>
+</html>
