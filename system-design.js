@@ -100,19 +100,46 @@ const visualMatchers=[
   [/\b(oauth|oidc|jwt|jwks|identity|spiffe|spire|svid|mtls|rbac|abac|authorization|obo|zero trust)\b/i,()=>visuals.identity],
   [/\b(trace|metrics|logs|opentelemetry|sli|slo|sla|error budget|sampling)\b/i,()=>visuals.observe]
 ];
+function inferVisualKind(entry){
+  const name=entry.concept.name.toLowerCase(),chapter=entry.chapter.id;
+  if(/\b(gossip|membership protocol|service mesh|dependency graph|hnsw|bfs|dfs|minimum spanning tree|kruskal|prim|distributed algorithm)\b/.test(name))return 'network';
+  if(/\b(consistent hashing|rendezvous hashing|virtual nodes)\b/.test(name))return 'ring';
+  if(/\b(quorum|paxos|raft|consensus|leader election|compare-and-swap|fencing token)\b/.test(name))return 'quorum';
+  if(/\b(eventual consistency|replication|replica|read repair|anti-entropy|merkle tree|active-active)\b/.test(name))return 'fanout';
+  if(/\b(kafka|message queue|pub\/sub|event streaming|consumer|offset|dead-letter|retry queue|delayed queue|priority queue|event sourcing|change data capture)\b/.test(name))return 'log';
+  if(/\b(clocks?|order\w*|ttl|expiration|time buckets?|watermarks?|event time|processing time|windows?|heartbeats?|leases?)\b/.test(name))return 'timeline';
+  if(/\b(b-trees?|lsm|sstable|memtable|index|trie|hnsw|ivf)\b/.test(name)||chapter==='search-retrieval')return 'tree';
+  if(/\b(two-phase|three-phase|transaction|saga|choreography|orchestration|compensat|outbox|inbox|obo)\b/.test(name))return 'swimlane';
+  if(/\b(token bucket|leaky bucket|rate limit|admission control|backpressure|load shedding|fair queuing|concurrency limit|throttl)\b/.test(name))return 'meter';
+  if(/\b(bloom|cuckoo filter|quotient filter|hyperloglog|count-min|minhash|simhash|sketch|probabilistic|sampling|heavy hitters|approximate)\b/.test(name)||chapter==='probabilistic-data-structures')return 'bits';
+  if(/\b(shard\w*|partition\w*|scatter-gather|fan-out|hot key|rebalanc\w*)\b/.test(name))return 'shards';
+  if(/\b(oauth|oidc|jwt|jwks|identity|spiffe|spire|svid|mtls|pki|rbac|abac|authorization|policy|trust boundar|control plane|data plane)\b/.test(name)||chapter==='distributed-identity-security')return 'layers';
+  if(/\b(failover|standby|active-passive|disaster recovery|strangler|dual read|dual write|shadow read|migration|cutover|rollback|blue-green|canary)\b/.test(name)||chapter==='distributed-system-migration-patterns')return 'split';
+  if(/\b(tree|hierarch|scheduler|workflow)\b/.test(name))return 'tree';
+  return {
+    'distributed-systems-fundamentals':'split','consensus-coordination':'quorum',replication:'fanout','partitioning-sharding':'shards',
+    'distributed-caching':'cache','probabilistic-data-structures':'bits','distributed-messaging-eventing':'log','distributed-transactions':'swimlane',
+    'reliability-fault-tolerance':'split','resilience-patterns':'split','rate-limiting-traffic-management':'meter','distributed-scheduling':'tree',
+    'storage-systems':'tree','database-distributed-system-concepts':'shards','streaming-real-time-processing':'timeline','distributed-data-processing':'shards',
+    'search-retrieval':'tree','distributed-algorithms':'network','api-service-architecture':'layers','distributed-identity-security':'layers',
+    'observability-distributed-debugging':'fanout','distributed-system-migration-patterns':'split','consistency-conflict-patterns':'fanout',
+    'distributed-deduplication-idempotency':'swimlane','time-based-distributed-patterns':'timeline','advanced-senior-staff-level-concepts':'layers'
+  }[chapter]||'pipeline';
+}
 let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false;
 function makeConceptModel(entry){
   if(entry.concept.visual){
     return {
+      kind:inferVisualKind(entry),
       nodes:entry.concept.visual.nodes.map(node=>[...node]),
       steps:entry.concept.visual.steps.map(step=>[step[0],[...step[1]],step[2]])
     };
   }
   const match=visualMatchers.find(([pattern])=>pattern.test(entry.concept.name));
-  if(match){const source=match[1]();return {nodes:source.nodes.map(x=>[...x]),steps:source.steps.map(x=>[x[0],[...x[1]],x[2]])}}
+  if(match){const source=match[1]();return {kind:inferVisualKind(entry),nodes:source.nodes.map(x=>[...x]),steps:source.steps.map(x=>[x[0],[...x[1]],x[2]])}}
   const nodes=chapterScenes[entry.chapter.id]||chapterScenes['advanced-senior-staff-level-concepts'];
   const name=entry.concept.name,summary=entry.concept.summary;
-  return {nodes,steps:[
+  return {kind:inferVisualKind(entry),nodes,steps:[
     [0,[],`Start with the pressure that makes ${name} relevant. Identify the actor, input, and required outcome.`],
     [1,[0],`The input crosses the first system boundary. Ask who owns state and which guarantees apply here.`],
     [2,[0,1],`${name} changes the flow: ${summary}`],
@@ -120,9 +147,39 @@ function makeConceptModel(entry){
     [4,[0,1,2,3],`The system produces an observable outcome. Now test the design against the tradeoff shown on the right.`]
   ]};
 }
+function nodeState(index,step){return index===step[0]?'active':step[1].includes(index)?'done':''}
+function nodeCard(node,index,step,className='system-node'){return `<div class="${className} ${nodeState(index,step)}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}
+function radialScene(nodes,step,ring=false){
+  const points=nodes.map((_,index)=>{const angle=-Math.PI/2+index*2*Math.PI/nodes.length;return [50+36*Math.cos(angle),50+36*Math.sin(angle)]});
+  const edges=[];if(ring){points.forEach((point,index)=>edges.push([point,points[(index+1)%points.length],index]))}else{points.forEach((point,index)=>{for(let other=index+1;other<points.length;other++)edges.push([point,points[other],Math.max(index,other)-1])})}
+  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${ring?'<circle cx="50" cy="50" r="36" class="ring-track"/>':''}${edges.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%">${ring?`<i>${index}</i>`:''}<b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
+}
+function positionedScene(nodes,step,kind){
+  let points;
+  if(kind==='fanout')points=nodes.map((_,i)=>i===0?[50,16]:[12+(i-1)*(76/Math.max(1,nodes.length-2)),74]);
+  else if(kind==='quorum')points=nodes.map((_,i)=>i===0?[50,13]:i===nodes.length-1?[50,84]:[12+(i-1)*(76/Math.max(1,nodes.length-2)),54]);
+  else if(kind==='cache'){const slots=[[10,50],[36,22],[36,78],[66,78],[90,50],[66,22]];points=nodes.map((_,i)=>slots[i])}
+  else points=nodes.map((_,i)=>i===0?[50,12]:i<3?[25+(i-1)*50,47]:[18+(i-3)*(64/Math.max(1,nodes.length-4)),82]);
+  const lines=[];for(let i=1;i<nodes.length;i++){const from=kind==='cache'?points[i-1]:kind==='tree'&&i>2?points[i%2?1:2]:points[0];lines.push([from,points[i],i-1])}if(kind==='cache'&&nodes.length>3)lines.push([points[1],points[nodes.length-1],1]);
+  return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none">${lines.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
+}
+function renderConceptScene(model,step){
+  const nodes=model.nodes,kind=model.kind;
+  if(kind==='network'||kind==='ring')return radialScene(nodes,step,kind==='ring');
+  if(['fanout','quorum','tree','cache'].includes(kind))return positionedScene(nodes,step,kind);
+  if(kind==='timeline')return `<div class="timeline-track"></div>${nodes.map((node,index)=>`<div class="timeline-event ${nodeState(index,step)}" style="left:${8+index*(84/Math.max(1,nodes.length-1))}%"><i>T${index}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
+  if(kind==='log')return `<div class="log-rail">${nodes.map((node,index)=>`<div class="log-cell ${nodeState(index,step)}"><i>${index}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}</div><div class="log-cursor" style="left:${10+step[0]*(80/Math.max(1,nodes.length-1))}%">▲ current</div>`;
+  if(kind==='swimlane')return `<div class="swimlanes">${nodes.map((node,index)=>`<div class="swimlane ${nodeState(index,step)}"><i>${String(index+1).padStart(2,'0')}</i><b>${esc(node[0])}</b><span>${esc(node[1])}</span><em>${index===step[0]?'message in flight →':''}</em></div>`).join('')}</div>`;
+  if(kind==='meter')return `<div class="meter-gauge"><span style="width:${Math.max(12,(conceptStep+1)/model.steps.length*100)}%"></span></div><div class="token-row">${Array.from({length:10},(_,i)=>`<i class="${i<Math.max(2,8-conceptStep)?'full':''}"></i>`).join('')}</div><div class="meter-nodes">${nodes.map((node,index)=>nodeCard(node,index,step)).join('')}</div>`;
+  if(kind==='bits')return `<div class="hash-arrows">hash₁ ↘ &nbsp; hash₂ ↓ &nbsp; hash₃ ↙</div><div class="bit-array">${Array.from({length:16},(_,i)=>`<i class="${(i*3+conceptStep)%7<3?'on':''}">${(i*3+conceptStep)%7<3?1:0}</i>`).join('')}</div><div class="bit-nodes">${nodes.map((node,index)=>nodeCard(node,index,step)).join('')}</div>`;
+  if(kind==='shards')return `<div class="shard-map">${nodes.map((node,index)=>`<div class="shard ${nodeState(index,step)}"><i>${String.fromCharCode(65+index)}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small><span style="width:${25+((index+conceptStep)*17)%65}%"></span></div>`).join('')}</div>`;
+  if(kind==='layers')return `<div class="layer-diagram">${nodes.map((node,index)=>`<div class="semantic-layer ${nodeState(index,step)}"><i>${index+1}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}</div>`;
+  if(kind==='split'){const midpoint=Math.ceil(nodes.length/2);return `<div class="split-scene"><div class="split-zone old"><strong>PATH A</strong>${nodes.slice(0,midpoint).map((node,index)=>nodeCard(node,index,step)).join('')}</div><div class="split-switch ${conceptStep>=midpoint?'moved':''}">traffic ⇢</div><div class="split-zone next"><strong>PATH B</strong>${nodes.slice(midpoint).map((node,index)=>nodeCard(node,index+midpoint,step)).join('')}</div></div>`}
+  return nodes.map((node,index)=>`${nodeCard(node,index,step)}${index<nodes.length-1?`<span class="system-arrow ${conceptStep===index?'active':''}">→</span>`:''}`).join('');
+}
 function drawConcept(){
   const step=conceptModel.steps[conceptStep];
-  $('#conceptFlow').innerHTML=conceptModel.nodes.map((node,index)=>`<div class="system-node ${index===step[0]?'active':step[1].includes(index)?'done':''}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>${index<conceptModel.nodes.length-1?'<span class="system-arrow">→</span>':''}`).join('');
+  $('#conceptFlow').className=`concept-flow kind-${conceptModel.kind}`;$('#conceptFlow').innerHTML=renderConceptScene(conceptModel,step);
   $('#conceptStatus').innerHTML=`<b>Step ${conceptStep+1} of ${conceptModel.steps.length}</b><br>${esc(step[2])}`;
   $('#conceptDots').innerHTML=conceptModel.steps.map((_,index)=>`<button class="concept-dot ${index===conceptStep?'active':index<conceptStep?'done':''}" data-step="${index}" aria-label="Go to step ${index+1}"></button>`).join('');
   $$('.concept-dot').forEach(dot=>dot.onclick=()=>{conceptStep=Number(dot.dataset.step);drawConcept()});
