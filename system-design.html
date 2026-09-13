@@ -49,11 +49,39 @@
       </div>
     </section>
     <section id="catalog" class="catalog">
-      <div class="catalog-head"><div><div class="eyebrow">Searchable concept catalog</div><h2>Everything in one place.</h2></div><p class="muted">Chapters stay collapsed to reduce clutter. Search opens only matching chapters and concepts.</p></div>
+      <div class="catalog-head"><div><div class="eyebrow">Searchable concept catalog</div><h2>Everything in one place.</h2></div><p class="muted">Chapters stay collapsed to reduce clutter. Select any concept to open its visual explainer and quick recap.</p></div>
       <div id="chapters"></div><div class="empty-search" id="emptySearch">No matching concept. Try a broader term.</div>
     </section>
   </main>
 </div>
+<dialog class="concept-dialog" id="conceptDialog">
+  <div class="concept-panel">
+    <header class="concept-header">
+      <div><div class="eyebrow" id="conceptChapter"></div><h2 id="conceptTitle"></h2></div>
+      <button class="concept-close" id="conceptClose" aria-label="Close visual explainer">×</button>
+    </header>
+    <div class="concept-layout">
+      <div class="concept-stage">
+        <div class="controls">
+          <button class="control" id="conceptReset">↺ Reset</button>
+          <button class="control" id="conceptPrev">← Back</button>
+          <button class="control primary" id="conceptNext">Step →</button>
+          <button class="control" id="conceptPlay">▶ Play</button>
+        </div>
+        <div class="concept-flow" id="conceptFlow"></div>
+        <div class="concept-dots" id="conceptDots"></div>
+        <div class="status concept-status" id="conceptStatus"></div>
+      </div>
+      <aside class="concept-notes">
+        <div class="label">What it means</div><p id="conceptSummary"></p>
+        <div class="label">Why not always?</div><div class="invariant" id="conceptTradeoff"></div>
+        <div class="label">Interview recall</div><p class="muted" id="conceptRecall"></p>
+        <div class="label">Related concepts</div><div class="related-concepts" id="conceptRelated"></div>
+      </aside>
+    </div>
+    <div class="concept-hint">Use ←/→ to step, Space to play or pause, and Esc to close.</div>
+  </div>
+</dialog>
 <script src="system-design-data-1.js"></script>
 <script src="system-design-data-2.js"></script>
 <script src="system-design-data-3.js"></script>

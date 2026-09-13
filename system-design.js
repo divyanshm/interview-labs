@@ -43,11 +43,112 @@ Object.entries(visuals).forEach(([key,v])=>$('#visualType').add(new Option(v.tit
 $('#visualType').onchange=e=>{currentVisual=e.target.value;resetVisual()};$('#visualReset').onclick=resetVisual;$('#visualStep').onclick=()=>{if(visualStep<visuals[currentVisual].steps.length-1){visualStep++;drawVisual()}};
 $('#visualPlay').onclick=async()=>{visualPlaying=!visualPlaying;$('#visualPlay').textContent=visualPlaying?'❚❚ Pause':'▶ Play';while(visualPlaying&&visualStep<visuals[currentVisual].steps.length-1){await sleep(800);if(visualPlaying){visualStep++;drawVisual()}}visualPlaying=false;$('#visualPlay').textContent='▶ Play'};
 
+const conceptRegistry=chapters.flatMap((chapter,chapterIndex)=>chapter.groups.flatMap((group,groupIndex)=>group.concepts.map((concept,conceptIndex)=>({chapter,group,concept,chapterIndex,groupIndex,conceptIndex}))));
+const conceptIndexes=new Map(conceptRegistry.map((entry,index)=>[entry.concept,index]));
+const chapterScenes={
+  'distributed-systems-fundamentals':[['Client','request'],['Node A','local state'],['Network','delay / partition'],['Node B','remote state'],['Observer','visible outcome']],
+  'consensus-coordination':[['Client','proposal'],['Leader','term / epoch'],['Peers','replicated votes'],['Quorum','decision'],['State machine','ordered apply']],
+  replication:[['Writer','new version'],['Primary','write authority'],['Replica A','copy'],['Replica B','copy'],['Reader','consistency choice']],
+  'partitioning-sharding':[['Key','partition key'],['Router','ownership map'],['Shard A','owner'],['Shard B','neighbor'],['Rebalancer','membership change']],
+  'distributed-caching':[['Request','hot key'],['Cache','fast copy'],['Loader','miss control'],['Source','truth'],['Response','fresh / stale']],
+  'probabilistic-data-structures':[['Data stream','many items'],['Hashing','compact signal'],['Sketch','bounded memory'],['Estimate','approximation'],['Decision','error-aware']],
+  'distributed-messaging-eventing':[['Producer','event'],['Broker','durable log'],['Partition','ordered offsets'],['Consumer','process'],['State','effect + progress']],
+  'distributed-transactions':[['Client','workflow'],['Coordinator','decision record'],['Service A','local state'],['Service B','local state'],['Recovery','resume / compensate']],
+  'reliability-fault-tolerance':[['Caller','deadline'],['Guard','policy'],['Dependency','remote work'],['Failure','partial / slow'],['Recovery','contain + restore']],
+  'resilience-patterns':[['Traffic','live requests'],['Health check','signal'],['Active path','serving'],['Standby','recovery copy'],['Failover','restore service']],
+  'rate-limiting-traffic-management':[['Requests','arrival'],['Limiter','budget'],['Queue','fairness'],['Service','finite capacity'],['Result','admit / reject']],
+  'distributed-scheduling':[['Job','durable intent'],['Scheduler','assign'],['Lease','ownership'],['Worker','execute'],['Result','record / retry']],
+  'storage-systems':[['Write','record'],['Durability','WAL / pages'],['Index','locate'],['Storage','organized bytes'],['Read','result']],
+  'database-distributed-system-concepts':[['Query','access pattern'],['Router','partition map'],['Database','authoritative state'],['Replicas','copies'],['Result','consistency level']],
+  'streaming-real-time-processing':[['Events','event time'],['Partitions','arrival order'],['Operator','transform'],['State','window / checkpoint'],['Sink','materialized result']],
+  'distributed-data-processing':[['Dataset','partitions'],['Workers','map / scan'],['Shuffle','move by key'],['Reducers','aggregate'],['Output','committed result']],
+  'search-retrieval':[['Content / query','input'],['Index','terms / vectors'],['Shards','retrieve'],['Ranker','score + merge'],['Top K','results']],
+  'distributed-algorithms':[['Input','graph / values'],['Frontier','pending work'],['Current','selected item'],['Update','state change'],['Result','invariant reached']],
+  'api-service-architecture':[['Client','request'],['Edge','gateway / proxy'],['Router','discover'],['Service','business logic'],['Dependency','data / service']],
+  'distributed-identity-security':[['Principal','user / workload'],['Credential','proof'],['Validator','authenticate'],['Policy','authorize'],['Resource','enforce + audit']],
+  'observability-distributed-debugging':[['Request','trace context'],['Services','signals'],['Collector','correlate'],['Analysis','query / alert'],['Operator','diagnose']],
+  'distributed-system-migration-patterns':[['Old path','current truth'],['Mirror','copy / shadow'],['New path','candidate'],['Compare','reconcile'],['Cutover','shift safely']],
+  'consistency-conflict-patterns':[['Write A','version A'],['Write B','version B'],['Versions','detect relation'],['Resolver','merge / choose'],['Replicas','converged state']],
+  'distributed-deduplication-idempotency':[['Attempt','request / event'],['Identity','stable key'],['Dedup store','seen?'],['Effect','once'],['Response','replay result']],
+  'time-based-distributed-patterns':[['Event','timestamp'],['Clock','physical / logical'],['Timer / window','wait'],['Trigger','deadline / watermark'],['Outcome','expire / emit']],
+  'advanced-senior-staff-level-concepts':[['Traffic','tenant / request'],['Control plane','policy + placement'],['Data plane','serve at scale'],['Fault boundary','contain'],['Recovery','reconcile']]
+};
+const eventualConsistencyModel={
+  nodes:[['Client','write v2'],['Primary','v2'],['Replica A','v1 → v2'],['Replica B','v1 → v2'],['Reader','may see v1'],['All replicas','v2']],
+  steps:[
+    [0,[],'T0 · Every replica currently stores version v1. The client begins a write of v2.'],
+    [1,[0],'T1 · The primary accepts v2 and can acknowledge before every replica has received it.'],
+    [2,[0,1],'T2 · Replica A receives v2. Replica B is delayed, so the system temporarily contains two valid observed versions.'],
+    [4,[0,1,2],'T3 · A read routed to Replica B can still return v1. This is the inconsistency window.'],
+    [3,[0,1,2,4],'T4 · Replication, read repair, or anti-entropy carries v2 to the lagging replica.'],
+    [5,[0,1,2,3,4],'T5 · With no new writes and communication restored, all replicas converge on v2.']
+  ]
+};
+const visualMatchers=[
+  [/^eventual consistency$/i,()=>eventualConsistencyModel],
+  [/\b(raft|paxos|consensus|leader election|quorum consensus)\b/i,()=>visuals.raft],
+  [/\b(lamport|vector clock|hybrid logical|logical clock|causal ordering|total ordering|fifo ordering)\b/i,()=>visuals.clocks],
+  [/\b(replication|replica|primary\/backup|leader\/follower|active-active|active-passive)\b/i,()=>visuals.replication],
+  [/\b(consistent hashing|rendezvous hashing|shard|partitioning|virtual nodes|hot keys?)\b/i,()=>visuals.sharding],
+  [/\b(cache|single-flight|thundering herd|request coalescing)\b/i,()=>visuals.cache],
+  [/\b(outbox|message|kafka|consumer|event sourcing|change data capture)\b/i,()=>visuals.messaging],
+  [/\b(two-phase commit|three-phase commit|2pc|saga|distributed transaction|atomic commit)\b/i,()=>visuals.transactions],
+  [/\b(retr|circuit breaker|bulkhead|timeout|hedged request|load shedding|backpressure)\b/i,()=>visuals.resilience],
+  [/\b(token bucket|rate limit|admission control|fair queuing|concurrency limit)\b/i,()=>visuals.rate],
+  [/\b(lsm|sstable|write-ahead log|memtable|compaction)\b/i,()=>visuals.lsm],
+  [/\b(watermark|event time|stream processing|window)\b/i,()=>visuals.stream],
+  [/\b(oauth|oidc|jwt|jwks|identity|spiffe|spire|svid|mtls|rbac|abac|authorization|obo|zero trust)\b/i,()=>visuals.identity],
+  [/\b(trace|metrics|logs|opentelemetry|sli|slo|sla|error budget|sampling)\b/i,()=>visuals.observe]
+];
+let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false;
+function makeConceptModel(entry){
+  if(entry.concept.visual){
+    return {
+      nodes:entry.concept.visual.nodes.map(node=>[...node]),
+      steps:entry.concept.visual.steps.map(step=>[step[0],[...step[1]],step[2]])
+    };
+  }
+  const match=visualMatchers.find(([pattern])=>pattern.test(entry.concept.name));
+  if(match){const source=match[1]();return {nodes:source.nodes.map(x=>[...x]),steps:source.steps.map(x=>[x[0],[...x[1]],x[2]])}}
+  const nodes=chapterScenes[entry.chapter.id]||chapterScenes['advanced-senior-staff-level-concepts'];
+  const name=entry.concept.name,summary=entry.concept.summary;
+  return {nodes,steps:[
+    [0,[],`Start with the pressure that makes ${name} relevant. Identify the actor, input, and required outcome.`],
+    [1,[0],`The input crosses the first system boundary. Ask who owns state and which guarantees apply here.`],
+    [2,[0,1],`${name} changes the flow: ${summary}`],
+    [3,[0,1,2],`Follow the intermediate state. Look for delay, duplication, partial failure, skew, or competing ownership.`],
+    [4,[0,1,2,3],`The system produces an observable outcome. Now test the design against the tradeoff shown on the right.`]
+  ]};
+}
+function drawConcept(){
+  const step=conceptModel.steps[conceptStep];
+  $('#conceptFlow').innerHTML=conceptModel.nodes.map((node,index)=>`<div class="system-node ${index===step[0]?'active':step[1].includes(index)?'done':''}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>${index<conceptModel.nodes.length-1?'<span class="system-arrow">→</span>':''}`).join('');
+  $('#conceptStatus').innerHTML=`<b>Step ${conceptStep+1} of ${conceptModel.steps.length}</b><br>${esc(step[2])}`;
+  $('#conceptDots').innerHTML=conceptModel.steps.map((_,index)=>`<button class="concept-dot ${index===conceptStep?'active':index<conceptStep?'done':''}" data-step="${index}" aria-label="Go to step ${index+1}"></button>`).join('');
+  $$('.concept-dot').forEach(dot=>dot.onclick=()=>{conceptStep=Number(dot.dataset.step);drawConcept()});
+  $('#conceptPrev').disabled=conceptStep===0;$('#conceptNext').disabled=conceptStep===conceptModel.steps.length-1;
+}
+function stopConceptPlay(){conceptPlaying=false;$('#conceptPlay').textContent='▶ Play'}
+function openConcept(index){
+  activeConcept=conceptRegistry[index];conceptModel=makeConceptModel(activeConcept);conceptStep=0;stopConceptPlay();
+  $('#conceptChapter').textContent=`Chapter ${activeConcept.chapterIndex+1} · ${activeConcept.chapter.title}`;
+  $('#conceptTitle').textContent=activeConcept.concept.name;$('#conceptSummary').textContent=activeConcept.concept.summary;$('#conceptTradeoff').textContent=activeConcept.concept.tradeoff;
+  $('#conceptRecall').textContent=`Explain what pressure ${activeConcept.concept.name} addresses, trace one request through the visual, then name the failure mode or cost you accept.`;
+  const related=conceptRegistry.filter(x=>x.group===activeConcept.group&&x.concept!==activeConcept.concept).slice(0,6);
+  $('#conceptRelated').innerHTML=related.map(x=>`<button data-related="${conceptIndexes.get(x.concept)}">${esc(x.concept.name)}</button>`).join('');
+  $$('#conceptRelated button').forEach(button=>button.onclick=()=>openConcept(Number(button.dataset.related)));
+  drawConcept();if(!$('#conceptDialog').open)$('#conceptDialog').showModal();
+}
+$('#conceptClose').onclick=()=>$('#conceptDialog').close();$('#conceptReset').onclick=()=>{stopConceptPlay();conceptStep=0;drawConcept()};$('#conceptPrev').onclick=()=>{stopConceptPlay();if(conceptStep>0){conceptStep--;drawConcept()}};$('#conceptNext').onclick=()=>{stopConceptPlay();if(conceptStep<conceptModel.steps.length-1){conceptStep++;drawConcept()}};
+$('#conceptPlay').onclick=async()=>{conceptPlaying=!conceptPlaying;$('#conceptPlay').textContent=conceptPlaying?'❚❚ Pause':'▶ Play';while(conceptPlaying&&conceptStep<conceptModel.steps.length-1){await sleep(950);if(conceptPlaying){conceptStep++;drawConcept()}}stopConceptPlay()};
+$('#conceptDialog').addEventListener('close',stopConceptPlay);$('#conceptDialog').onclick=e=>{if(e.target===$('#conceptDialog'))$('#conceptDialog').close()};
+
 function renderCatalog(){
   $('#chapterCount').textContent=chapters.length;$('#conceptCount').textContent=chapters.reduce((n,c)=>n+c.groups.reduce((m,g)=>m+g.concepts.length,0),0);
   $('#chapterNav').innerHTML=chapters.map((c,i)=>`<a href="#chapter-${esc(c.id)}" data-chapter="${esc(c.id)}">${String(i+1).padStart(2,'0')} · ${esc(c.title)}</a>`).join('');
-  $('#chapters').innerHTML=chapters.map((c,i)=>`<details class="chapter" id="chapter-${esc(c.id)}" ${i===0?'open':''}><summary><span class="chapter-num">${String(i+1).padStart(2,'0')}</span><span class="chapter-title">${esc(c.title)}</span><span class="chapter-intro">${esc(c.intro)}</span></summary><div class="chapter-body">${c.groups.map(g=>`<div class="concept-group"><h3>${esc(g.title)}</h3><div class="concept-grid">${g.concepts.map(x=>`<article class="concept" data-search="${esc((x.name+' '+x.summary+' '+x.tradeoff).toLowerCase())}"><b>${esc(x.name)}</b><p>${esc(x.summary)}</p><span class="tradeoff">Tradeoff: ${esc(x.tradeoff)}</span></article>`).join('')}</div></div>`).join('')}</div></details>`).join('');
+  $('#chapters').innerHTML=chapters.map((c,i)=>`<details class="chapter" id="chapter-${esc(c.id)}" ${i===0?'open':''}><summary><span class="chapter-num">${String(i+1).padStart(2,'0')}</span><span class="chapter-title">${esc(c.title)}</span><span class="chapter-intro">${esc(c.intro)}</span></summary><div class="chapter-body">${c.groups.map(g=>`<div class="concept-group"><h3>${esc(g.title)}</h3><div class="concept-grid">${g.concepts.map(x=>`<button type="button" class="concept" data-concept="${conceptIndexes.get(x)}" data-search="${esc((x.name+' '+x.summary+' '+x.tradeoff).toLowerCase())}"><b>${esc(x.name)}</b><p>${esc(x.summary)}</p><span class="tradeoff">Tradeoff: ${esc(x.tradeoff)}</span></button>`).join('')}</div></div>`).join('')}</div></details>`).join('');
   $$('.chapter-nav a').forEach(a=>a.onclick=()=>{const d=$(`#chapter-${a.dataset.chapter}`);d.open=true});
+  $$('.concept').forEach(button=>button.onclick=()=>openConcept(Number(button.dataset.concept)));
 }
 function searchCatalog(value){
   const q=value.trim().toLowerCase();let total=0;
@@ -58,4 +159,5 @@ function searchCatalog(value){
 renderCatalog();drawVisual();$('#heroSearch').oninput=e=>searchCatalog(e.target.value);$('#sideSearch').oninput=e=>searchCatalog(e.target.value);
 $('#present').onclick=()=>{document.body.classList.toggle('presentation');$('#present').textContent=document.body.classList.contains('presentation')?'✕ Exit':'⛶ Presentation'};
 const mainSections=$$('main>section');new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)$('#progress').style.width=`${(mainSections.indexOf(e.target)+1)/mainSections.length*100}%`}),{threshold:.35}).observe(mainSections[0]);mainSections.slice(1).forEach(s=>new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting)$('#progress').style.width=`${(mainSections.indexOf(e.target)+1)/mainSections.length*100}%`}),{threshold:.35}).observe(s));
-document.addEventListener('keydown',e=>{if(['INPUT','SELECT'].includes(document.activeElement.tagName))return;if(e.key===' '&&location.hash==='#visuals'){e.preventDefault();$('#visualStep').click()}if(e.key.toLowerCase()==='p')$('#present').click()});
+document.addEventListener('keydown',e=>{if($('#conceptDialog').open||['INPUT','SELECT'].includes(document.activeElement.tagName))return;if(e.key===' '&&location.hash==='#visuals'){e.preventDefault();$('#visualStep').click()}if(e.key.toLowerCase()==='p')$('#present').click()});
+document.addEventListener('keydown',e=>{if(!$('#conceptDialog').open)return;if(e.key==='ArrowRight'){$('#conceptNext').click();e.preventDefault()}else if(e.key==='ArrowLeft'){$('#conceptPrev').click();e.preventDefault()}else if(e.key===' '){$('#conceptPlay').click();e.preventDefault()}});

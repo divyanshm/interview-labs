@@ -287,3 +287,1101 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
     ]
   }
 ];
+
+{
+  const visualSpecs = new Map([
+    ['Resilience Patterns::Active-active',[
+      ['Region A','Region A serves live traffic and commits local writes.'],
+      ['Region B','Region B simultaneously serves its share of live traffic.'],
+      ['Replication','Changes replicate in both directions with version metadata.'],
+      ['Conflict resolver','Concurrent writes are detected and resolved by domain policy.'],
+      ['Traffic director','When one region fails, healthy regions absorb its traffic.']
+    ]],
+    ['Resilience Patterns::Active-passive',[
+      ['Active site','The active site owns traffic and the authoritative write path.'],
+      ['Passive site','The passive site receives replicated state but serves no traffic.'],
+      ['Health monitor','Repeated failed probes declare the active site unavailable.'],
+      ['Failover controller','The passive site is promoted with a new ownership epoch.'],
+      ['Traffic director','Clients are routed to the newly active site.']
+    ]],
+    ['Resilience Patterns::Hot standby',[
+      ['Primary','The primary serves requests and emits every committed change.'],
+      ['Synchronous replica','The hot standby applies changes and stays fully provisioned.'],
+      ['Health monitor','The primary crosses the configured failure threshold.'],
+      ['Promotion gate','Replication position and fencing are verified before promotion.'],
+      ['Hot standby','The standby immediately accepts production traffic.']
+    ]],
+    ['Resilience Patterns::Warm standby',[
+      ['Primary region','The primary region serves full production load.'],
+      ['Warm replica','A smaller standby continuously applies replicated state.'],
+      ['Failure alarm','Monitoring confirms the primary cannot meet service objectives.'],
+      ['Scale controller','Standby compute and worker capacity scale toward production size.'],
+      ['Traffic switch','Traffic moves gradually as standby health and capacity are proven.']
+    ]],
+    ['Resilience Patterns::Cold standby',[
+      ['Production site','The production site serves traffic until a disaster stops it.'],
+      ['Backup vault','Independent backups preserve data and infrastructure definitions.'],
+      ['Recovery environment','Replacement infrastructure is provisioned after declaration.'],
+      ['Restore pipeline','The latest valid backup and logs restore application state.'],
+      ['Validation gate','Integrity checks pass before users are routed to recovery.']
+    ]],
+    ['Resilience Patterns::Leader failover',[
+      ['Leader','The current leader orders writes for its term.'],
+      ['Followers','Followers replicate the leader log and track its heartbeat.'],
+      ['Election timeout','Missing heartbeats cause a follower to start a higher term.'],
+      ['Quorum','A majority elects the candidate whose log is sufficiently current.'],
+      ['New leader','The winner fences the old term and resumes ordered writes.']
+    ]],
+    ['Resilience Patterns::Automatic failover',[
+      ['Serving endpoint','The preferred endpoint handles traffic normally.'],
+      ['Health policy','Multiple signals breach the failover threshold and hold-down period.'],
+      ['Safety checks','Replication lag, capacity, and dependency health are validated.'],
+      ['Failover automation','Ownership and routing records switch atomically or by epoch.'],
+      ['Recovery watch','Automation monitors the new path and halts on regressions.']
+    ]],
+    ['Resilience Patterns::Health checking',[
+      ['Probe agent','A probe calls the instance readiness or dependency-aware endpoint.'],
+      ['Instance','The instance reports whether it can safely serve new work.'],
+      ['Threshold counter','Consecutive successes or failures prevent one noisy probe from deciding.'],
+      ['Load balancer','Unhealthy instances are removed from new-request routing.'],
+      ['Recovery probe','Passing the recovery threshold returns the instance to service.']
+    ]],
+    ['Resilience Patterns::Heartbeats',[
+      ['Member','A live member emits a heartbeat with its identity and epoch.'],
+      ['Heartbeat store','The receiver records the latest observed heartbeat time.'],
+      ['Deadline','No heartbeat arrives before the suspicion timeout.'],
+      ['Failure detector','The member becomes suspected rather than instantly proven dead.'],
+      ['Coordinator','Ownership is reassigned only after the configured confirmation policy.']
+    ]],
+    ['Resilience Patterns::Failure detection',[
+      ['Target service','The target processes requests while exporting liveness signals.'],
+      ['Detector','The detector combines probe failures, heartbeats, and timeout evidence.'],
+      ['Suspicion state','Uncertain delay moves the target into a suspected state.'],
+      ['Quorum evidence','Independent observers confirm the failure condition.'],
+      ['Recovery action','Routing or ownership changes with an epoch that rejects stale actors.']
+    ]],
+    ['Resilience Patterns::Disaster recovery',[
+      ['Primary region','A regional disaster makes the primary service unavailable.'],
+      ['Recovery plan','The declared scenario selects owners, runbook, RPO, and RTO.'],
+      ['Recovery region','Infrastructure, secrets, dependencies, and capacity are activated.'],
+      ['Data recovery','Replicas or backups restore to the accepted recovery point.'],
+      ['Business validation','Critical journeys pass before traffic and operations resume.']
+    ]],
+    ['Resilience Patterns::RPO',[
+      ['Committed writes','Production continues creating recoverable data.'],
+      ['Protection pipeline','Replication or backup captures recovery points over time.'],
+      ['Disaster point','A failure interrupts the source and protection stream.'],
+      ['Latest recovery point','The newest independently durable point is selected.'],
+      ['Data-loss interval','Its age is measured and must remain within the RPO.']
+    ]],
+    ['Resilience Patterns::RTO',[
+      ['Failure start','The service becomes unavailable at the disaster timestamp.'],
+      ['Detection and declaration','Operators or automation confirm the recovery scenario.'],
+      ['Restore sequence','Infrastructure, data, and dependencies are recovered.'],
+      ['Validation','Health and critical business flows prove safe operation.'],
+      ['Service restored','Elapsed outage time is compared with the RTO.']
+    ]],
+    ['Resilience Patterns::Backup/restore',[
+      ['Source data','A consistent snapshot boundary is selected from production state.'],
+      ['Backup writer','Data and required metadata are encrypted into independent storage.'],
+      ['Backup catalog','Checksums, retention, and restore dependencies are recorded.'],
+      ['Restore environment','A chosen backup is loaded into an isolated target.'],
+      ['Restore test','Integrity and application-level queries prove recoverability.']
+    ]],
+    ['Resilience Patterns::Point-in-time recovery',[
+      ['Base snapshot','A known-consistent full snapshot establishes the replay base.'],
+      ['Change log','Every later mutation is durably ordered with timestamps or positions.'],
+      ['Target time','Recovery chooses a moment immediately before corruption.'],
+      ['Replay engine','Logs apply in order up to, but not beyond, the target.'],
+      ['Recovered database','Consistency checks complete before the restored copy is promoted.']
+    ]],
+    ['Resilience Patterns::Chaos engineering',[
+      ['Steady-state hypothesis','A measurable user or system invariant is defined first.'],
+      ['Experiment scope','A realistic failure and tightly bounded blast radius are selected.'],
+      ['Chaos controller','The fault is introduced while telemetry and abort signals are watched.'],
+      ['System response','Fallback, isolation, and recovery behavior are observed.'],
+      ['Learning loop','Unexpected results become fixes and a repeatable regression experiment.']
+    ]],
+    ['Resilience Patterns::Fault injection',[
+      ['Injection point','A specific network, process, dependency, or resource boundary is selected.'],
+      ['Fault policy','Latency, errors, loss, corruption, or exhaustion is precisely configured.'],
+      ['Target path','The controlled fault affects only labeled requests or instances.'],
+      ['Protection mechanism','Timeouts, retries, isolation, and alerts respond to the fault.'],
+      ['Abort controller','Safety thresholds remove the fault and verify recovery.']
+    ]],
+    ['Rate Limiting & Traffic Management::Token bucket',[
+      ['Refill clock','Elapsed time adds tokens at the configured steady rate.'],
+      ['Token bucket','Stored tokens accumulate only up to the burst capacity.'],
+      ['Request','An arriving request asks to consume its configured token cost.'],
+      ['Admission','A request with enough tokens consumes them and proceeds.'],
+      ['Rejection','A request without enough tokens waits or receives retry guidance.']
+    ]],
+    ['Rate Limiting & Traffic Management::Leaky bucket',[
+      ['Incoming burst','Requests arrive faster than the protected service can accept them.'],
+      ['Bounded bucket','The limiter queues requests until its finite capacity is full.'],
+      ['Leak clock','Work leaves the bucket at a fixed configured rate.'],
+      ['Protected service','Smoothed requests reach the service without the original burst.'],
+      ['Overflow','New work is rejected when the bounded bucket has no space.']
+    ]],
+    ['Rate Limiting & Traffic Management::Fixed window',[
+      ['Window clock','Time selects the current discrete counting interval.'],
+      ['Counter','Each accepted request increments the counter for that interval.'],
+      ['Limit check','Counts at or below the limit are admitted.'],
+      ['Window boundary','The next interval starts with a fresh counter.'],
+      ['Boundary burst','Traffic at both sides of the boundary can exceed the rolling intent.']
+    ]],
+    ['Rate Limiting & Traffic Management::Sliding window',[
+      ['Request log','Each request timestamp is stored in an ordered per-key log.'],
+      ['Window start','The current time minus the interval defines the rolling boundary.'],
+      ['Eviction','Timestamps older than the boundary are removed.'],
+      ['Exact count','The remaining entries give the precise rolling request count.'],
+      ['Admission','The next request is accepted only when the count is below the limit.']
+    ]],
+    ['Rate Limiting & Traffic Management::Sliding window counter',[
+      ['Previous counter','The prior fixed window retains its completed request count.'],
+      ['Current counter','The active fixed window counts new requests.'],
+      ['Time fraction','Elapsed position determines how much prior count still overlaps.'],
+      ['Weighted estimate','Prior overlap plus current count approximates the rolling total.'],
+      ['Admission','The estimate is compared with the configured limit.']
+    ]],
+    ['Rate Limiting & Traffic Management::Distributed rate limiting',[
+      ['Service instances','Requests for one limit key arrive at different instances.'],
+      ['Limit key','Identity and policy scope map every request to shared limiter state.'],
+      ['State authority','Atomic counters, token leases, or allocated local budgets track usage.'],
+      ['Admission result','Each instance admits or rejects using the authoritative allowance.'],
+      ['Partition policy','A network failure chooses fail-open, fail-closed, or bounded local allowance.']
+    ]],
+    ['Rate Limiting & Traffic Management::Global rate limiting',[
+      ['Regions','Traffic enters through multiple geographically separate regions.'],
+      ['Global budget','One aggregate policy defines the total permitted rate.'],
+      ['Budget allocator','The global budget is divided into regional leases or synchronized state.'],
+      ['Regional limiters','Regions spend local allocations without cross-region checks per request.'],
+      ['Rebalancer','Allocations shift as demand changes while bounding aggregate overshoot.']
+    ]],
+    ['Rate Limiting & Traffic Management::Per-user limits',[
+      ['Authenticated user','A validated user identity becomes the limiter key.'],
+      ['User policy','The product tier selects rate, burst, and operation cost.'],
+      ['User bucket','All sessions and devices consume the same user allowance.'],
+      ['Decision','Requests within allowance proceed and excess requests are throttled.']
+    ]],
+    ['Rate Limiting & Traffic Management::Per-tenant limits',[
+      ['Tenant identity','Every request is attributed to its owning tenant.'],
+      ['Tenant budget','Aggregate rate and concurrency protect shared service capacity.'],
+      ['Tenant members','Users and workloads draw from the common allowance.'],
+      ['Fairness policy','Optional sub-limits prevent one member from consuming the tenant budget.'],
+      ['Decision','Excess tenant traffic is queued, degraded, or rejected.']
+    ]],
+    ['Rate Limiting & Traffic Management::Per-IP limits',[
+      ['Source address','The trusted network boundary determines the effective client IP.'],
+      ['IP counter','Requests sharing the address consume one abuse-prevention allowance.'],
+      ['Threshold','Normal traffic proceeds until the rate or burst limit is reached.'],
+      ['Mitigation','Excess traffic is challenged, delayed, or rejected.'],
+      ['NAT exception','Trusted proxies and crowded NAT addresses receive adjusted policy.']
+    ]],
+    ['Rate Limiting & Traffic Management::Hierarchical rate limiting',[
+      ['Global bucket','The request first fits within total service capacity.'],
+      ['Tenant bucket','The owning tenant must have remaining aggregate allowance.'],
+      ['User bucket','The caller must also satisfy its individual policy.'],
+      ['Endpoint bucket','The expensive operation consumes a route-specific cost.'],
+      ['Admission','The request proceeds only when every required level grants capacity.']
+    ]],
+    ['Rate Limiting & Traffic Management::Adaptive rate limiting',[
+      ['Telemetry','Latency, errors, queue depth, and saturation describe current health.'],
+      ['Controller','A smoothed feedback rule computes a safer admission target.'],
+      ['Limiter','Rate or concurrency capacity adjusts gradually toward the target.'],
+      ['Protected service','Health recovers as admitted work falls below overload.'],
+      ['Recovery ramp','Capacity increases cautiously to avoid oscillation.']
+    ]],
+    ['Rate Limiting & Traffic Management::Concurrency limiting',[
+      ['Permit pool','A bounded pool represents safe simultaneous work.'],
+      ['Request','An arriving request attempts to acquire a permit.'],
+      ['In-flight operation','A granted request holds the permit for its full expensive lifetime.'],
+      ['Release','Completion or cancellation returns the permit.'],
+      ['Full pool','Requests without permits queue briefly or fail fast.']
+    ]],
+    ['Rate Limiting & Traffic Management::Load shedding',[
+      ['Overload signal','Queueing, deadlines, or resource saturation cross a safe threshold.'],
+      ['Request classifier','Traffic is labeled by criticality, cost, and remaining deadline.'],
+      ['Shedding gate','Low-value or hopeless work is rejected before consuming scarce resources.'],
+      ['Critical path','Reserved capacity continues serving high-value requests.'],
+      ['Recovery','Shedding relaxes only after health remains below the recovery threshold.']
+    ]],
+    ['Rate Limiting & Traffic Management::Fair queuing',[
+      ['Traffic flows','Requests are separated by tenant, user, or workload class.'],
+      ['Per-flow queues','Each active flow buffers only its own pending work.'],
+      ['Round-robin selector','The scheduler gives each nonempty flow a service turn.'],
+      ['Worker pool','Selected work enters the shared finite execution capacity.'],
+      ['Isolation','A noisy flow fills or delays its own queue rather than every flow.']
+    ]],
+    ['Rate Limiting & Traffic Management::Weighted fair queuing',[
+      ['Traffic classes','Requests enter queues labeled by service class.'],
+      ['Configured weights','Each class receives a proportional share of scheduling credits.'],
+      ['Weighted selector','The scheduler spends credits while rotating among active classes.'],
+      ['Worker pool','Selected requests consume shared capacity.'],
+      ['Aging guard','Waiting work eventually advances despite a low configured weight.']
+    ]],
+    ['Distributed Scheduling::Distributed job scheduler',[
+      ['Job store','Submitted jobs and schedules become durable before acknowledgment.'],
+      ['Eligibility scanner','Due jobs with satisfied dependencies become runnable.'],
+      ['Assignment coordinator','Runnable tasks are matched to workers with available resources.'],
+      ['Workers','Workers claim, execute, and periodically persist progress.'],
+      ['Recovery loop','Expired assignments return to the runnable set for safe retry.']
+    ]],
+    ['Distributed Scheduling::Leader-based scheduling',[
+      ['Scheduler replicas','Replicas maintain shared scheduling metadata.'],
+      ['Leader election','A quorum grants one replica authority for a term.'],
+      ['Leader','The leader orders task assignments and records them durably.'],
+      ['Workers','Workers accept assignments carrying the current leader term.'],
+      ['Failover','A higher-term leader rejects assignments from the stale leader.']
+    ]],
+    ['Distributed Scheduling::Work stealing',[
+      ['Busy worker','A worker owns a deque with more runnable tasks than it can process.'],
+      ['Idle worker','An idle worker samples peers for available work.'],
+      ['Steal operation','The idle worker atomically takes tasks from the opposite deque end.'],
+      ['Local execution','Both workers process their now-balanced local queues.'],
+      ['Locality check','Tasks that cannot move remain pinned to their data or resource.']
+    ]],
+    ['Distributed Scheduling::Task queues',[
+      ['Producer','A producer durably enqueues a task with identity and payload.'],
+      ['Task queue','The queue orders or partitions pending tasks and applies visibility rules.'],
+      ['Worker','A worker leases or receives one available task.'],
+      ['Acknowledgment','Successful execution removes or commits the task.'],
+      ['Redelivery','Missing acknowledgment makes the task visible for another attempt.']
+    ]],
+    ['Distributed Scheduling::Priority scheduling',[
+      ['Submitted tasks','Tasks arrive with validated priority, deadline, and resource needs.'],
+      ['Priority queues','Runnable tasks are separated or ordered by scheduling priority.'],
+      ['Scheduler','Highest eligible priority is chosen subject to quotas and fairness.'],
+      ['Workers','Selected tasks consume execution slots.'],
+      ['Aging','Long-waiting low-priority work gains priority to prevent starvation.']
+    ]],
+    ['Distributed Scheduling::Delayed execution',[
+      ['Task record','A durable task stores its not-before timestamp.'],
+      ['Delay index','Tasks are ordered or bucketed by activation time.'],
+      ['Clock advance','The scheduler reaches the task activation boundary.'],
+      ['Ready queue','The task moves atomically from delayed to runnable state.'],
+      ['Worker','A worker claims and executes the now-eligible task.']
+    ]],
+    ['Distributed Scheduling::Retry scheduling',[
+      ['Failed attempt','A worker records a classified transient failure and attempt count.'],
+      ['Retry policy','Backoff, jitter, maximum attempts, and deadline determine the next time.'],
+      ['Delayed queue','The retry remains invisible until its scheduled activation.'],
+      ['Next attempt','A worker receives the same stable job identity for safe retry.'],
+      ['Terminal path','Permanent or exhausted failures move to review or dead-letter state.']
+    ]],
+    ['Distributed Scheduling::Lease-based workers',[
+      ['Ready task','A durable task has no current unexpired owner.'],
+      ['Worker claim','A worker atomically acquires a lease with expiry and fencing token.'],
+      ['Lease renewal','Progressing work extends ownership before expiry.'],
+      ['Protected effect','Side effects present the fencing token so stale workers are rejected.'],
+      ['Lease expiry','An abandoned task becomes eligible for reassignment.']
+    ]],
+    ['Distributed Scheduling::Heartbeat-based ownership',[
+      ['Task owner','The assigned worker begins processing a long-running task.'],
+      ['Heartbeat record','The worker periodically persists identity, progress, and timestamp.'],
+      ['Ownership monitor','Fresh heartbeats preserve the assignment.'],
+      ['Missed deadline','Absent heartbeats mark ownership suspected or expired.'],
+      ['Reassignment','Another worker resumes from a checkpoint with a new ownership epoch.']
+    ]],
+    ['Distributed Scheduling::Sharded schedulers',[
+      ['Job key','Tenant or workflow identity maps each job to a scheduler shard.'],
+      ['Shard map','A versioned map assigns shard ownership to scheduler replicas.'],
+      ['Shard scheduler','The owner scans and schedules only its local job subset.'],
+      ['Workers','Workers execute tasks without consulting unrelated scheduler shards.'],
+      ['Rebalance','Shard state transfers before a new ownership epoch becomes active.']
+    ]],
+    ['Distributed Scheduling::Scheduler partitioning',[
+      ['Partition key','A stable key groups jobs requiring local ordering or coordination.'],
+      ['Partition router','The router maps the key through the current membership epoch.'],
+      ['Scheduler partition','One partition serializes its scheduling decisions.'],
+      ['Worker pool','Assignments fan out to workers while partition state remains local.'],
+      ['Hot partition','Heavy keys are split, isolated, or given dedicated capacity.']
+    ]],
+    ['Distributed Scheduling::Exactly-once job execution',[
+      ['Job identity','Every logical job has one stable unique execution key.'],
+      ['Atomic claim','A worker records ownership only if no committed outcome exists.'],
+      ['Job effect','The business mutation and completion marker commit atomically when possible.'],
+      ['Retry worker','A duplicate attempt checks the committed outcome before acting.'],
+      ['Single outcome','All attempts return or converge on the same logical result.']
+    ]],
+    ['Distributed Scheduling::Idempotent jobs',[
+      ['Stable job key','Retries carry the same identity and semantically equivalent payload.'],
+      ['Deduplication store','The worker checks for an existing in-progress or completed result.'],
+      ['Business operation','The effect uses an upsert, compare-and-set, or idempotency key.'],
+      ['Result record','The durable outcome is associated with the stable key.'],
+      ['Duplicate attempt','Later attempts return the recorded result without repeating the effect.']
+    ]],
+    ['Distributed Scheduling::Cron/distributed cron',[
+      ['Schedule definition','A durable expression and time zone define recurrence.'],
+      ['Schedule owner','One epoch-fenced scheduler owns materialization for the schedule.'],
+      ['Due instant','The owner creates a uniquely keyed occurrence for the time slot.'],
+      ['Task queue','The occurrence is delivered with normal retry semantics.'],
+      ['Catch-up policy','After downtime, missed occurrences are skipped, coalesced, or replayed explicitly.']
+    ]],
+    ['Distributed Scheduling::Workflow engines',[
+      ['Workflow definition','A versioned graph defines steps, dependencies, timers, and compensation.'],
+      ['Workflow state','The engine durably records the current instance and completed steps.'],
+      ['Activity worker','A worker executes one idempotent activity and reports its result.'],
+      ['Decision loop','The engine advances newly eligible steps or schedules retries.'],
+      ['Terminal state','The workflow completes, fails, or runs compensation with an auditable history.']
+    ]],
+    ['Storage Systems::LSM trees',[
+      ['Write request','A key-value mutation enters the storage engine.'],
+      ['Write-ahead log','The mutation is appended durably before acknowledgment.'],
+      ['Memtable','The mutation updates an in-memory sorted structure.'],
+      ['SSTable','A full memtable flushes as an immutable sorted file.'],
+      ['Compaction','Background merges reconcile versions and restore level invariants.']
+    ]],
+    ['Storage Systems::B-trees',[
+      ['Root page','A lookup begins at the root using sorted separator keys.'],
+      ['Internal pages','The key range selects one child at each tree level.'],
+      ['Leaf page','The leaf contains the record or pointer in sorted order.'],
+      ['Page update','An insert modifies the leaf and logs the change.'],
+      ['Page split','A full page splits and promotes a separator toward the root.']
+    ]],
+    ['Storage Systems::SSTables',[
+      ['Sorted entries','A frozen memtable provides ordered key-version pairs.'],
+      ['Data blocks','Entries are encoded into immutable compressed blocks.'],
+      ['Sparse index','Block boundary keys map lookups to likely offsets.'],
+      ['Bloom filter','Definitely absent keys avoid unnecessary block reads.'],
+      ['Merged run','Compaction later combines this table with overlapping tables.']
+    ]],
+    ['Storage Systems::Write-ahead logs',[
+      ['Mutation','A transaction prepares a storage change.'],
+      ['Log record','The intended change and transaction identity are serialized.'],
+      ['Durable append','The log record reaches the required stable-storage boundary.'],
+      ['Data page','In-memory or on-disk data may update after durability is secured.'],
+      ['Crash recovery','Replay reapplies committed records and ignores incomplete work.']
+    ]],
+    ['Storage Systems::Memtables',[
+      ['Incoming write','A logged mutation arrives with its key and sequence number.'],
+      ['Mutable memtable','The active sorted in-memory table receives the new version.'],
+      ['Read path','Reads merge the memtable with older immutable storage.'],
+      ['Freeze threshold','A size limit turns the active table immutable.'],
+      ['Flush','The frozen memtable becomes an SSTable while a new one accepts writes.']
+    ]],
+    ['Storage Systems::Compaction',[
+      ['Overlapping SSTables','Several immutable files contain different versions of key ranges.'],
+      ['Compaction picker','Level, size, or overlap policy chooses input files.'],
+      ['Merge iterator','Keys merge in order and obsolete versions or tombstones are filtered safely.'],
+      ['Output SSTables','New immutable files are written with indexes and checksums.'],
+      ['Manifest swap','Metadata atomically activates outputs before old files are deleted.']
+    ]],
+    ['Storage Systems::Bloom filters',[
+      ['Key','A lookup key is hashed by several deterministic hash functions.'],
+      ['Bit array','Each hash selects a bit that inserts set to one.'],
+      ['Membership test','A query checks every selected bit.'],
+      ['Definite miss','Any zero bit proves the key is absent.'],
+      ['Possible match','All one bits require a real lookup because false positives exist.']
+    ]],
+    ['Storage Systems::Indexing',[
+      ['Source record','A committed record exposes fields selected for indexing.'],
+      ['Key extraction','Normalization derives one or more searchable index keys.'],
+      ['Index structure','Keys map to record identities or storage locations.'],
+      ['Query planner','A predicate selects the index instead of scanning all records.'],
+      ['Maintenance','Updates keep source and index synchronized or reconcile lag.']
+    ]],
+    ['Storage Systems::Secondary indexes',[
+      ['Primary record','A record is stored by its primary key.'],
+      ['Secondary value','A non-primary attribute produces an index entry.'],
+      ['Secondary index','The value maps to one or more primary keys.'],
+      ['Index lookup','A query finds candidate primary keys by the alternate attribute.'],
+      ['Base fetch','Candidates are fetched and rechecked against the current record.']
+    ]],
+    ['Storage Systems::Inverted indexes',[
+      ['Document','A source document enters the indexing pipeline.'],
+      ['Analyzer','Tokenization and normalization produce searchable terms.'],
+      ['Term dictionary','Each unique term receives a dictionary entry.'],
+      ['Postings lists','Document IDs, positions, and frequencies append under each term.'],
+      ['Query intersection','Term postings are combined to retrieve matching documents.']
+    ]],
+    ['Storage Systems::Sparse indexes',[
+      ['Sorted data file','Records are stored in key order across blocks.'],
+      ['Boundary entries','The index records only the first key and offset of each block.'],
+      ['Index search','A lookup finds the greatest boundary not above the target key.'],
+      ['Block read','The selected data block is loaded from storage.'],
+      ['Local scan','Records within the block are scanned to find the exact key.']
+    ]],
+    ['Storage Systems::Covering indexes',[
+      ['Query','The query specifies predicates and projected columns.'],
+      ['Covering index','Index keys and included columns contain every required value.'],
+      ['Index seek','Predicates navigate directly to matching index entries.'],
+      ['Index-only result','Projected values return without reading base rows.'],
+      ['Write maintenance','Record updates also rewrite the wider index entry.']
+    ]],
+    ['Storage Systems::Partition indexes',[
+      ['Partition key','A logical key or range identifies data placement.'],
+      ['Partition index','The key maps to an owner shard and membership epoch.'],
+      ['Request router','The router sends the operation to the indexed owner.'],
+      ['Shard','The owner performs local storage and index access.'],
+      ['Rebalance','Copy then epoch cutover changes ownership without ambiguous routing.']
+    ]],
+    ['Storage Systems::Columnar storage',[
+      ['Row batch','Rows are grouped into a segment for encoding.'],
+      ['Column split','Values from each field are stored together.'],
+      ['Column encoder','Similar values use compression, dictionaries, or run-length encoding.'],
+      ['Predicate scan','Metadata skips segments and reads only referenced columns.'],
+      ['Vectorized operator','Batches of column values are processed efficiently by the CPU.']
+    ]],
+    ['Storage Systems::Row-oriented storage',[
+      ['Record','All fields of one entity are encoded together.'],
+      ['Data page','Many complete records share a page.'],
+      ['Primary lookup','An index locates the page and row slot.'],
+      ['Row read','One contiguous read returns the complete record.'],
+      ['Row update','Changed fields rewrite the row and associated indexes.']
+    ]],
+    ['Storage Systems::Log-structured storage',[
+      ['Mutation','A new record version arrives instead of modifying old bytes in place.'],
+      ['Append log','The version is written sequentially at the log tail.'],
+      ['Location index','The key now points to the newest log position.'],
+      ['Read','The index resolves the latest version while older versions remain.'],
+      ['Garbage collection','Live records move and obsolete log segments are reclaimed.']
+    ]],
+    ['Storage Systems::Object storage',[
+      ['Object key','A bucket and key identify an object in a flat logical namespace.'],
+      ['Metadata service','Metadata maps the key and version to storage fragments.'],
+      ['Data chunks','The object is replicated or erasure-coded across failure domains.'],
+      ['Manifest commit','A complete immutable version becomes visible atomically.'],
+      ['Lifecycle policy','Age and access rules tier or delete object versions.']
+    ]],
+    ['Storage Systems::Block storage',[
+      ['Volume','A host attaches a logical array of fixed-size addressable blocks.'],
+      ['Block request','The filesystem or database issues a read or write by offset.'],
+      ['Storage controller','The logical block maps to physical replicated storage.'],
+      ['Durability acknowledgment','The required replicas or stable media confirm the write.'],
+      ['Host cache','Ordering and flush barriers preserve higher-level consistency.']
+    ]],
+    ['Storage Systems::Distributed filesystems',[
+      ['Client path','A client resolves a hierarchical file path.'],
+      ['Metadata service','Namespace metadata identifies file chunks and versions.'],
+      ['Chunk servers','The client reads or writes replicated chunks directly.'],
+      ['Consistency protocol','Leases or versions serialize conflicting mutations.'],
+      ['Repair loop','Failed or under-replicated chunks are detected and reconstructed.']
+    ]],
+    ['Database Distributed-System Concepts::Primary/replica',[
+      ['Client','A write is routed to the current primary.'],
+      ['Primary','The primary orders and durably records the mutation.'],
+      ['Replication log','Replicas receive ordered log positions.'],
+      ['Replica','Each replica applies changes and may serve consistency-qualified reads.'],
+      ['Promotion','A sufficiently current replica becomes primary after failure fencing.']
+    ]],
+    ['Database Distributed-System Concepts::Leaderless databases',[
+      ['Coordinator','Any node accepts the client operation and locates replicas.'],
+      ['Replica set','Writes carry versions to multiple independent replicas.'],
+      ['Write quorum','Enough acknowledgments complete the client write.'],
+      ['Read quorum','Several versions are read and reconciled.'],
+      ['Repair','Read repair or anti-entropy updates stale replicas.']
+    ]],
+    ['Database Distributed-System Concepts::Distributed SQL',[
+      ['SQL gateway','The gateway parses SQL and builds a distributed plan.'],
+      ['Range metadata','Keys and ranges map plan fragments to storage nodes.'],
+      ['Shard operators','Nodes scan, filter, and partially aggregate local data.'],
+      ['Transaction coordinator','Cross-range writes agree on one commit timestamp and outcome.'],
+      ['Result merger','The gateway merges ordered or aggregated shard results.']
+    ]],
+    ['Database Distributed-System Concepts::Distributed transactions',[
+      ['Coordinator','A transaction coordinator assigns identity and tracks participants.'],
+      ['Participants','Each shard executes writes under an isolated provisional state.'],
+      ['Prepare phase','Participants durably promise they can commit.'],
+      ['Decision record','The coordinator durably records commit or abort.'],
+      ['Resolution','Participants apply the decision and recover it after failures.']
+    ]],
+    ['Database Distributed-System Concepts::Sharding',[
+      ['Partition key','A record key determines its logical shard.'],
+      ['Shard map','A versioned routing table maps shards to owners.'],
+      ['Router','The request reaches the current owner or fans out when unavoidable.'],
+      ['Shard','The owner executes locally within its storage and throughput budget.'],
+      ['Rebalancer','Data copies before ownership changes to a new epoch.']
+    ]],
+    ['Database Distributed-System Concepts::Replication',[
+      ['Write authority','An accepted mutation receives an order or version.'],
+      ['Replication stream','The mutation propagates to copies in other failure domains.'],
+      ['Replica acknowledgments','The durability policy waits for required copies.'],
+      ['Read routing','Reads choose a replica compatible with their consistency requirement.'],
+      ['Repair','Lagging or divergent copies catch up from logs or snapshots.']
+    ]],
+    ['Database Distributed-System Concepts::Consistent hashing',[
+      ['Membership ring','Nodes or virtual nodes occupy deterministic hash positions.'],
+      ['Key hash','A key maps to a point in the same hash space.'],
+      ['Owner walk','The next eligible ring positions select owner replicas.'],
+      ['Membership change','A node joins or leaves the ring.'],
+      ['Limited movement','Only keys crossing changed ownership boundaries move.']
+    ]],
+    ['Database Distributed-System Concepts::Quorum',[
+      ['Replica set','A value is stored across N failure-independent replicas.'],
+      ['Write quorum','A write waits for W versioned acknowledgments.'],
+      ['Read quorum','A read collects R versions from replicas.'],
+      ['Intersection','When R plus W exceeds N, read and write sets overlap.'],
+      ['Reconciliation','The newest valid version wins and stale copies are repaired.']
+    ]],
+    ['Database Distributed-System Concepts::Read/write consistency',[
+      ['Consistency request','The client selects required freshness and durability.'],
+      ['Write path','The chosen write level waits for a defined replica set.'],
+      ['Replica progress','Copies apply the version at different times.'],
+      ['Read path','The read level chooses leader, quorum, session, or any replica.'],
+      ['Observed value','Latency and availability follow from the selected guarantee.']
+    ]],
+    ['Database Distributed-System Concepts::Hot partitions',[
+      ['Partition key','A skewed key maps disproportionate traffic to one shard.'],
+      ['Hot shard','CPU, storage, or queue capacity saturates before the cluster.'],
+      ['Telemetry','Per-key and per-shard metrics expose concentration.'],
+      ['Mitigation','Salting, splitting, caching, or dedicated capacity spreads work.'],
+      ['Merge path','Reads or aggregates recombine salted pieces when required.']
+    ]],
+    ['Database Distributed-System Concepts::Secondary indexes',[
+      ['Base shard','A record mutation commits under its primary partition key.'],
+      ['Index mutation','The secondary attribute produces an index add or remove.'],
+      ['Index shard','The alternate key maps to possibly different index ownership.'],
+      ['Lookup','A query retrieves candidate primary keys from the index.'],
+      ['Validation','Base records are fetched to remove stale or changed candidates.']
+    ]],
+    ['Database Distributed-System Concepts::Global indexes',[
+      ['Base partitions','Records remain distributed by their primary partition keys.'],
+      ['Global index key','An alternate attribute uses its own cross-cluster partitioning.'],
+      ['Index update','Each base mutation updates the globally routed index entry.'],
+      ['Direct lookup','A query targets only index shards holding the alternate key.'],
+      ['Base fetch','Returned primary keys route to their owning data partitions.']
+    ]],
+    ['Database Distributed-System Concepts::Local indexes',[
+      ['Base shard','A shard stores records for its primary key range.'],
+      ['Local index','Alternate keys index only records inside that same shard.'],
+      ['Atomic update','Base record and local index change in one shard transaction.'],
+      ['Fan-out query','A global alternate-key query asks every relevant shard.'],
+      ['Merge','The coordinator combines local matches and handles partial results.']
+    ]],
+    ['Database Distributed-System Concepts::Online schema migration',[
+      ['Old readers and writers','Existing application versions continue using the old schema.'],
+      ['Expand phase','The database adds backward-compatible fields or structures.'],
+      ['Dual-compatible code','New code reads both forms and writes the migration-safe form.'],
+      ['Backfill','Historical rows are converted in throttled resumable batches.'],
+      ['Contract phase','After validation and rollout completion, obsolete schema is removed.']
+    ]],
+    ['Database Distributed-System Concepts::Online reindexing',[
+      ['Live index','Queries continue using the current index.'],
+      ['Shadow index','A replacement index builds from a consistent source snapshot.'],
+      ['Change catch-up','Mutations after the snapshot are replayed into the shadow.'],
+      ['Validation','Counts, checksums, and sampled queries compare both indexes.'],
+      ['Atomic switch','Query metadata selects the new index before the old one retires.']
+    ]],
+    ['Database Distributed-System Concepts::Backfills',[
+      ['Source scan','A resumable cursor reads historical records in bounded batches.'],
+      ['Transformation','Each record deterministically computes the missing representation.'],
+      ['Conditional write','Version checks avoid overwriting newer concurrent updates.'],
+      ['Throttle','Rate and concurrency adapt to production headroom.'],
+      ['Verification','Coverage metrics and reconciliation identify omissions or drift.']
+    ]],
+    ['Database Distributed-System Concepts::Dual writes',[
+      ['Logical mutation','One request must update an old and a new representation.'],
+      ['Primary commit','The authoritative representation commits first or with an outbox.'],
+      ['Secondary write','A relay or application writes the second representation.'],
+      ['Partial failure','Retryable state records which side has not converged.'],
+      ['Reconciliation','Idempotent replay and comparison repair divergence before cutover.']
+    ]],
+    ['Database Distributed-System Concepts::Read-after-write consistency',[
+      ['Client write','A write commits with a version, log position, or session token.'],
+      ['Replication','Followers asynchronously advance toward that committed version.'],
+      ['Client read','The client presents its minimum required version.'],
+      ['Read router','A caught-up replica is selected or the read waits or goes to the leader.'],
+      ['Fresh result','The response reflects at least the client committed write.']
+    ]],
+    ['Streaming & Real-Time Processing::Stream processing',[
+      ['Event source','An unbounded source emits partitioned records continuously.'],
+      ['Stream operators','Stateless and stateful operators transform each record.'],
+      ['Partitioned state','Keys route related events to the same logical state.'],
+      ['Checkpoint barrier','State and source progress become recoverable together.'],
+      ['Sink','Results are emitted with the configured delivery semantics.']
+    ]],
+    ['Streaming & Real-Time Processing::Windowing',[
+      ['Timestamped events','Events carry processing or event timestamps.'],
+      ['Window assigner','Each event maps to one or more bounded windows.'],
+      ['Window state','Per-key values accumulate until a trigger condition.'],
+      ['Trigger','Time, count, or watermark causes a result emission.'],
+      ['Cleanup','Allowed lateness ends and retained window state is released.']
+    ]],
+    ['Streaming & Real-Time Processing::Tumbling windows',[
+      ['Event time','An event timestamp enters the window function.'],
+      ['Fixed boundaries','The timeline is split into equal non-overlapping intervals.'],
+      ['Single assignment','Each event belongs to exactly one interval.'],
+      ['Window aggregate','State accumulates independently for that interval.'],
+      ['Window close','The watermark passes the end and emits the interval result.']
+    ]],
+    ['Streaming & Real-Time Processing::Sliding windows',[
+      ['Event time','An event arrives with a timestamp.'],
+      ['Window size','The size defines how far each window spans.'],
+      ['Slide interval','The slide creates overlapping window start positions.'],
+      ['Multiple assignments','One event updates every overlapping eligible window.'],
+      ['Window emissions','Each window closes independently as its end passes the watermark.']
+    ]],
+    ['Streaming & Real-Time Processing::Session windows',[
+      ['Keyed event','An event starts or extends a session for its key.'],
+      ['Inactivity gap','Events within the gap remain in the same session.'],
+      ['Session state','The aggregate and latest event time advance.'],
+      ['Late bridge','A late event may merge two previously separate sessions.'],
+      ['Session close','Watermark plus allowed lateness passes the session end.']
+    ]],
+    ['Streaming & Real-Time Processing::Watermarks',[
+      ['Partition events','Partitions deliver timestamps at different and out-of-order rates.'],
+      ['Partition watermark','Each source estimates that earlier events are mostly complete.'],
+      ['Global watermark','The operator takes a safe minimum across active partitions.'],
+      ['Window trigger','Windows ending before the watermark emit or finalize.'],
+      ['Late path','Events behind the watermark follow update, side-output, or drop policy.']
+    ]],
+    ['Streaming & Real-Time Processing::Event time vs processing time',[
+      ['Real-world event','A timestamp records when the event occurred.'],
+      ['Transport delay','Buffering and retries delay arrival without changing event time.'],
+      ['Processing clock','The engine observes a later local processing time.'],
+      ['Time choice','Operators select event time for reproducibility or processing time for simplicity.'],
+      ['Result behavior','The choice determines windows, latency, and late-data handling.']
+    ]],
+    ['Streaming & Real-Time Processing::Late events',[
+      ['Window result','A watermark causes an initial window result to emit.'],
+      ['Late event','A relevant event arrives after that emission.'],
+      ['Allowed lateness','Policy determines whether the event remains admissible.'],
+      ['Correction','The system drops, side-outputs, updates, or retracts the old result.'],
+      ['Final cleanup','After the lateness horizon, window state is removed.']
+    ]],
+    ['Streaming & Real-Time Processing::Out-of-order events',[
+      ['Event A','A logically earlier event is delayed in transport.'],
+      ['Event B','A later event arrives and is processed first.'],
+      ['Reorder buffer','The operator buffers by key and timestamp within a bounded horizon.'],
+      ['Watermark','Progress indicates when waiting longer is no longer justified.'],
+      ['Ordered effect','Buffered events emit in order or corrections repair earlier output.']
+    ]],
+    ['Streaming & Real-Time Processing::Stateful stream processing',[
+      ['Key partitioner','Related events route to one logical keyed operator.'],
+      ['Operator state','The operator reads and updates durable logical state per event.'],
+      ['State backend','Memory and local storage hold working state efficiently.'],
+      ['Checkpoint','A consistent snapshot captures state and input offsets.'],
+      ['Recovery','A replacement operator restores state and resumes from captured offsets.']
+    ]],
+    ['Streaming & Real-Time Processing::Checkpointing',[
+      ['Source barrier','A checkpoint marker enters every input partition.'],
+      ['Operators','Operators align or track barriers while processing records.'],
+      ['State snapshot','Each operator persists a consistent state version.'],
+      ['Sink coordination','Transactional sinks prepare output for the same checkpoint.'],
+      ['Checkpoint commit','The coordinator commits state, source progress, and prepared output.']
+    ]],
+    ['Streaming & Real-Time Processing::Exactly-once processing',[
+      ['Source offsets','The processor reads records after the last committed checkpoint.'],
+      ['Operator state','Records deterministically update versioned state.'],
+      ['Transactional sink','Outputs remain pending under the checkpoint identity.'],
+      ['Checkpoint commit','Offsets, state, and sink transaction commit as one logical boundary.'],
+      ['Replay','Failure replays records but replaces or deduplicates the same logical effects.']
+    ]],
+    ['Streaming & Real-Time Processing::Stream joins',[
+      ['Left stream','A keyed left event enters with event time.'],
+      ['Left state','The event is retained for the configured join interval.'],
+      ['Right stream','A matching right event arrives within the time bounds.'],
+      ['Join operator','Key and temporal predicates produce joined records.'],
+      ['Eviction','Watermarks expire unmatched state and trigger outer-join behavior.']
+    ]],
+    ['Streaming & Real-Time Processing::Stream aggregation',[
+      ['Keyed event','Partitioning sends the event to its aggregate key.'],
+      ['Accumulator','An associative state update incorporates the event.'],
+      ['Trigger','Count, time, change, or watermark requests an emission.'],
+      ['Aggregate output','The current result emits as append, update, or retraction.'],
+      ['Recovery state','Checkpointed accumulator state survives worker failure.']
+    ]],
+    ['Streaming & Real-Time Processing::Windowed aggregation',[
+      ['Timestamped record','The record maps to a key and one or more windows.'],
+      ['Window accumulator','Per-key per-window state incorporates the value.'],
+      ['Watermark','Event-time progress reaches the window end.'],
+      ['Initial result','The aggregate emits with a window identity and version.'],
+      ['Late update','Admissible late events revise or retract the prior result.']
+    ]],
+    ['Streaming & Real-Time Processing::Deduplication',[
+      ['Event identity','Each logical event carries a stable unique identifier.'],
+      ['Seen-state lookup','The operator checks retained IDs or sequence progress.'],
+      ['First arrival','An unseen event updates business state and records its ID atomically.'],
+      ['Duplicate arrival','A repeated ID is suppressed without repeating the effect.'],
+      ['Retention expiry','Seen-state is removed only after the duplicate horizon.']
+    ]],
+    ['Streaming & Real-Time Processing::CEP / Complex Event Processing',[
+      ['Event sequence','Typed keyed events arrive with timestamps.'],
+      ['Pattern automaton','Each event advances or branches partial pattern matches.'],
+      ['Temporal constraints','Timers expire paths that exceed the allowed interval.'],
+      ['Completed match','A valid sequence emits a complex-event detection.'],
+      ['Overlap policy','The engine retains, skips, or consumes events for competing matches.']
+    ]],
+    ['Streaming & Real-Time Processing::Backpressure',[
+      ['Slow sink','Downstream service time increases and output buffers fill.'],
+      ['Demand signal','The consumer reduces credits or stops requesting more records.'],
+      ['Upstream operators','Operators slow reads and propagate pressure toward sources.'],
+      ['Source retention','Durable input accumulates lag instead of overwhelming memory.'],
+      ['Recovery','Credits rise gradually as downstream capacity returns.']
+    ]],
+    ['Streaming & Real-Time Processing::Replay',[
+      ['Retained log','Immutable events remain addressable by partition and offset.'],
+      ['Replay start','A checkpoint, timestamp, or offset selects the restart position.'],
+      ['Versioned processor','Compatible code and schemas deterministically reprocess events.'],
+      ['Isolated sink','Outputs are deduplicated, overwritten by version, or written separately.'],
+      ['Catch-up','Replay reaches the live head before normal consumption resumes.']
+    ]],
+    ['Streaming & Real-Time Processing::Event-time processing',[
+      ['Event timestamp','The producer records when the domain event actually occurred.'],
+      ['Out-of-order transport','Partitions and retries change arrival order.'],
+      ['Event-time operator','Windows and timers use event timestamps rather than wall-clock arrival.'],
+      ['Watermark','Progress estimates when earlier event time is sufficiently complete.'],
+      ['Correction policy','Late events update, retract, side-output, or drop explicitly.']
+    ]],
+    ['Distributed Data Processing::MapReduce',[
+      ['Input splits','Large input is divided into independently readable partitions.'],
+      ['Map tasks','Mappers transform records into intermediate key-value pairs.'],
+      ['Shuffle','Intermediate pairs move to reducers by key.'],
+      ['Reduce tasks','Reducers combine all values for each key.'],
+      ['Output files','Partitioned final results commit after successful task attempts.']
+    ]],
+    ['Distributed Data Processing::Shuffle',[
+      ['Producer tasks','Upstream tasks emit records with partitioning keys.'],
+      ['Partitioner','A hash or range function chooses the destination task.'],
+      ['Shuffle files','Records buffer, sort, spill, and transfer across the network.'],
+      ['Consumer tasks','Downstream tasks fetch every partition addressed to them.'],
+      ['Merge','Fetched runs merge into grouped or ordered input.']
+    ]],
+    ['Distributed Data Processing::Partitioning',[
+      ['Dataset','Records expose a partition key or input location.'],
+      ['Partition function','Hash, range, or round-robin maps records to task partitions.'],
+      ['Parallel tasks','Each task processes its disjoint assigned subset.'],
+      ['Boundary operation','Cross-partition joins or aggregates trigger movement.'],
+      ['Repartition','Skew or changed parallelism creates a new balanced mapping.']
+    ]],
+    ['Distributed Data Processing::Distributed aggregation',[
+      ['Input partitions','Workers independently scan their local records.'],
+      ['Partial aggregates','Each worker builds mergeable state per key.'],
+      ['Aggregation tree','Partial states move through bounded fan-in stages.'],
+      ['Merge function','Associative combination produces larger summaries.'],
+      ['Global result','The root or final partitions emit complete aggregates.']
+    ]],
+    ['Distributed Data Processing::Combiners',[
+      ['Mapper output','A mapper emits many intermediate values for repeated keys.'],
+      ['Local combiner','A merge-safe function reduces values before transfer.'],
+      ['Combined pairs','Smaller partial states retain enough information for final reduction.'],
+      ['Shuffle','Only combined key-state pairs cross the network.'],
+      ['Reducer','The reducer merges every partial state into the correct final result.']
+    ]],
+    ['Distributed Data Processing::Map-side aggregation',[
+      ['Map input','A mapper reads records from its local split.'],
+      ['In-memory table','Values aggregate by key before serialization.'],
+      ['Spill threshold','Memory pressure flushes sorted partial aggregates to disk.'],
+      ['Shuffle output','Merged partial states transfer instead of raw records.'],
+      ['Final reducer','Reducers combine partials across all mappers.']
+    ]],
+    ['Distributed Data Processing::Reduce-side aggregation',[
+      ['Mapped records','All raw or partially combined key-value pairs are emitted.'],
+      ['Shuffle partition','The same key routes to the same reducer.'],
+      ['Sort and group','Reducer input groups every value for each key.'],
+      ['Reduce function','The reducer computes the complete aggregate.'],
+      ['Partitioned output','Each reducer commits its key-range results.']
+    ]],
+    ['Distributed Data Processing::Distributed joins',[
+      ['Left dataset','Rows expose a join key across many partitions.'],
+      ['Right dataset','Rows from the second input expose the same logical key.'],
+      ['Join strategy','Size, ordering, skew, and partitioning select broadcast, hash, or merge.'],
+      ['Co-location','Matching keys reach the same worker or local lookup structure.'],
+      ['Joined output','Workers emit matches and required unmatched rows.']
+    ]],
+    ['Distributed Data Processing::Broadcast joins',[
+      ['Small relation','The planner verifies one input fits each worker budget.'],
+      ['Broadcast','The small relation is serialized and copied to all workers.'],
+      ['Local hash table','Each worker indexes its local copy by join key.'],
+      ['Large partitions','Large-input records stay local and probe the hash table.'],
+      ['Joined rows','Workers emit results without shuffling the large relation.']
+    ]],
+    ['Distributed Data Processing::Hash joins',[
+      ['Build input','The chosen relation is partitioned and hashed by join key.'],
+      ['Hash table','Each worker builds key buckets, spilling if memory is exceeded.'],
+      ['Probe input','The other relation uses the same partitioning and hash function.'],
+      ['Bucket probe','Matching key buckets produce joined rows.'],
+      ['Skew path','Heavy keys are split or handled by a specialized plan.']
+    ]],
+    ['Distributed Data Processing::Sort-merge joins',[
+      ['Left input','Left rows are partitioned and sorted by join key.'],
+      ['Right input','Right rows receive compatible partitioning and ordering.'],
+      ['Merge cursors','Two ordered cursors advance until keys align.'],
+      ['Match groups','Equal-key runs produce the required Cartesian matches.'],
+      ['Unmatched rows','Outer-join policy emits unmatched runs as cursors advance.']
+    ]],
+    ['Distributed Data Processing::Data locality',[
+      ['Input blocks','Storage metadata records which workers or racks hold each block.'],
+      ['Runnable task','A task declares the blocks it must scan.'],
+      ['Locality-aware scheduler','The scheduler prefers a worker already holding the data.'],
+      ['Local read','The worker reads local disk instead of transferring the full block.'],
+      ['Delay fallback','After bounded waiting, rack-local or remote execution preserves progress.']
+    ]],
+    ['Distributed Data Processing::Skew handling',[
+      ['Key histogram','Sampling or runtime metrics reveal disproportionate keys.'],
+      ['Heavy-key plan','Large keys are isolated, salted, or replicated separately.'],
+      ['Parallel subpartitions','Heavy-key records spread across additional workers.'],
+      ['Normal partitions','Non-skewed keys retain the inexpensive default path.'],
+      ['Final merge','Partial heavy-key results recombine into one logical result.']
+    ]],
+    ['Distributed Data Processing::Stragglers',[
+      ['Parallel stage','Many equivalent tasks begin processing their partitions.'],
+      ['Progress metrics','The coordinator compares duration and throughput among peers.'],
+      ['Slow task','One task falls far behind because of skew, contention, or hardware.'],
+      ['Mitigation','The scheduler relocates, repartitions, or speculates the task.'],
+      ['Stage barrier','The stage completes only after one valid result for every partition.']
+    ]],
+    ['Distributed Data Processing::Speculative execution',[
+      ['Task cohort','Comparable tasks establish an expected progress distribution.'],
+      ['Straggler detector','A slow attempt crosses the speculation threshold.'],
+      ['Duplicate attempt','The same deterministic task starts on another worker.'],
+      ['Race','Both attempts run against the same immutable input.'],
+      ['Winner commit','The first valid output commits and the losing attempt is cancelled.']
+    ]],
+    ['Distributed Data Processing::Checkpointing',[
+      ['Long computation','A multi-stage job accumulates expensive intermediate progress.'],
+      ['Checkpoint boundary','The engine selects consistent state and completed partitions.'],
+      ['Durable checkpoint','State and lineage references persist outside worker-local storage.'],
+      ['Worker failure','Volatile task state disappears after a crash.'],
+      ['Restart','The job resumes from the checkpoint instead of recomputing all ancestors.']
+    ]],
+    ['Search & Retrieval::Inverted index',[
+      ['Documents','Source documents enter the analysis pipeline.'],
+      ['Analyzer','Tokenization, normalization, and filtering produce terms.'],
+      ['Term dictionary','Each term maps to its postings location and statistics.'],
+      ['Postings lists','Document IDs, frequencies, and positions are stored per term.'],
+      ['Query evaluator','Posting intersections and unions produce lexical candidates.']
+    ]],
+    ['Search & Retrieval::Forward index',[
+      ['Document ID','A stable document identity selects one forward-index record.'],
+      ['Analyzed fields','The document becomes terms, frequencies, and stored features.'],
+      ['Forward entry','All document-associated terms and values are stored together.'],
+      ['Document update','The old forward entry identifies terms that must be removed.'],
+      ['Downstream use','Ranking, snippets, or inverted-index maintenance reads the entry.']
+    ]],
+    ['Search & Retrieval::TF-IDF',[
+      ['Query term','A query term is matched against candidate documents.'],
+      ['Term frequency','Repeated occurrences increase within-document importance.'],
+      ['Document frequency','Corpus statistics measure how common the term is.'],
+      ['Inverse document frequency','Rare terms receive more global weight than common terms.'],
+      ['Document score','Term weights combine across the query to rank candidates.']
+    ]],
+    ['Search & Retrieval::BM25',[
+      ['Query terms','Analyzed query terms retrieve candidate postings.'],
+      ['Term frequency saturation','Repeated terms add diminishing score gains.'],
+      ['Inverse document frequency','Rare matching terms contribute more score.'],
+      ['Length normalization','Document length adjusts raw term-frequency evidence.'],
+      ['BM25 score','Weighted term contributions sum into lexical ranking.']
+    ]],
+    ['Search & Retrieval::Sharded search',[
+      ['Document router','Each document maps to one search shard by stable partitioning.'],
+      ['Shard indexes','Every shard builds a searchable index for its corpus subset.'],
+      ['Query coordinator','A query targets all or selected relevant shards.'],
+      ['Shard top results','Each shard returns locally ranked candidates and scores.'],
+      ['Global merge','The coordinator merges candidates into one global result page.']
+    ]],
+    ['Search & Retrieval::Scatter-gather search',[
+      ['Coordinator','The frontend parses a query and chooses target shards.'],
+      ['Scatter','Parallel subqueries fan out with a shared deadline.'],
+      ['Shard search','Each shard retrieves and ranks its local candidates.'],
+      ['Gather','Partial top lists and failure metadata return to the coordinator.'],
+      ['Merge','Scores, ties, and partial-result policy produce the response.']
+    ]],
+    ['Search & Retrieval::Query fan-out',[
+      ['User query','One request requires data from multiple index partitions.'],
+      ['Fan-out planner','Routing metadata creates bounded parallel shard requests.'],
+      ['Shard calls','Subqueries run under one propagated deadline and cancellation context.'],
+      ['Tail control','Slow or failed shards are hedged, skipped, or reported by policy.'],
+      ['Result reduction','Partial responses combine into one answer.']
+    ]],
+    ['Search & Retrieval::Query routing',[
+      ['Query features','Terms, filters, language, tenant, or vector metadata are extracted.'],
+      ['Routing index','Metadata identifies shards that may contain matching documents.'],
+      ['Shard selection','Only eligible shards receive the query.'],
+      ['Fallback','Uncertain routing can broaden search to preserve recall.'],
+      ['Feedback','Observed misses and distribution changes update routing metadata.']
+    ]],
+    ['Search & Retrieval::Search index replication',[
+      ['Index primary','One ingest path creates a versioned segment or operation log.'],
+      ['Replica transfer','Immutable segments or ordered updates copy to query replicas.'],
+      ['Replica activation','Checksums and version metadata make a complete version searchable.'],
+      ['Query routing','Traffic spreads across healthy replicas at acceptable freshness.'],
+      ['Replica repair','Lagging copies fetch missing segments or rebuild from source.']
+    ]],
+    ['Search & Retrieval::Index building',[
+      ['Source snapshot','A consistent corpus version defines the build input.'],
+      ['Document pipeline','Parsing and enrichment produce searchable fields.'],
+      ['Analyzer','Text and features become terms, vectors, and statistics.'],
+      ['Segment writer','Sorted postings and stored fields form immutable index segments.'],
+      ['Publish','Validated segments become visible through a versioned manifest.']
+    ]],
+    ['Search & Retrieval::Incremental indexing',[
+      ['Change feed','Creates, updates, and deletes arrive with durable positions.'],
+      ['Document fetch','The indexer obtains the current source version.'],
+      ['Small segment','Changed documents produce a newly searchable immutable segment.'],
+      ['Delete marker','Old document versions are masked by version or tombstone.'],
+      ['Segment merge','Background merging consolidates changes and reclaims obsolete data.']
+    ]],
+    ['Search & Retrieval::Near-real-time indexing',[
+      ['Document update','A source mutation enters the indexing buffer.'],
+      ['In-memory buffer','Analysis creates postings not yet visible to searchers.'],
+      ['Refresh interval','A frequent refresh writes or opens a small segment.'],
+      ['Searcher reopen','Queries atomically see the new index version.'],
+      ['Merge policy','Background merges control small-segment query overhead.']
+    ]],
+    ['Search & Retrieval::Ranking',[
+      ['Candidate set','Retrieval produces documents likely to match the query.'],
+      ['Feature extraction','Lexical, semantic, quality, freshness, and context signals are computed.'],
+      ['Scoring model','A model combines features into comparable scores.'],
+      ['Policy layer','Safety, diversity, and business constraints adjust ordering.'],
+      ['Ranked results','The highest eligible documents form the response.']
+    ]],
+    ['Search & Retrieval::Top-K retrieval',[
+      ['Candidate scores','A shard or operator produces scored candidates.'],
+      ['Bounded heap','Only the best K candidates seen so far are retained.'],
+      ['Threshold','The current worst retained score prunes weaker candidates.'],
+      ['Shard over-fetch','Distributed shards return more than K to protect global recall.'],
+      ['Global top K','The coordinator merges partial heaps into the final K results.']
+    ]],
+    ['Search & Retrieval::Approximate nearest neighbor (ANN)',[
+      ['Query embedding','The query maps to a vector in the indexed metric space.'],
+      ['ANN structure','A graph, partition, or quantized index narrows candidate vectors.'],
+      ['Approximate traversal','The search explores promising regions under a work budget.'],
+      ['Candidate distances','Exact or refined distances score the shortlist.'],
+      ['Nearest results','Top candidates return with measured recall-latency tradeoff.']
+    ]],
+    ['Search & Retrieval::HNSW',[
+      ['Query vector','Search begins at an entry point in the top graph layer.'],
+      ['Upper layers','Greedy hops move quickly toward the query neighborhood.'],
+      ['Layer descent','The best found node seeds search in each denser lower layer.'],
+      ['Base-layer frontier','A bounded candidate queue explores nearby graph neighbors.'],
+      ['Nearest neighbors','The best distance-ranked visited nodes become results.']
+    ]],
+    ['Search & Retrieval::IVF',[
+      ['Training vectors','Clustering learns coarse centroid partitions.'],
+      ['Vector assignment','Each indexed vector joins its nearest centroid list.'],
+      ['Query vector','The query computes distances to coarse centroids.'],
+      ['Probe lists','The nearest configured centroid lists are scanned.'],
+      ['Rerank','Candidate vector distances produce final nearest neighbors.']
+    ]],
+    ['Search & Retrieval::Vector indexes',[
+      ['Embedding pipeline','Documents become versioned vectors from a known model.'],
+      ['Vector index','Vectors enter exact or approximate similarity structures.'],
+      ['Query embedding','The same compatible model embeds the query.'],
+      ['Similarity search','Metric-specific traversal retrieves close candidates.'],
+      ['Filtered ranking','Metadata filters and optional reranking produce final results.']
+    ]],
+    ['Distributed Algorithms::BFS / DFS',[
+      ['Start vertex','Traversal initializes the start as discovered.'],
+      ['Frontier structure','BFS uses a queue while DFS uses a stack or recursion.'],
+      ['Vertex expansion','The next frontier vertex exposes unvisited neighbors.'],
+      ['Discovery marks','Neighbors are marked before enqueue or push to prevent repeats.'],
+      ['Completion','Traversal ends when the frontier is empty or the target is found.']
+    ]],
+    ['Distributed Algorithms::Dijkstra',[
+      ['Source','The source distance is zero and all others begin infinite.'],
+      ['Priority queue','The unsettled vertex with smallest tentative distance is selected.'],
+      ['Edge relaxation','Nonnegative outgoing edges propose shorter neighbor distances.'],
+      ['Settled set','The selected vertex distance becomes final.'],
+      ['Shortest paths','Predecessors reconstruct paths after reachable vertices settle.']
+    ]],
+    ['Distributed Algorithms::Bellman-Ford',[
+      ['Source distances','The source starts at zero and other vertices at infinity.'],
+      ['Edge pass','Every edge attempts to relax its destination distance.'],
+      ['Repeated passes','Up to vertex-count minus one passes propagate shortest paths.'],
+      ['Early stop','A pass with no updates proves convergence.'],
+      ['Cycle check','One more relaxation identifies a reachable negative cycle.']
+    ]],
+    ['Distributed Algorithms::Minimum spanning tree',[
+      ['Weighted graph','Connected vertices and weighted edges define the problem.'],
+      ['Candidate edges','A cut exposes edges that can safely extend connectivity.'],
+      ['Cycle guard','Only edges joining separate components are accepted.'],
+      ['Tree growth','Accepted minimum edges merge components.'],
+      ['Spanning result','Vertex-count minus one edges connect every vertex at minimum cost.']
+    ]],
+    ['Distributed Algorithms::Kruskal',[
+      ['Edge list','All graph edges are ordered by nondecreasing weight.'],
+      ['Union-Find','Each vertex begins in its own component.'],
+      ['Next edge','The lightest remaining edge is examined.'],
+      ['Cycle test','Edges connecting different components are accepted and unioned.'],
+      ['Spanning tree','Processing stops after vertex-count minus one accepted edges.']
+    ]],
+    ['Distributed Algorithms::Prim',[
+      ['Start vertex','One arbitrary vertex seeds the growing tree.'],
+      ['Frontier heap','Edges crossing from the tree to outside vertices enter a min-heap.'],
+      ['Minimum edge','The cheapest edge to an unvisited vertex is selected.'],
+      ['Tree expansion','The new vertex and edge join the tree and add new frontier edges.'],
+      ['Completion','Growth continues until every vertex is included.']
+    ]],
+    ['Distributed Algorithms::Topological sort',[
+      ['Directed graph','Dependencies define edges from prerequisites to dependents.'],
+      ['In-degree table','Each vertex counts unresolved incoming dependencies.'],
+      ['Ready queue','Zero-in-degree vertices are eligible for output.'],
+      ['Edge removal','Output vertices decrement their dependents and unlock new work.'],
+      ['Cycle detection','Remaining vertices after the queue empties prove a cycle.']
+    ]],
+    ['Distributed Algorithms::Union-Find',[
+      ['Singleton sets','Each element starts as its own parent and component.'],
+      ['Find','Parent pointers lead to the representative root.'],
+      ['Path compression','Visited elements point directly toward the representative.'],
+      ['Union by rank','Two roots merge by attaching the shallower tree.'],
+      ['Connectivity query','Equal representatives mean two elements share a component.']
+    ]],
+    ['Distributed Algorithms::Consistent hashing',[
+      ['Hash ring','Members occupy deterministic positions, often through virtual nodes.'],
+      ['Key point','The key hashes into the same circular space.'],
+      ['Owner selection','Clockwise successors select the owner and replicas.'],
+      ['Member change','A member joins, leaves, or changes weight.'],
+      ['Key transfer','Only affected ring intervals move to new owners.']
+    ]],
+    ['Distributed Algorithms::Gossip',[
+      ['Local state','Each member holds its current versioned membership or data summary.'],
+      ['Random peer','Periodically the member selects another peer.'],
+      ['Exchange','Peers send digests and missing newer values.'],
+      ['Merge','Version rules incorporate updates and ignore older duplicates.'],
+      ['Convergence','Repeated exchanges spread state across healthy members.']
+    ]],
+    ['Distributed Algorithms::Leader election',[
+      ['Followers','Participants begin by observing the current term and leader heartbeat.'],
+      ['Election timeout','A follower times out and increments the term.'],
+      ['Candidate','The candidate requests votes with its log or priority evidence.'],
+      ['Quorum','A majority grants one candidate leadership for the term.'],
+      ['Leader','The winner sends heartbeats and stale-term commands are rejected.']
+    ]],
+    ['Distributed Algorithms::Distributed consensus',[
+      ['Proposal','A client value enters a numbered consensus round.'],
+      ['Leader or proposer','One proposer orders the value for a log position.'],
+      ['Quorum replication','A majority durably accepts compatible round state.'],
+      ['Commit','Quorum intersection makes the chosen value survive leader changes.'],
+      ['State machines','Replicas apply committed values in the same order.']
+    ]],
+    ['Distributed Algorithms::Distributed snapshots',[
+      ['Initiator','One process records its local state and sends snapshot markers.'],
+      ['Incoming channels','A process records messages arriving before each channel marker.'],
+      ['Peer processes','First marker receipt triggers local-state recording and marker forwarding.'],
+      ['Channel states','Messages between local recording and marker receipt represent in-flight state.'],
+      ['Global snapshot','Recorded process and channel states form one consistent cut.']
+    ]],
+    ['Distributed Algorithms::Distributed sorting',[
+      ['Input partitions','Workers sample keys from their local unsorted records.'],
+      ['Range boundaries','Aggregated samples choose balanced global key ranges.'],
+      ['Shuffle','Records move to the worker owning their key range.'],
+      ['Local sort','Each worker sorts its received range independently.'],
+      ['Ordered output','Concatenating range partitions yields global order.']
+    ]],
+    ['Distributed Algorithms::Distributed aggregation',[
+      ['Data partitions','Workers hold disjoint portions of the dataset.'],
+      ['Local summaries','Each worker computes mergeable aggregate state.'],
+      ['Reduction tree','Partial states combine through parallel bounded-fan-in levels.'],
+      ['Duplicate guard','Task attempt identities prevent double-counting retried partitions.'],
+      ['Final aggregate','The root merge emits the global result.']
+    ]],
+  ]);
+  const makeVisual = stages => ({
+    nodes:stages.map(([label,state])=>[label,state]),
+    steps:stages.map(([,text],activeIndex)=>[
+      activeIndex,
+      Array.from({length:activeIndex},(_,completedIndex)=>completedIndex),
+      text
+    ])
+  });
+  for (const chapter of window.SYSTEM_DESIGN_CHAPTERS.slice(-9)) {
+    for (const concept of chapter.groups.flatMap(group=>group.concepts)) {
+      const key = `${chapter.title}::${concept.name}`;
+      const stages = visualSpecs.get(key);
+      if (!stages) throw new Error(`Missing visual specification: ${key}`);
+      concept.visual = makeVisual(stages);
+    }
+  }
+}
