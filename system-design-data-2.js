@@ -288,6 +288,385 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
   }
 ];
 
+window.applySystemDesignDiagrams2 = () => {
+    const chapters = window.SYSTEM_DESIGN_CHAPTERS.slice(-9);
+    const kindGroups = {
+      comparison:new Set([
+        'Active-active','Active-passive','Hot standby','Warm standby','Cold standby',
+        'Event time vs processing time','Read/write consistency'
+      ]),
+      timeline:new Set([
+        'Heartbeats','RPO','RTO','Point-in-time recovery','Fixed window','Sliding window',
+        'Sliding window counter','Delayed execution','Retry scheduling','Cron/distributed cron',
+        'Online schema migration','Online reindexing','Backfills','Windowing','Tumbling windows',
+        'Sliding windows','Session windows','Late events','Out-of-order events',
+        'Near-real-time indexing'
+      ]),
+      topology:new Set([
+        'Active-active','Primary/replica','Leaderless databases','Sharding','Replication',
+        'Consistent hashing','Quorum','Hot partitions','Global indexes','Local indexes',
+        'Distributed rate limiting','Global rate limiting','Hierarchical rate limiting',
+        'Sharded schedulers','Scheduler partitioning','Distributed filesystems',
+        'Sharded search','Scatter-gather search','Query fan-out','Query routing',
+        'Search index replication','Gossip','Leader election','Distributed consensus',
+        'Distributed snapshots','Distributed sorting','Distributed aggregation'
+      ]),
+      structure:new Set([
+        'LSM trees','B-trees','SSTables','Write-ahead logs','Memtables','Compaction',
+        'Bloom filters','Indexing','Secondary indexes','Inverted indexes','Sparse indexes',
+        'Covering indexes','Partition indexes','Columnar storage','Row-oriented storage',
+        'Log-structured storage','Inverted index','Forward index','TF-IDF','BM25',
+        'Top-K retrieval','Approximate nearest neighbor (ANN)','HNSW','IVF','Vector indexes',
+        'BFS / DFS','Dijkstra','Bellman-Ford','Minimum spanning tree','Kruskal','Prim',
+        'Topological sort','Union-Find'
+      ])
+    };
+    const validTypes = new Set([
+      'client','gateway','service','database','replica','cache','queue','worker',
+      'control','storage','index','node','clock','bitset'
+    ]);
+    const positions = {
+      architecture:[[8,24],[36,24],[64,24],[92,24],[22,72],[50,72],[78,72]],
+      sequence:[[8,30],[29,70],[50,30],[71,70],[92,30],[50,88],[50,12]],
+      timeline:[[8,50],[29,50],[50,50],[71,50],[92,50],[50,78],[50,22]],
+      structure:[[50,8],[25,36],[75,36],[8,72],[36,72],[64,72],[92,72]],
+      comparison:[[18,18],[82,18],[18,50],[82,50],[18,82],[82,82],[50,92]]
+    };
+    const topologyPositions = count => Array.from({length:count},(_,index)=>{
+      const angle = -Math.PI / 2 + index * Math.PI * 2 / count;
+      return [Math.round(50 + 40 * Math.cos(angle)),Math.round(50 + 40 * Math.sin(angle))];
+    });
+    const riskWords = /\b(fail|failure|unhealthy|reject|overflow|late|expired|disaster|corrupt|slow|stale|missed|negative cycle|overload|skew|straggler|split brain)\b/i;
+    const componentType = (label,detail) => {
+      const value = `${label} ${detail}`.toLowerCase();
+      if (/\b(bloom|bit array|bitset)\b/.test(value)) return 'bitset';
+      if (/\b(index|postings|dictionary|trie|heap|tree|union-find|hash table|graph layer|centroid)\b/.test(value)) return 'index';
+      if (/\b(replica|standby|follower|primary|leader)\b/.test(value)) return 'replica';
+      if (/\b(queue|shuffle|frontier|buffer|bucket)\b/.test(value)) return 'queue';
+      if (/\b(wal|log|file|block|object|snapshot|backup|segment|sstable|vault|volume|chunk)\b/.test(value)) return 'storage';
+      if (/\b(database|record|table|state backend|accumulator|deduplication store|job store|manifest)\b/.test(value)) return 'database';
+      if (/\b(cache|cached)\b/.test(value)) return 'cache';
+      if (/\b(worker|mapper|reducer|operator|task|combiner|activity)\b/.test(value)) return 'worker';
+      if (/\b(clock|timer|time|watermark|deadline|window boundary|schedule)\b/.test(value)) return 'clock';
+      if (/\b(router|gateway|load balancer|traffic director|coordinator|frontend)\b/.test(value)) return 'gateway';
+      if (/\b(client|user|request|query|producer|source event|incoming burst)\b/.test(value)) return 'client';
+      if (/\b(controller|monitor|detector|policy|quorum|election|scheduler|admission|limiter|allocator)\b/.test(value)) return 'control';
+      if (/\b(service|sink|processor|engine|pipeline)\b/.test(value)) return 'service';
+      return 'node';
+    };
+    const conceptKind = concept => {
+      for (const kind of ['comparison','timeline','structure','topology']) {
+        if (kindGroups[kind].has(concept.name)) return kind;
+      }
+      if (/\b(execution|processing|transaction|failover|recovery|restore|replay|join|aggregation|scheduling)\b/i.test(concept.name)) return 'sequence';
+      return 'architecture';
+    };
+    const makeComponents = (kind,visualNodes) => {
+      const layout = kind === 'topology' ? topologyPositions(visualNodes.length) : positions[kind];
+      return visualNodes.map(([label,detail],index)=>{
+        const [x,y] = layout[index];
+        return [`c${index}`,label,detail,componentType(label,detail),x,y];
+      });
+    };
+    const linkLabel = (from,to) => {
+      const source = `${from[1]} ${from[2]}`.toLowerCase();
+      const target = `${to[1]} ${to[2]}`.toLowerCase();
+      const path = `${source} ${target}`;
+      if (/\b(reject|overflow|throttle response)\b/.test(target)) return 'reject excess traffic';
+      if (/\b(late event|late update|late path)\b/.test(target)) return 'apply late event policy';
+      if (/\b(failover|promotion|promote|new leader)\b/.test(target)) return 'promote new owner';
+      if (/\b(failure|unhealthy|suspected|missed deadline|disaster)\b/.test(target)) return 'report failure';
+      if (/\b(health|heartbeat|probe)\b/.test(target)) return 'health probe';
+      if (/\b(traffic|route|router|load balancer)\b/.test(target)) return 'publish route epoch';
+      if (/\b(replica|standby|follower)\b/.test(target)) return 'replicate state';
+      if (/\b(quorum|majority|vote|candidate|election)\b/.test(target)) return 'collect quorum';
+      if (/\b(refill|tokens accumulate)\b/.test(target)) return 'refill tokens';
+      if (/\b(token|bucket)\b/.test(target)) return 'consume token';
+      if (/\b(admission|limit check|decision|throttl)\b/.test(target)) return 'admit or reject';
+      if (/\b(retry)\b/.test(target)) return 'schedule retry';
+      if (/\b(lease renewal|renew)\b/.test(target)) return 'renew lease';
+      if (/\b(lease|claim|ownership)\b/.test(target)) return 'claim ownership';
+      if (/\b(queue|enqueue|ready set|frontier)\b/.test(target)) return 'enqueue work';
+      if (/\b(timer|clock|due instant|activation|window boundary)\b/.test(target)) return 'advance timer';
+      if (/\b(watermark)\b/.test(target)) return 'advance watermark';
+      if (/\b(window state|window aggregate|session state)\b/.test(target)) return 'update window state';
+      if (/\b(checkpoint)\b/.test(target)) return 'commit checkpoint';
+      if (/\b(write-ahead|wal|log record|durable append)\b/.test(target)) return 'append WAL';
+      if (/\b(memtable)\b/.test(target)) return 'update memtable';
+      if (/\b(sstable|flush)\b/.test(target)) return 'flush SSTable';
+      if (/\b(compaction|merge iterator|merged run)\b/.test(target)) return 'compact sorted runs';
+      if (/\b(bloom|membership test|bit array)\b/.test(target)) return 'test membership';
+      if (/\b(index|postings|dictionary)\b/.test(target)) return 'update index';
+      if (/\b(mapper|map task|map input)\b/.test(target)) return 'dispatch map task';
+      if (/\b(shuffle)\b/.test(target)) return 'shuffle by key';
+      if (/\b(reducer|reduce task|reduce function)\b/.test(target)) return 'dispatch reduce task';
+      if (/\b(join)\b/.test(target)) return 'join matching keys';
+      if (/\b(aggregate|accumulator|summary|combiner)\b/.test(target)) return 'merge partial aggregate';
+      if (/\b(sort|ordered output)\b/.test(target)) return 'sort partition';
+      if (/\b(relax|distance)\b/.test(target)) return 'relax edge';
+      if (/\b(cycle)\b/.test(target)) return 'detect cycle';
+      if (/\b(union|component)\b/.test(target)) return 'union components';
+      if (/\b(embedding)\b/.test(target)) return 'compute embedding';
+      if (/\b(vector|nearest)\b/.test(target)) return 'search vector index';
+      if (/\b(rank|score|top k|top-k)\b/.test(target)) return 'rank candidates';
+      if (/\b(candidate)\b/.test(target)) return 'retrieve candidates';
+      if (/\b(sink|result|output|response)\b/.test(target)) return 'emit result';
+      if (/\b(restore|recovery|recovered)\b/.test(target)) return 'restore service';
+      if (/\b(validate|verification|integrity check)\b/.test(target)) return 'verify integrity';
+      if (/\b(delete|cleanup|eviction|garbage collection)\b/.test(target)) return 'reclaim obsolete state';
+      if (/\b(replication)\b/.test(path)) return 'replicate commit log';
+      switch (to[3]) {
+        case 'client': return 'deliver response';
+        case 'gateway': return 'route request';
+        case 'service': return 'invoke service';
+        case 'database': return 'persist state';
+        case 'replica': return 'replicate state';
+        case 'cache': return 'update cache';
+        case 'queue': return 'enqueue work';
+        case 'worker': return 'dispatch work';
+        case 'control': return 'publish control decision';
+        case 'storage': return 'persist data';
+        case 'index': return 'query index';
+        case 'clock': return 'advance logical time';
+        case 'bitset': return 'test membership';
+        default: return 'advance computation';
+      }
+    };
+    const makeLinks = (kind,components) => {
+      if (kind === 'structure') {
+        return components.slice(1).map((component,index)=>[
+          components[Math.floor(index / 2)][0],component[0],
+          linkLabel(components[Math.floor(index / 2)],component)
+        ]);
+      }
+      if (kind === 'comparison') {
+        return components.slice(1).map(component=>[
+          components[0][0],component[0],linkLabel(components[0],component)
+        ]);
+      }
+      return components.slice(1).map((component,index)=>[
+        components[index][0],component[0],linkLabel(components[index],component)
+      ]);
+    };
+    const makeFrames = (concept,components,links,focusIds) => concept.visual.steps.map((step,index)=>{
+      const focusIndex = Math.min(index,(focusIds || components.map(component=>component[0])).length - 1);
+      const focusId = (focusIds || components.map(component=>component[0]))[focusIndex];
+      const states = {};
+      for (let prior = 0; prior < focusIndex; prior++) {
+        states[(focusIds || components.map(component=>component[0]))[prior]] = 'done';
+      }
+      states[focusId] = riskWords.test(step[2]) ? 'risk' : 'active';
+      return [index === 0 ? -1 : Math.min(index - 1,links.length - 1),states];
+    });
+    const overrides = new Map([
+      ['Resilience Patterns::Active-passive',{
+        kind:'architecture',
+        components:[
+          ['client','Checkout clients','Send production requests','client'],
+          ['lb','Global load balancer','Routes only to the active site','gateway'],
+          ['primary','Active primary','Serves traffic and orders writes','replica'],
+          ['replica','Passive replica','Continuously applies replicated changes','replica'],
+          ['monitor','Health monitor','Confirms primary failure across several probes','control'],
+          ['promoter','Failover controller','Fences the old epoch and promotes the replica','control']
+        ],
+        links:[
+          ['client','lb','HTTPS requests'],
+          ['lb','primary','route active traffic'],
+          ['primary','replica','replicate commit log'],
+          ['monitor','primary','probe health'],
+          ['monitor','promoter','declare failure'],
+          ['promoter','replica','promote with new epoch'],
+          ['promoter','lb','switch route']
+        ],
+        focus:['primary','replica','monitor','promoter','lb']
+      }],
+      ['Resilience Patterns::Automatic failover',{
+        kind:'sequence',
+        components:[
+          ['client','API clients','Continue sending requests through one stable endpoint','client'],
+          ['router','Traffic router','Routes to the currently preferred service cell','gateway'],
+          ['primary','Preferred cell','Serves requests before the outage','service'],
+          ['standby','Recovery cell','Replicates data and reserves failover capacity','replica'],
+          ['health','Failover health policy','Combines probes, lag, and capacity signals','control'],
+          ['control','Failover automation','Changes ownership and routing by epoch','control']
+        ],
+        links:[
+          ['client','router','request'],
+          ['router','primary','normal route'],
+          ['primary','standby','replicate'],
+          ['health','primary','probe'],
+          ['health','control','trigger after threshold'],
+          ['control','standby','promote'],
+          ['control','router','publish new route']
+        ],
+        focus:['primary','health','standby','control','router']
+      }],
+      ['Rate Limiting & Traffic Management::Token bucket',{
+        kind:'architecture',
+        components:[
+          ['client','Mobile clients','Generate bursty API requests','client'],
+          ['ingress','API gateway','Extracts the tenant and operation cost','gateway'],
+          ['limiter','Distributed token limiter','Atomically checks and consumes allowance','control'],
+          ['tokens','Token store','Refills to burst capacity at the steady rate','database'],
+          ['service','Orders service','Receives only admitted requests','service'],
+          ['reject','Throttle response','Returns retry guidance when tokens are insufficient','queue']
+        ],
+        links:[
+          ['client','ingress','API request'],
+          ['ingress','limiter','check tenant bucket'],
+          ['tokens','limiter','refill and current balance'],
+          ['limiter','tokens','consume token'],
+          ['limiter','service','admit'],
+          ['limiter','reject','reject'],
+          ['reject','client','429 with retry-after']
+        ],
+        focus:['tokens','limiter','ingress','service','reject']
+      }],
+      ['Storage Systems::LSM trees',{
+        kind:'structure',
+        components:[
+          ['writer','Write client','Submits a key-value mutation','client'],
+          ['wal','Write-ahead log','Durably appends the mutation before acknowledgment','storage'],
+          ['mem','Sorted memtable','Holds recent versions in memory','database'],
+          ['l0','Level-0 SSTables','Receive immutable memtable flushes','storage'],
+          ['levels','Sorted SSTable levels','Store non-overlapping durable key ranges','storage'],
+          ['compact','Compaction workers','Merge files and discard obsolete versions','worker'],
+          ['reader','Read path','Checks memory, filters, indexes, and candidate files','service']
+        ],
+        links:[
+          ['writer','wal','append'],
+          ['wal','mem','apply'],
+          ['mem','l0','flush immutable table'],
+          ['l0','compact','select overlapping files'],
+          ['levels','compact','merge older levels'],
+          ['compact','levels','write compacted files'],
+          ['reader','mem','check newest version'],
+          ['reader','levels','probe Bloom filters and indexes']
+        ],
+        focus:['writer','wal','mem','l0','compact']
+      }],
+      ['Streaming & Real-Time Processing::Watermarks',{
+        kind:'timeline',
+        components:[
+          ['p0','Orders partition A','Emits event times 10:01 then 10:04','queue'],
+          ['p1','Orders partition B','Delays an event timestamped 10:02','queue'],
+          ['operator','Event-time operator','Tracks progress for each input partition','worker'],
+          ['watermark','Global watermark','Uses safe partition progress to advance event time','clock'],
+          ['window','10:00-10:05 window state','Retains the keyed aggregate until closure','database'],
+          ['sink','Revenue dashboard','Receives initial results and late corrections','service']
+        ],
+        links:[
+          ['p0','operator','ordered events'],
+          ['p1','operator','out-of-order event'],
+          ['operator','watermark','partition progress'],
+          ['operator','window','update aggregate'],
+          ['watermark','window','close when end is passed'],
+          ['window','sink','emit result'],
+          ['p1','window','late update by policy']
+        ],
+        focus:['p0','p1','watermark','window','sink']
+      }],
+      ['Distributed Data Processing::MapReduce',{
+        kind:'architecture',
+        components:[
+          ['files','Web log files','Partitioned input blocks in distributed storage','storage'],
+          ['mapA','Mapper A','Emits URL and local count pairs','worker'],
+          ['mapB','Mapper B','Emits URL and local count pairs','worker'],
+          ['shuffle','Shuffle service','Partitions and transfers pairs by URL','queue'],
+          ['reduceA','Reducer A','Sums all counts for its URL range','worker'],
+          ['reduceB','Reducer B','Sums all counts for its URL range','worker'],
+          ['results','Count files','Commit partitioned global URL totals','storage']
+        ],
+        links:[
+          ['files','mapA','input split A'],
+          ['files','mapB','input split B'],
+          ['mapA','shuffle','intermediate pairs'],
+          ['mapB','shuffle','intermediate pairs'],
+          ['shuffle','reduceA','partition A'],
+          ['shuffle','reduceB','partition B'],
+          ['reduceA','results','commit totals'],
+          ['reduceB','results','commit totals']
+        ],
+        focus:['files','mapA','shuffle','reduceA','results']
+      }],
+      ['Search & Retrieval::HNSW',{
+        kind:'structure',
+        components:[
+          ['query','Query embedding','Starts at the graph entry point','client'],
+          ['top','Sparse top layer','Provides long-range greedy navigation','index'],
+          ['middle','Middle proximity layer','Refines the candidate neighborhood','index'],
+          ['baseA','Base node cluster A','Dense local vector neighbors','node'],
+          ['baseB','Base node cluster B','Adjacent dense vector neighborhood','node'],
+          ['frontier','Candidate frontier','Keeps the best efSearch nodes to expand','queue'],
+          ['nearest','Nearest vectors','Returns the best distance-ranked neighbors','index']
+        ],
+        links:[
+          ['query','top','enter graph'],
+          ['top','middle','greedy descent'],
+          ['middle','baseA','descend near query'],
+          ['baseA','baseB','proximity edge'],
+          ['baseA','frontier','enqueue candidate'],
+          ['baseB','frontier','enqueue candidate'],
+          ['frontier','nearest','select top neighbors']
+        ],
+        focus:['query','top','middle','frontier','nearest']
+      }],
+      ['Distributed Algorithms::Topological sort',{
+        kind:'structure',
+        components:[
+          ['ready','Ready queue','Contains vertices with zero unresolved dependencies','queue'],
+          ['compile','Compile schema','Dependency-free build task','node'],
+          ['generate','Generate client','Depends on compiled schema','node'],
+          ['test','Run tests','Depends on generated client','node'],
+          ['package','Package release','Depends on passing tests','node'],
+          ['indegree','In-degree table','Tracks each vertex unresolved prerequisites','index']
+        ],
+        links:[
+          ['compile','generate','must precede'],
+          ['generate','test','must precede'],
+          ['test','package','must precede'],
+          ['indegree','ready','enqueue zero in-degree'],
+          ['ready','compile','dequeue'],
+          ['compile','indegree','decrement dependents'],
+          ['generate','indegree','decrement dependents']
+        ],
+        focus:['indegree','ready','compile','generate','package']
+      }]
+    ]);
+    const materializeOverride = override => {
+      const layout = override.kind === 'topology'
+        ? topologyPositions(override.components.length)
+        : positions[override.kind];
+      return {
+        kind:override.kind,
+        components:override.components.map((component,index)=>[
+          ...component,...layout[index]
+        ]),
+        links:override.links.map(link=>[...link]),
+        focus:override.focus
+      };
+    };
+    for (const chapter of chapters) {
+      for (const concept of chapter.groups.flatMap(group=>group.concepts)) {
+        const key = `${chapter.title}::${concept.name}`;
+        const override = overrides.get(key);
+        const base = override
+          ? materializeOverride(override)
+          : (() => {
+              const kind = conceptKind(concept);
+              const components = makeComponents(kind,concept.visual.nodes);
+              return {kind,components,links:makeLinks(kind,components)};
+            })();
+        concept.diagram = {
+          kind:base.kind,
+          components:base.components,
+          links:base.links,
+          frames:makeFrames(concept,base.components,base.links,base.focus)
+        };
+      }
+    }
+};
+
 {
   const visualSpecs = new Map([
     ['Resilience Patterns::Active-active',[
@@ -1385,3 +1764,6 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
     }
   }
 }
+
+window.applySystemDesignDiagrams2();
+delete window.applySystemDesignDiagrams2;

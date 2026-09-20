@@ -15,8 +15,9 @@
     .matrix{width:100%;border-collapse:collapse}.matrix th,.matrix td{text-align:left;padding:11px;border-bottom:1px solid #ffffff12}.matrix th{color:var(--cyan)}.matrix td{color:var(--muted)}.matrix td:first-child{color:var(--ink);font-weight:700}
     .toggle-row{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.mode{padding:9px 13px;border:1px solid #ffffff1a;border-radius:999px;background:transparent;color:var(--muted)}.mode.active{color:var(--cyan);border-color:#4de2ff77;background:#4de2ff15}
     .check-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.check{padding:11px;border:1px solid #ffffff14;border-radius:9px;color:var(--muted);background:#ffffff05}.check:before{content:"✓";color:var(--green);font-weight:900;margin-right:8px}
+    .cache-architecture{position:relative;min-height:430px;overflow:hidden;border-radius:14px;background:radial-gradient(circle,#ffffff0b 1px,transparent 1px);background-size:22px 22px}.cache-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.cache-link{stroke:#607da5;stroke-width:.65;fill:none}.cache-link.done{stroke:var(--green)}.cache-link.active{stroke:var(--yellow);stroke-width:1.1;stroke-dasharray:3 2}.cache-link-label{fill:#afc2da;font-size:2.6px;text-anchor:middle;paint-order:stroke;stroke:#0b1728;stroke-width:1.1px;stroke-linejoin:round}.cache-component{position:absolute;width:132px;min-height:67px;padding:10px;translate:-50% -50%;border:2px solid #607da5;border-radius:12px;background:#152944;text-align:center;transition:border-color .2s,background .2s}.cache-component b{display:block;font-size:13px}.cache-component small{display:block;margin-top:4px;color:var(--muted);font-size:10px}.cache-component.done{border-color:var(--green);background:#54e38e16}.cache-component.active{border-color:var(--yellow);background:#ffd16624}.cache-component.risk{border-color:var(--red);background:#ff6b7a16}.cache-facts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.cache-fact{padding:11px;border:1px solid #ffffff14;border-radius:10px;background:#ffffff05}.cache-fact b{display:block;color:var(--cyan);font-size:12px}.cache-fact span{color:var(--muted);font-size:12px}.formula{padding:14px;border:1px solid #4de2ff44;border-radius:12px;background:#4de2ff09;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#c8f6ff}.callout-risk{border-left:3px solid var(--red);padding:12px;background:#ff6b7a09;color:var(--muted)}
     .sources a{color:var(--cyan)}.mini{font-size:13px;color:var(--muted)}
-    @media(max-width:900px){.identity-flow{grid-template-columns:1fr}.identity-arrow{transform:rotate(90deg)}}
+    @media(max-width:900px){.identity-flow{grid-template-columns:1fr}.identity-arrow{transform:rotate(90deg)}.cache-component{width:112px}.cache-facts{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -29,8 +30,9 @@
     <nav>
       <a href="#start">01 · What is an agent?</a><a href="#loop">02 · Agent loop</a><a href="#rag">03 · RAG</a>
       <a href="#mcp">04 · MCP</a><a href="#identity">05 · Agentic identity</a><a href="#sandbox">06 · Sandboxes</a>
-      <a href="#memory">07 · Context & memory</a><a href="#orchestration">08 · Orchestration</a>
-      <a href="#production">09 · Production systems</a><a href="#security">10 · Security</a><a href="#cheat">11 · Cheat sheet</a>
+      <a href="#memory">07 · Context & memory</a><a href="#inference-cache">08 · Inference caches</a>
+      <a href="#orchestration">09 · Orchestration</a><a href="#production">10 · Production systems</a>
+      <a href="#security">11 · Security</a><a href="#cheat">12 · Cheat sheet</a>
     </nav>
   </aside>
   <main>
@@ -121,6 +123,42 @@
         <div class="card"><h3>Read policy</h3><p>Retrieve by relevance <i>and</i> authorization. Prefer fresh source-of-truth reads for consequential decisions.</p></div>
         <div class="card"><h3>Compaction</h3><p>Summaries save tokens but lose detail. Preserve decisions, unresolved questions, evidence links, and exact constraints.</p></div>
       </div>
+    </section>
+
+    <section id="inference-cache">
+      <div class="eyebrow">LLM inference performance</div><h2>Prefix caching avoids repeated prefill; KV caching avoids repeated attention work.</h2>
+      <p class="lede">These terms are related but not interchangeable. A request-local KV cache stores attention keys and values already computed for prior tokens. A prefix cache lets later requests reuse compatible KV blocks from an identical token prefix. Neither is the same as caching the final answer.</p>
+
+      <table class="matrix"><tr><th>Cache</th><th>Key → value</th><th>What it saves</th><th>Correctness boundary</th></tr>
+        <tr><td>Response cache</td><td>Exact request → final response</td><td>Entire inference</td><td>Only safe when the answer may be reused as-is</td></tr>
+        <tr><td>Semantic response cache</td><td>Similar meaning → prior response</td><td>Entire inference</td><td>Approximate; dangerous for fresh, personal, or consequential answers</td></tr>
+        <tr><td>Prompt / prefix cache</td><td>Exact token blocks → reusable KV blocks</td><td>Repeated prefill for the shared prefix</td><td>Model execution identity, exact tokens, positions, tenant, and policy must match</td></tr>
+        <tr><td>Active KV cache</td><td>Sequence + layer + position → K/V tensors</td><td>Recomputing earlier tokens during decode</td><td>Belongs to that sequence except explicitly shared immutable prefix pages</td></tr>
+        <tr><td>RAG / tool cache</td><td>Authorized query or call → evidence/result</td><td>Retrieval, embedding, or tool latency</td><td>Freshness, ACL, tenant, arguments, and side effects define reuse</td></tr>
+      </table>
+
+      <div class="lab" style="margin-top:18px"><div class="stage"><div class="controls"><button class="control" id="kvReset">↺ Reset</button><button class="control primary" id="kvStep">Step →</button></div><div class="visual"><div class="cache-architecture" id="kvArchitecture"></div></div></div><div class="inspector"><h3 id="kvTitle"></h3><div class="status" id="kvStatus"></div><div class="cache-facts"><div class="cache-fact"><b>Performance effect</b><span id="kvSaving"></span></div><div class="cache-fact"><b>Correctness / security check</b><span id="kvRisk"></span></div></div></div></div>
+
+      <div class="grid">
+        <div class="card"><h3>Prefill vs. decode</h3><p><b>Prefill</b> processes all prompt tokens in parallel and creates per-layer K/V tensors. <b>Decode</b> generates one token at a time, reading prior K/V and appending one new position. Prefix caching mainly reduces time to first token; active KV caching makes autoregressive decode practical.</p></div>
+        <div class="card"><h3>What makes a prefix reusable?</h3><p>The token IDs and their order must match through a block boundary. The cache key also needs the model/version, tokenizer and template, adapter or LoRA, positional configuration, and isolation scope. Sampling temperature does not change prefill tensors, but changing an earlier token invalidates every later block.</p></div>
+        <div class="card"><h3>Stable prefix first</h3><p>Place stable system instructions, tool schemas, and reusable documents before volatile user input. Keep ordering and serialization deterministic. A timestamp, random ID, or reordered tool list near the front destroys the longest-prefix match.</p></div>
+        <div class="card"><h3>Paged attention</h3><p>Store KV tensors in fixed-size physical blocks rather than one contiguous allocation. A block table maps logical token positions to pages, allowing non-contiguous allocation, prefix sharing, copy-on-write after divergence, and less fragmentation.</p></div>
+        <div class="card"><h3>Radix tree / block hash index</h3><p>A radix tree finds the longest cached token prefix; a content-addressed block index hashes each token block plus its parent identity. Entries reference immutable KV pages. Hash equality must still be scoped to compatible execution and security domains.</p></div>
+        <div class="card"><h3>Continuous batching</h3><p>The scheduler mixes prefill and one-token decode work from many requests. Chunked prefill prevents a large prompt from starving decode. Prefix hits free compute, but active sequences still consume KV memory and scheduler slots.</p></div>
+        <div class="card"><h3>Eviction and admission</h3><p>KV memory is finite. Track block reference counts, pin active pages, and evict only unreferenced prefixes using LRU/LFU, size-aware, or cost-aware policy. Admission may reject one-off prefixes whose storage cost exceeds expected reuse.</p></div>
+        <div class="card"><h3>Distributed serving</h3><p>A prefix hit is useful only where its KV pages reside. Use sticky routing, cache-aware scheduling, replicated hot prefixes, or disaggregated KV storage. Moving large KV tensors across the network can erase the compute savings.</p></div>
+        <div class="card"><h3>Metrics that matter</h3><p>Track token/block hit rate, reused prompt tokens, prefill tokens per second, time to first token, inter-token latency, KV bytes, fragmentation, eviction churn, queue time, and hit rate segmented by tenant and prompt class.</p></div>
+      </div>
+
+      <div class="grid">
+        <div class="card full"><h3>KV memory sizing</h3><div class="formula">bytes ≈ 2 × layers × tokens × KV-heads × head-dimension × bytes-per-element</div><p>The factor 2 is for keys and values. With grouped-query attention, use <b>KV heads</b>, not total query heads. Example: 32 layers × 8 KV heads × 128 dimensions × 8,192 tokens × BF16 × K/V ≈ <b>1 GiB per sequence</b> before allocator overhead. Quantized KV reduces memory at a possible quality or kernel cost.</p></div>
+        <div class="card"><h3>Reuse example</h3><p>Requests share a 20K-token policy manual and differ only in the final question. The first request performs full prefill. Later exact-prefix hits attach the shared immutable KV pages, prefill only the suffix, then allocate private pages as generation diverges.</p></div>
+        <div class="card"><h3>What a hit does not save</h3><p>The model still decodes new output tokens, attends over the context, reserves active KV capacity, and may rerun any unmatched suffix. A high prefix-token hit rate does not guarantee low queueing or low inter-token latency.</p></div>
+        <div class="card"><h3>Isolation failure</h3><p>Never use a cross-tenant cache key based only on raw tokens. Scope or encrypt entries, avoid logging sensitive prompts, prevent timing-based cache probes, and purge data according to retention policy. Shared public prefixes and private conversation prefixes need different policy.</p></div>
+        <div class="card"><h3>Related caches</h3><p>Model-weight residency avoids reloads; tokenizer and compiled-kernel caches reduce setup; embedding and retrieval caches reduce RAG work; tool caches reduce deterministic read calls. Each needs its own freshness, authorization, invalidation, and observability contract.</p></div>
+      </div>
+      <div class="callout-risk"><b>Interview trap:</b> “KV cache” is not a map from prompts to answers. Describe where tensors live, whether reuse is within one sequence or across requests, how exact prefixes are identified, what invalidates a page, and how the scheduler protects isolation and memory.</div>
     </section>
 
     <section id="orchestration">
@@ -229,6 +267,50 @@
     app:{cards:['Scheduler','Agent identity','Token service','Tool/API','Scoped resource'],status:'The agent acts as itself. Use a dedicated managed or federated workload identity, short-lived tokens, narrow resource roles, and no shared secrets.'},
     jit:{cards:['Agent proposal','Policy engine','Human approval','JIT token','High-impact action'],status:'Elevation is temporary and bound to the exact normalized action, target, approver, expiry, and correlation ID. The executor independently verifies it.'}
   };
+  const kvArchitecture={
+    components:[
+      ['client','Request','stable prefix + unique suffix',11,20],
+      ['tokenizer','Tokenizer','deterministic token IDs',33,20],
+      ['index','Prefix index','longest block match',57,20],
+      ['prefill','Prefill engine','compute missing K/V',82,20],
+      ['pool','KV block pool','paged GPU memory',57,57],
+      ['decode','Decode scheduler','continuous batching',82,57],
+      ['output','Token stream','new tokens to client',82,86]
+    ],
+    links:[
+      [0,1,'tokenize'],[1,2,'lookup token blocks'],[2,4,'attach cached pages'],
+      [2,3,'send unmatched suffix'],[3,4,'store new K/V pages'],
+      [4,5,'read prior K/V'],[5,4,'append one position'],[5,6,'stream token']
+    ],
+    steps:[
+      [0,0,[],[],'Tokenize the complete request','The server uses the exact chat template and tokenizer to produce stable token IDs.','No saving yet. Prefix identity begins at tokenization.','A template, tokenizer, model, adapter, or positional-config change must produce a different cache namespace.'],
+      [1,2,[0],[0,1],'Find the longest cached prefix','The prefix index matches immutable token blocks from the start of the request.','A hit skips prefill for all matched blocks and lowers time to first token.','Match exact tokens and positions; scope the lookup by tenant and execution identity.'],
+      [2,4,[0,1],[0,1,2],'Attach shared KV pages','The sequence block table references existing K/V pages and increments their reference counts.','Many requests can share one physical copy of a large stable prefix.','Shared pages stay immutable; use copy-on-write when sequences diverge.'],
+      [3,3,[0,1,2],[0,1,2,4],'Prefill only the unmatched suffix','Attention computes K/V for the first uncached block onward, including the unique user query.','Compute cost is proportional to the miss suffix rather than the full prompt.','One changed early token invalidates all descendant blocks, so stable content belongs first.'],
+      [4,4,[0,1,2,3],[0,1,2,3],'Store reusable new blocks','Completed full blocks enter the pool and index; private or low-value blocks may remain request-local.','Future compatible requests can extend the cached prefix.','Admission, TTL, reference counts, and eviction must prevent memory churn or active-page removal.'],
+      [5,5,[0,1,2,3,4],[0,1,2,3,4],'Decode one token at a time','The scheduler reads prior K/V, emits one token, and appends that token’s new K/V position.','Active KV avoids recomputing every prior token on each decode step.','Long contexts still increase attention and memory cost; enforce per-request token and KV budgets.'],
+      [7,6,[0,1,2,3,4,5,6],[0,1,2,3,4,5],'Stream output and release pages','Tokens stream to the client. On completion, private pages are freed and shared-prefix references are decremented.','Prompt work may be reused while generated output remains request-specific.','Cancellation and disconnect paths must release references; leaked pages become GPU-memory leaks.']
+    ]
+  };
+  let kvStep=0;
+  function drawKv(){
+    const step=kvArchitecture.steps[kvStep];
+    const width=100,height=100;
+    const links=kvArchitecture.links.map(([from,to,label],index)=>{
+      const a=kvArchitecture.components[from],b=kvArchitecture.components[to],state=index===step[0]?'active':step[2].includes(index)?'done':'';
+      const mx=(a[3]+b[3])/2,my=(a[4]+b[4])/2;
+      return `<line class="cache-link ${state}" x1="${a[3]}" y1="${a[4]}" x2="${b[3]}" y2="${b[4]}" marker-end="url(#kvArrow)"></line><text class="cache-link-label" x="${mx}" y="${my-1.5}">${label}</text>`;
+    }).join('');
+    const components=kvArchitecture.components.map((component,index)=>{
+      const state=index===step[1]?'active':step[3].includes(index)?'done':'';
+      return `<div class="cache-component ${state}" style="left:${component[3]}%;top:${component[4]}%"><b>${component[1]}</b><small>${component[2]}</small></div>`;
+    }).join('');
+    $('#kvArchitecture').innerHTML=`<svg class="cache-links" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><defs><marker id="kvArrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="context-stroke"></path></marker></defs>${links}</svg>${components}`;
+    $('#kvTitle').textContent=`Step ${kvStep+1}/${kvArchitecture.steps.length} · ${step[4]}`;
+    $('#kvStatus').textContent=step[5];$('#kvSaving').textContent=step[6];$('#kvRisk').textContent=step[7];
+    $('#kvStep').disabled=kvStep===kvArchitecture.steps.length-1;
+  }
+  $('#kvReset').onclick=()=>{kvStep=0;drawKv()};$('#kvStep').onclick=()=>{if(kvStep<kvArchitecture.steps.length-1){kvStep++;drawKv()}};drawKv();
   function drawIdentity(mode){const d=identities[mode];$('#identityFlow').innerHTML=d.cards.map((x,i)=>`<div class="identity-card active">${x}</div>${i<d.cards.length-1?'<div class="identity-arrow">→</div>':''}`).join('');$('#identityStatus').textContent=d.status;$$('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode))}
   $$('.mode').forEach(b=>b.onclick=()=>drawIdentity(b.dataset.mode));drawIdentity('delegated');
   $('#present').onclick=()=>{document.body.classList.toggle('presentation');$('#present').textContent=document.body.classList.contains('presentation')?'✕ Exit':'⛶ Presentation'};

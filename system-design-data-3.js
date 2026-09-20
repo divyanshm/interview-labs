@@ -14,6 +14,11 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
         {name:'Server-side load balancing',summary:'A proxy or load balancer selects backends on behalf of clients.',tradeoff:'The shared tier adds latency and capacity risk.'},
         {name:'Request routing',summary:'Routing selects a destination using path, identity, version, locality, or health.',tradeoff:'Complex rules become difficult to reason about.'}
       ]},
+      {title:'Realtime delivery',concepts:[
+        {name:'Long polling',summary:'Long polling holds an HTTP request until an event or timeout, then the client reconnects immediately.',tradeoff:'Repeated requests and held connections consume gateway and server capacity.'},
+        {name:'Server-Sent Events (SSE)',summary:'SSE keeps one HTTP response open for a server-to-client event stream with built-in reconnect support.',tradeoff:'It is one-way and intermediaries must support long-lived streaming responses.'},
+        {name:'WebSockets',summary:'WebSockets upgrade HTTP to a persistent full-duplex framed connection for low-latency bidirectional messaging.',tradeoff:'Connection ownership, fan-out, backpressure, and recovery complicate horizontal scaling.'}
+      ]},
       {title:'Service networking',concepts:[
         {name:'Service mesh',summary:'A service mesh standardizes transport security, telemetry, and traffic policy between services.',tradeoff:'It adds infrastructure and debugging complexity.'},
         {name:'Sidecars',summary:'Sidecars colocate networking or policy capabilities beside each workload instance.',tradeoff:'Per-instance proxies consume resources and obscure call paths.'},
@@ -287,6 +292,9 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Client-side load balancing',[['Registry','endpoint set'],['Client library','local policy'],['Instance A','healthy'],['Instance B','healthy']],['Client refreshes endpoints from discovery.','Local policy filters health and locality.','Client selects one instance directly.','Failures update local state and influence the next selection.']],
     ['Server-side load balancing',[['Client','single address'],['Load balancer','central policy'],['Backend pool','health set'],['Selected backend','serve']],['Client sends traffic to one stable address.','Load balancer checks the current backend health set.','Central policy selects a backend for the request or connection.','Selected backend serves while membership stays hidden from the client.']],
     ['Request routing',[['Request','path + identity'],['Route table','ordered rules'],['Policy','version + locality'],['Destination','selected cluster']],['Request arrives with routable attributes.','Route table finds the first valid matching rule.','Policy applies version, tenant, locality, and health constraints.','Request reaches the selected destination with a traceable decision.']],
+    ['Long polling',[['Client','GET /events'],['Gateway','open HTTP request'],['Long-poll API','registered waiter'],['Event source','event or timeout'],['Client','response then reconnect']],['Client opens an HTTP request for the next event.','Gateway and API hold the request while registering a bounded waiter.','An event completes the waiter, or a deadline returns an empty timeout response.','API releases request resources and sends the response.','Client processes the result and immediately opens the next long poll.']],
+    ['Server-Sent Events (SSE)',[['EventSource client','GET text/event-stream'],['Proxy','streaming response'],['SSE service','encode id/event/data'],['Pub/sub','published events'],['Resume cursor','Last-Event-ID']],['Browser EventSource opens a streaming HTTP request through the proxy.','SSE service keeps the response open and subscribes to relevant pub/sub events.','Published events flow one way to the client as id, event, and data fields.','Disconnect triggers automatic reconnect carrying Last-Event-ID.','Service resumes after that cursor and continues the stream without a client-to-server channel.']],
+    ['WebSockets',[['Client','HTTP Upgrade'],['Gateway','connection routing'],['WebSocket service','full-duplex session'],['Connection registry','owner + presence'],['Pub/sub','cross-node fan-out'],['Flow control','ping/pong + backpressure']],['Client requests an HTTP Upgrade and gateway returns a persistent route.','WebSocket service accepts the session and registers its owning node.','Client and service exchange independent full-duplex frames.','Pub/sub routes messages to the node currently owning each destination connection.','Ping/pong detects dead peers while bounded send queues apply backpressure.','Disconnect removes registry state and the client reconnects with application-level recovery.']],
     ['Service mesh',[['Service A','application call'],['Mesh proxy A','mTLS + policy'],['Mesh control plane','config + identity'],['Mesh proxy B','deliver to Service B']],['Service A makes a normal local outbound call.','Its proxy applies identity, telemetry, and traffic policy.','Control-plane configuration tells both proxies how to trust and route.','Peer proxy authenticates the channel and delivers to Service B.']],
     ['Sidecars',[['Application','localhost call'],['Sidecar','intercept traffic'],['Peer sidecar','verify + forward'],['Peer application','receive']],['Application sends traffic through its colocated sidecar.','Sidecar handles transport concerns outside business code.','Peer sidecar verifies identity and inbound policy.','Peer application receives a local trusted connection.']],
     ['North-south traffic',[['External client','internet request'],['Edge','public trust boundary'],['Gateway','route + protect'],['Internal service','serve']],['External traffic reaches the public edge.','Edge terminates external transport and rejects unsafe input.','Gateway applies API policy and selects an internal route.','Internal service responds without becoming directly public.']],
@@ -309,7 +317,7 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Edge token validation',[['Client token','external'],['Edge validator','reject invalid'],['Internal request','verified context'],['Service','revalidate policy']],['External client presents a token at the edge.','Edge blocks malformed, expired, or wrongly targeted tokens early.','Validated identity context is forwarded over a protected channel.','Service verifies trustworthy context and enforces resource authorization.']],
     ['Token caching',[['Token request','resource + scopes'],['Cache key','identity + audience'],['Cached token','valid lifetime'],['Issuer','refresh on miss']],['Caller derives a cache key from principal, resource, scopes, and tenant.','Cache returns a token only with enough safe lifetime remaining.','Caller uses the cached token for the intended audience.','Miss or near-expiry triggers one coalesced refresh from the issuer.']],
     ['Key rotation',[['Old key','currently trusted'],['New key','published'],['Issuer','switch signing'],['Validators','retire old']],['New public key is published before first use.','Validators refresh and trust old plus new keys during overlap.','Issuer begins signing new tokens with the new key ID.','Old key retires only after all tokens it signed can no longer be valid.']],
-    ['Credential rotation',[['Credential v1','active'],['Credential v2','provisioned'],['Consumers','switch safely'],['Credential v1','revoked']],['A second credential is provisioned without removing the first.','Consumers receive and test v2 through staged rollout.','Issuers or callers switch normal use to v2.','v1 is revoked after usage telemetry confirms migration.']],
+    ['Credential rotation',[['Credential v1','active'],['Credential v2','provisioned'],['Consumers','switch safely'],['Retired credential v1','revoked']],['A second credential is provisioned without removing the first.','Consumers receive and test v2 through staged rollout.','Issuers or callers switch normal use to v2.','v1 is revoked after usage telemetry confirms migration.']],
     ['Revocation',[['Credential/token','compromised'],['Revocation authority','record deny'],['Caches','refresh or push'],['Resource','reject']],['Security signal identifies authority that must end early.','Revocation authority records the token, session, key, or principal state.','Enforcement caches receive or refresh the new state.','Subsequent use is rejected despite the original expiry time.']],
     ['Workload identity',[['Workload','runtime attributes'],['Attestor','verify origin'],['Issuer','short-lived credential'],['Peer service','authenticate']],['Workload presents platform-verifiable runtime evidence.','Attestor maps evidence to one approved workload identity.','Issuer returns a short-lived credential without a stored shared secret.','Peer validates that identity before accepting the connection.']],
     ['Workload identity federation',[['External workload','signed assertion'],['Trust policy','issuer + subject'],['Token exchange','local credential'],['Cloud resource','authorized']],['External platform issues a signed workload assertion.','Local trust policy matches exact issuer, subject, and audience.','Federation endpoint exchanges it for a short-lived local token.','Cloud resource validates and authorizes the federated identity.']],
@@ -404,7 +412,7 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Time buckets',[['Events','timestamps'],['Bucket function','floor to interval'],['Bucket storage','aggregate'],['Query','combine buckets']],['Each event receives a timestamp under a defined timezone policy.','Bucket function maps it to one fixed interval boundary.','Writes update that interval aggregate or partition.','Queries combine complete buckets and handle the partial current bucket.']],
     ['Time-based partitioning',[['Incoming record','event date'],['Partition map','time range'],['Hot partition','current window'],['Retention','drop old range']],['Record timestamp maps to a deterministic time-range partition.','Current writes concentrate in the active range.','Queries prune unrelated ranges using time predicates.','Retention removes whole old partitions after the policy window.']],
     ['Sliding windows',[['Event stream','timestamped events'],['Window','last W'],['Slide','advance by S'],['Aggregates','overlapping results']],['Timestamped events enter ordered or buffered processing.','Each event contributes to every overlapping window it belongs to.','Evaluation advances by slide S while old contributions expire.','Processor emits updated aggregates for the last W duration.']],
-    ['Tumbling windows',[['Event stream','timestamped events'],['Boundary','fixed interval'],['Window state','non-overlapping'],['Result','close + emit']],['Window boundaries divide time into fixed adjacent intervals.','Each event maps to exactly one interval by event time.','Processor accumulates state until the completion policy fires.','Closed window emits once or later corrections under lateness policy.']],
+    ['Tumbling windows',[['Event stream','timestamped events'],['Boundary','fixed interval'],['Window state','non-overlapping'],['Window emission','close + emit']],['Window boundaries divide time into fixed adjacent intervals.','Each event maps to exactly one interval by event time.','Processor accumulates state until the completion policy fires.','Closed window emits once or later corrections under lateness policy.']],
     ['Watermarks',[['Partitions','out-of-order events'],['Progress tracker','per-partition time'],['Watermark','minimum safe estimate'],['Window','emit/correct']],['Each partition reports event-time progress while events arrive out of order.','Tracker accounts for idle or delayed partitions.','Combined watermark advances as an estimate that earlier events are mostly complete.','Windows behind it emit, while later arrivals follow correction policy.']],
     ['Event time',[['Source','real-world event'],['Timestamp','source clock'],['Transport','delay/reorder'],['Processor','event-time order']],['Event occurs in the source domain.','Source attaches the time the event actually happened.','Network may delay or reorder arrival independently.','Processor uses the attached timestamp for windows and lateness.']],
     ['Processing time',[['Event','arrives now'],['Processor clock','local time'],['Window','arrival-based'],['Replay','different placement']],['Event reaches the processing operator.','Operator reads its local clock at observation time.','Arrival time assigns the event to a processing-time window.','Delay or replay can place the same logical event in a different window.']],
@@ -445,7 +453,7 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Hot-key mitigation',[['Hot key','skewed demand'],['Detector','rate + saturation'],['Mitigation','replicate/salt/coalesce'],['Backend','balanced load']],['Telemetry identifies one key dominating a shard or dependency.','System classifies whether reads, writes, or fan-out cause the heat.','Chosen mitigation spreads reads, batches work, or splits associative state.','Routing and merge logic preserve correctness while load becomes bounded.']],
     ['Approximate data structures',[['Large stream','many items'],['Hash functions','compact update'],['Sketch/filter','bounded memory'],['Estimate','error bound']],['Each item is transformed by deterministic hash functions.','Compact counters or bits update instead of storing every item.','Queries infer membership, count, or frequency from the structure.','Caller interprets the result with known false-positive or error bounds.']],
     ['Stream processing',[['Partitioned log','ordered records'],['Operators','transform + state'],['Checkpoint','state + offsets'],['Sink','materialized results']],['Sources append records to ordered partitions.','Parallel operators transform records and update keyed state.','Checkpoint captures recoverable state aligned with source progress.','Sink receives idempotent or transactional updates and processing resumes after failure.']],
-    ['Watermarks',[['Input partitions','event-time progress'],['Coordinator','minimum estimate'],['Window state','await completeness'],['Output','emit + revise']],['Each partition reports progress despite out-of-order arrival.','Coordinator derives a global or keyed watermark with idle handling.','Windows retain state until the watermark passes their boundary.','Results emit, while permitted late events update or retract them.']],
+    ['Watermarks',[['Input partitions','event-time progress'],['Coordinator','minimum estimate'],['Window state','await completeness'],['Window results','emit + revise']],['Each partition reports progress despite out-of-order arrival.','Coordinator derives a global or keyed watermark with idle handling.','Windows retain state until the watermark passes their boundary.','Results emit, while permitted late events update or retract them.']],
     ['Distributed snapshots',[['Processes','local state'],['Marker','snapshot boundary'],['Channels','in-flight messages'],['Global snapshot','consistent cut']],['Initiator records local state and sends marker messages.','A process records state when it sees its first marker.','It records messages on other channels until their markers arrive.','Combined process and channel records form a consistent global cut.']],
     ['Multi-region active-active',[['Region A','local reads/writes'],['Region B','local reads/writes'],['Replication','cross-region async'],['Resolver','converged global state']],['Users route to a nearby healthy region.','Both regions accept writes under explicitly mergeable invariants.','Updates replicate across the high-latency inter-region link.','Concurrent versions resolve deterministically and regional failure shifts traffic.']],
     ['Conflict resolution',[['Concurrent version A','intent A'],['Concurrent version B','intent B'],['Resolver','domain rule'],['Merged version','descends from both']],['Version metadata detects that neither update causally follows the other.','Resolver receives complete competing values and context.','Domain rule chooses, merges, or escalates without relying on arrival order.','Resolved version records ancestry from both and replicates.']],
@@ -473,3 +481,190 @@ for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
     }
   }
 }
+
+const SYSTEM_DESIGN_DIAGRAM_KIND_3 = name => {
+    if (name === 'L4 vs L7 load balancing') return 'comparison';
+    if (/migration|deploy|rollout|rotation|Backfill|Expand-and-contract|Cutover|Rollback|TTL|Expiration|windows|Scheduled|Lease|Watermark|Event time|Processing time|Clock skew/.test(name)) return 'timeline';
+    if (/balanc|discovery|mesh|Sidecars|traffic|routing|Cell|shard|hash|Gossip|region|isolation|blast-radius|data plane|control plane/i.test(name)) return 'topology';
+    if (/OAuth|OIDC|JWT|token|identity|authentication|authorization|OBO|deputy|Idempot|dedup|Sequence|Event IDs|outbox|Sagas|polling|SSE|WebSockets/i.test(name)) return 'sequence';
+    if (/Metrics|Logs|Trace IDs|Span IDs|graphs|profiling|Vector|CRDT|Merkle|Quorum|clock|data structures|snapshots/i.test(name)) return 'structure';
+    return 'architecture';
+  };
+
+  const SYSTEM_DESIGN_COMPONENT_TYPE_3 = (label,detail) => {
+    const value = `${label} ${detail}`.toLowerCase();
+    if (/client|browser|user|caller|request|producer|admin|operator/.test(value)) return 'client';
+    if (/gateway|proxy|router|balancer|edge|facade|mesh/.test(value)) return 'gateway';
+    if (/cache/.test(value)) return 'cache';
+    if (/queue|pub\/sub|broker|stream|channel|log/.test(value)) return 'queue';
+    if (/replica|region|cell|shard|instance|member|fleet/.test(value)) return 'replica';
+    if (/database|store|table|domain rows|read model|record/.test(value)) return 'database';
+    if (/storage|snapshot|certificate|credential|token|policy bundle/.test(value)) return 'storage';
+    if (/index|tree|hash|ring|vector|bucket|partition map|registry/.test(value)) return 'index';
+    if (/clock|time|watermark|lease|heartbeat|expiry|deadline/.test(value)) return 'clock';
+    if (/bit|sketch|filter|approximate/.test(value)) return 'bitset';
+    if (/worker|processor|operator|consumer|relay|reaper|projector|scheduler|loader/.test(value)) return 'worker';
+    if (/control|policy|issuer|authorization server|identity provider|validator|resolver|coordinator|monitor|engine| ca|authority|attestor/.test(value)) return 'control';
+    if (/service|api|backend|application|workload|server/.test(value)) return 'service';
+    return 'node';
+  };
+
+  const SYSTEM_DESIGN_LAYOUTS_3 = {
+    architecture:[[10,50],[36,25],[64,75],[90,50],[50,10],[50,90]],
+    topology:[[50,10],[12,42],[88,42],[30,88],[70,88],[50,55]],
+    sequence:[[8,50],[29,50],[50,50],[71,50],[92,50],[50,82]],
+    timeline:[[8,50],[29,50],[50,50],[71,50],[92,50],[50,82]],
+    structure:[[12,18],[72,18],[12,82],[72,82],[42,50],[92,50]],
+    comparison:[[8,50],[38,20],[38,80],[92,50],[65,20],[65,80]]
+  };
+
+  const SYSTEM_DESIGN_LINK_LABEL_3 = (from,to) => {
+    const actions = {
+      client:'Return to',
+      gateway:'Send to',
+      service:'Call',
+      database:'Commit at',
+      replica:'Replicate to',
+      cache:'Cache in',
+      queue:'Publish through',
+      worker:'Dispatch to',
+      control:'Coordinate via',
+      storage:'Persist in',
+      index:'Resolve through',
+      node:'Advance to',
+      clock:'Wait on',
+      bitset:'Update'
+    };
+    const base = `${actions[to[3]]} ${to[1]}`;
+    const detailed = `${base}: ${to[2]}`;
+    return detailed.length <= 55 ? detailed : base;
+  };
+
+  const SYSTEM_DESIGN_DIAGRAM_3 = (concept,chapterId) => {
+    const kind = SYSTEM_DESIGN_DIAGRAM_KIND_3(concept.name);
+    const layout = SYSTEM_DESIGN_LAYOUTS_3[kind];
+    const components = concept.visual.nodes.map(([label,detail],index)=>[
+      `c${index}`,
+      label,
+      detail,
+      SYSTEM_DESIGN_COMPONENT_TYPE_3(label,detail),
+      layout[index][0],
+      layout[index][1]
+    ]);
+    const links = components.slice(1).map((component,index)=>[
+      components[index][0],
+      component[0],
+      SYSTEM_DESIGN_LINK_LABEL_3(components[index],component)
+    ]);
+    const riskPattern = /fail|reject|stale|expired|comprom|diverg|overload|lost|timeout|gap|conflict|late|pause|partition|unsafe|risk/i;
+    const frames = concept.visual.steps.map((step,index)=>{
+      const states = {};
+      for (let i=0;i<components.length;i++) {
+        if (i < Math.min(index,components.length)) states[`c${i}`] = 'done';
+      }
+      const active = Math.min(step[0],components.length-1);
+      states[`c${active}`] = riskPattern.test(step[2]) ? 'risk' : 'active';
+      return [index === 0 ? -1 : Math.min(index-1,links.length-1),states];
+    });
+    return {kind,components,links,frames};
+  };
+
+  for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+    if (!SYSTEM_DESIGN_VISUAL_SPECS_3[chapter.id]) continue;
+    for (const group of chapter.groups) {
+      for (const concept of group.concepts) {
+        concept.diagram = SYSTEM_DESIGN_DIAGRAM_3(concept,chapter.id);
+      }
+    }
+  }
+
+  const SYSTEM_DESIGN_REALTIME_DIAGRAMS_3 = {
+    'Long polling':{
+      kind:'sequence',
+      components:[
+        ['client','Browser / mobile client','reconnect loop','client',8,50],
+        ['gateway','API gateway','holds HTTP connection','gateway',28,50],
+        ['api','Long-poll API','waiter per request','service',50,50],
+        ['events','Event queue','next matching event','queue',72,24],
+        ['timer','Request deadline','timeout release','clock',72,76]
+      ],
+      links:[
+        ['client','gateway','GET /events'],
+        ['gateway','api','forward and hold request'],
+        ['events','api','event completes waiter'],
+        ['timer','api','timeout completes waiter'],
+        ['api','client','event or timeout response'],
+        ['client','gateway','immediate reconnect']
+      ],
+      frames:[
+        [0,{client:'active'}],
+        [1,{client:'done',gateway:'active',api:'active'}],
+        [2,{client:'done',gateway:'done',api:'active',events:'active',timer:'active'}],
+        [4,{api:'done',events:'done',timer:'done',client:'active'}],
+        [5,{client:'active',gateway:'active'}]
+      ]
+    },
+    'Server-Sent Events (SSE)':{
+      kind:'architecture',
+      components:[
+        ['client','Browser EventSource','automatic reconnect','client',8,50],
+        ['proxy','Streaming proxy','buffering disabled','gateway',28,50],
+        ['service','SSE service','one-way HTTP stream','service',50,50],
+        ['pubsub','Pub/sub topic','fan-out events','queue',72,24],
+        ['cursor','Resume cursor','Last-Event-ID position','storage',72,76]
+      ],
+      links:[
+        ['client','proxy','GET Accept: text/event-stream'],
+        ['proxy','service','open streaming response'],
+        ['pubsub','service','publish event'],
+        ['service','client','id + event + data frames'],
+        ['client','proxy','reconnect with Last-Event-ID'],
+        ['cursor','service','resume after cursor']
+      ],
+      frames:[
+        [0,{client:'active',proxy:'active'}],
+        [1,{proxy:'done',service:'active'}],
+        [3,{pubsub:'done',service:'active',client:'active'}],
+        [4,{client:'risk',proxy:'active',cursor:'active'}],
+        [5,{cursor:'done',service:'active',client:'active'}]
+      ]
+    },
+    'WebSockets':{
+      kind:'topology',
+      components:[
+        ['client','WebSocket client','persistent duplex socket','client',8,50],
+        ['gateway','WebSocket gateway','Upgrade + sticky route','gateway',30,50],
+        ['nodeA','WebSocket node A','owns live connection','service',54,24],
+        ['nodeB','WebSocket node B','horizontal peer','service',54,76],
+        ['registry','Connection registry','client -> owner node','index',78,24],
+        ['pubsub','Pub/sub backbone','cross-node messages','queue',78,76]
+      ],
+      links:[
+        ['client','gateway','HTTP Upgrade'],
+        ['gateway','nodeA','101 Switching Protocols'],
+        ['nodeA','client','full-duplex frames'],
+        ['nodeA','registry','register connection owner'],
+        ['nodeB','registry','lookup destination owner'],
+        ['nodeB','pubsub','publish cross-node frame'],
+        ['pubsub','nodeA','fan-out to owning node'],
+        ['nodeA','client','ping/pong + bounded send queue']
+      ],
+      frames:[
+        [0,{client:'active',gateway:'active'}],
+        [3,{gateway:'done',nodeA:'active',registry:'active'}],
+        [2,{client:'active',nodeA:'active'}],
+        [6,{nodeB:'active',registry:'done',pubsub:'active',nodeA:'active'}],
+        [7,{nodeA:'active',client:'active'}],
+        [-1,{client:'risk',nodeA:'done',registry:'active'}]
+      ]
+    }
+  };
+
+  const realtimeConcepts = window.SYSTEM_DESIGN_CHAPTERS
+    .find(chapter=>chapter.id === 'api-service-architecture')
+    .groups.flatMap(group=>group.concepts);
+  for (const concept of realtimeConcepts) {
+    if (SYSTEM_DESIGN_REALTIME_DIAGRAMS_3[concept.name]) {
+      concept.diagram = SYSTEM_DESIGN_REALTIME_DIAGRAMS_3[concept.name];
+    }
+  }

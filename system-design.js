@@ -31,11 +31,14 @@ const visuals={
   observe:{title:'Trace one distributed request',mental:'Metrics reveal aggregate symptoms, logs explain discrete events, and traces preserve causal request flow across service boundaries.',invariant:'Every hop propagates trace context without placing unbounded or sensitive values into high-cardinality dimensions.',tradeoff:'Head sampling is cheap but may miss rare failures; tail sampling sees outcomes but requires buffering and coordination.',nodes:[['Client','trace ID'],['Gateway','span'],['Service','span + logs'],['Database','dependency span'],['Collector','sample/export'],['SLO','aggregate signal']],steps:[
     [0,[],'Create or accept trace context at the trust boundary.'],[1,[0],'The gateway starts a span and records bounded route/status attributes.'],[2,[0,1],'The service creates a child span and logs with trace/span correlation.'],[3,[0,1,2],'Dependency instrumentation records latency, result, and retries without leaking query secrets.'],[4,[0,1,2,3],'A collector applies sampling, redaction, batching, and export policy.'],[5,[0,1,2,3,4],'RED/USE metrics and SLO burn rates detect impact; traces identify the causal path.']]}
 };
+const visualConceptNames={cap:'CAP theorem',clocks:'Vector clocks',raft:'Raft',replication:'Leader/follower replication',sharding:'Consistent hashing',cache:'Cache-aside',messaging:'Transactional outbox',transactions:'Two-phase commit (2PC)',resilience:'Circuit breakers',rate:'Token bucket',lsm:'LSM trees',stream:'Watermarks',identity:'OBO',observe:'Distributed tracing'};
 let currentVisual='cap',visualStep=0,visualPlaying=false;
 function drawVisual(){
   const v=visuals[currentVisual],s=v.steps[visualStep];
   $('#visualTitle').textContent=v.title;$('#visualMental').textContent=v.mental;$('#visualInvariant').textContent=v.invariant;$('#visualTradeoff').textContent=v.tradeoff;$('#visualStatus').innerHTML=`<b>Step ${visualStep+1}/${v.steps.length}</b><br>${s[2]}`;
-  $('#systemFlow').innerHTML=v.nodes.map((n,i)=>`<div class="system-node ${i===s[0]?'active':s[1].includes(i)?'done':''}"><b>${n[0]}</b><small>${n[1]}</small></div>${i<v.nodes.length-1?'<span class="system-arrow">→</span>':''}`).join('');
+  const concept=chapters.flatMap(chapter=>chapter.groups.flatMap(group=>group.concepts)).find(item=>item.name===visualConceptNames[currentVisual]);
+  if(concept?.diagram){$('#systemFlow').className='system-flow kind-authored';$('#systemFlow').innerHTML=renderArchitecture(sceneFromDiagram(concept.diagram),s,v.steps.length,visualStep)}
+  else{$('#systemFlow').className='system-flow';$('#systemFlow').innerHTML=v.nodes.map((n,i)=>`<div class="system-node ${i===s[0]?'active':s[1].includes(i)?'done':''}"><b>${n[0]}</b><small>${n[1]}</small></div>${i<v.nodes.length-1?'<span class="system-arrow">→</span>':''}`).join('')}
   $('#visualStep').disabled=visualStep===v.steps.length-1;
 }
 function resetVisual(){visualPlaying=false;$('#visualPlay').textContent='▶ Play';visualStep=0;drawVisual()}
@@ -131,6 +134,7 @@ function makeConceptModel(entry){
   if(entry.concept.visual){
     return {
       kind:inferVisualKind(entry),
+      diagram:entry.concept.diagram||null,
       nodes:entry.concept.visual.nodes.map(node=>[...node]),
       steps:entry.concept.visual.steps.map(step=>[step[0],[...step[1]],step[2]])
     };
@@ -149,7 +153,9 @@ function makeConceptModel(entry){
 }
 function nodeState(index,step){return index===step[0]?'active':step[1].includes(index)?'done':''}
 function nodeCard(node,index,step,className='system-node'){return `<div class="${className} ${nodeState(index,step)}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}
-function componentIcon(label){
+function componentIcon(label,type){
+  const icons={client:'●',gateway:'◆',service:'▣',database:'▰',replica:'▰',cache:'▤',queue:'≡',worker:'⚙',control:'◆',storage:'▰',index:'⌗',node:'▣',clock:'◷',bitset:'▦'};
+  if(type&&icons[type])return icons[type];
   if(/client|user|caller|reader|writer|producer|consumer/i.test(label))return '●';
   if(/database|primary|replica|store|shard|sstable|table/i.test(label))return '▰';
   if(/cache|memory|memtable/i.test(label))return '▤';
@@ -157,6 +163,15 @@ function componentIcon(label){
   if(/router|gateway|load balancer|coordinator|leader|scheduler/i.test(label))return '◆';
   if(/token|key|credential|identity|policy/i.test(label))return '◇';
   return '▣';
+}
+function sceneFromDiagram(diagram){
+  const indexes=new Map(diagram.components.map((component,index)=>[component[0],index]));
+  return {
+    components:diagram.components.map(component=>[component[1],component[2],component[3]]),
+    points:diagram.components.map(component=>[component[4],component[5]]),
+    edges:diagram.links.map(link=>[indexes.get(link[0]),indexes.get(link[1]),link[2]]),
+    frames:diagram.frames.map(frame=>({edge:frame[0],states:Object.fromEntries(Object.entries(frame[1]).map(([id,state])=>[indexes.get(id),state]))}))
+  };
 }
 function architectureScene(name){
   if(name==='Gossip protocols')return {
@@ -196,12 +211,12 @@ function architectureScene(name){
   }
   return null;
 }
-function renderArchitecture(scene,step,stepCount){
-  const frameIndex=Math.round(conceptStep*(scene.frames.length-1)/Math.max(1,stepCount-1));
+function renderArchitecture(scene,step,stepCount,currentIndex=conceptStep){
+  const frameIndex=Math.round(currentIndex*(scene.frames.length-1)/Math.max(1,stepCount-1));
   const frame=scene.frames[frameIndex]||{edge:-1,states:{}};
   const edge=scene.edges[frame.edge],defs='<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>';
   const links=scene.edges.map(([from,to,label],index)=>{const a=scene.points[from],b=scene.points[to],state=index===frame.edge?'active':index<frame.edge?'done':'';return `<g class="architecture-link ${state}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/><text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(label)}</text></g>`}).join('');
-  const components=scene.components.map((node,index)=>{const state=frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${scene.points[index][0]}%;top:${scene.points[index][1]}%"><i>${componentIcon(node[0])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
+  const components=scene.components.map((node,index)=>{const state=frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${scene.points[index][0]}%;top:${scene.points[index][1]}%"><i>${componentIcon(node[0],node[2])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
   return `<svg class="architecture-links" viewBox="0 0 100 100" preserveAspectRatio="none">${defs}${links}</svg>${components}`;
 }
 function radialScene(nodes,step,ring=false){
@@ -226,6 +241,7 @@ function shardScene(nodes,step){
 function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
   const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
+  if(model.diagram){$('#conceptFlow').className=`concept-flow kind-authored kind-${model.diagram.kind}`;return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   if(kind==='network'||kind==='ring')return radialScene(nodes,step,kind==='ring');
   if(['fanout','quorum','tree','cache'].includes(kind))return positionedScene(nodes,step,kind);
   if(kind==='timeline')return `<div class="timeline-track"></div>${nodes.map((node,index)=>`<div class="timeline-event ${nodeState(index,step)}" style="left:${8+index*(84/Math.max(1,nodes.length-1))}%"><i>T${index}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;

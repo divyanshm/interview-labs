@@ -449,3 +449,337 @@ for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
     }
   }
 }
+
+const systemDesignDiagramTypes = new Set(['client','gateway','service','database','replica','cache','queue','worker','control','storage','index','node','clock','bitset']);
+const systemDesignDiagramLayouts = {
+  architecture:[[10,50],[38,20],[65,20],[90,50]],
+  topology:[[15,50],[43,15],[76,30],[70,78]],
+  sequence:[[8,50],[36,50],[64,50],[92,50]],
+  timeline:[[8,50],[36,50],[64,50],[92,50]],
+  structure:[[15,50],[43,18],[72,50],[43,82]],
+  comparison:[[18,25],[18,75],[78,25],[78,75]]
+};
+const systemDesignDiagramKinds = {
+  comparison:new Set(['CAP theorem','PACELC','Byzantine vs crash failures','Strong consistency','Sequential consistency','Causal consistency','Eventual consistency','At-most-once','At-least-once','Exactly-once','Active-active replication','Active-passive replication','Optimistic concurrency','Pessimistic concurrency','Fail-open','Fail-closed']),
+  timeline:new Set(['Time and clocks','Physical clocks','Logical clocks','Lamport clocks','Hybrid logical clocks','Replication lag','TTL','Refresh-ahead','Probabilistic early expiration','Retention','Replay','Delayed queues','Timeouts','Retries','Exponential backoff','Jitter','Retry budgets','Request cancellation']),
+  structure:new Set(['Consistency models','Vector clocks','Version vectors','CRDTs','Bloom filter','Counting Bloom filter','Cuckoo filter','Quotient filter','HyperLogLog','Count-Min Sketch','Heavy hitters','Top-K sketches','MinHash','SimHash','Locality-sensitive hashing','Reservoir sampling','HyperLogLog++','Approximate distinct counting','Probabilistic counters','Sampling algorithms','MVCC','Snapshot isolation']),
+  topology:new Set(['Availability','Partition tolerance','Quorum reads/writes','Read repair','Anti-entropy','Gossip protocols','Failure detectors','Split brain','Quorum consensus','Distributed locks','Leases','Fencing tokens','Distributed coordination','Zookeeper-style coordination','etcd-style coordination','Membership protocols','Leader/follower','Primary/backup','Split-brain prevention','Leader/follower replication','Multi-leader replication','Leaderless replication','Synchronous replication','Asynchronous replication','Semi-synchronous replication','Quorum replication','Chain replication','Read replicas','Write replicas','Active-active replication','Active-passive replication','Cross-region replication','Cross-datacenter replication','Hash partitioning','Consistent hashing','Rendezvous hashing','Range partitioning','Directory-based partitioning','Virtual nodes','Rebalancing','Hot partitions','Hot keys','Shard splitting','Shard merging','Dynamic partitioning','Scatter-gather','Fan-out','Partition affinity','Tenant-based partitioning','Distributed cache','Local + distributed cache','Hot-key mitigation','Pub/Sub','Kafka-style logs','Consumer groups','Partitioning','Cell-based architecture','Blast-radius reduction','Fault domains','Failure domains'])
+};
+const systemDesignDiagramLabel = label => ({
+  Input:'Source message',
+  Output:'Ranked records',
+  Process:'Worker operation',
+  Mechanism:'Coordination rule',
+  Stage:'Workflow phase',
+  State:'Materialized view',
+  Result:'Final response'
+}[label] || label);
+const systemDesignDiagramType = (label, detail) => {
+  const value = `${label} ${detail}`.toLowerCase();
+  if (/(client|caller|reader|writer|producer|publisher|request|session|user)/.test(value)) return 'client';
+  if (/(gateway|router|admission|limiter|dispatcher|load balancer)/.test(value)) return 'gateway';
+  if (/(bit array|bitset)/.test(value)) return 'bitset';
+  if (/(clock|timer|time source)/.test(value)) return 'clock';
+  if (/(index|directory|offset store|membership map|range map)/.test(value)) return 'index';
+  if (/(storage|segment|snapshot|transaction log|event store|compacted log)/.test(value)) return 'storage';
+  if (/(cache|filter|register|counter|sketch|reservoir)/.test(value)) return 'cache';
+  if (/(database|table|ledger|metadata|decision log|epoch store)/.test(value)) return 'database';
+  if (/(node)/.test(value)) return 'node';
+  if (/(replica|follower|backup|acceptor|voter|region|datacenter|shard)/.test(value)) return 'replica';
+  if (/(queue|topic|broker|partition log|event bus|stream|outbox|inbox|dlq|message)/.test(value)) return 'queue';
+  if (/(worker|consumer|operator|subscriber)/.test(value)) return 'worker';
+  if (/(leader|primary|service|authority|dependency|resolver|processor|projector|scheduler|controller|sequencer|loader|relay|cleaner)/.test(value)) return 'service';
+  return 'control';
+};
+const systemDesignDiagramKind = name => {
+  for (const [kind,names] of Object.entries(systemDesignDiagramKinds)) {
+    if (names.has(name)) return kind;
+  }
+  return 'sequence';
+};
+const systemDesignDiagramLinkLabel = (text, source, target) => {
+  const firstClause = text
+    .replace(/[.;].*$/,'')
+    .replace(/^(A|An|The)\s+/,'')
+    .split(/,\s+|\s+(?:while|after|before|because|although|but|so that|until)\s+/i)[0]
+    .replace(/\.$/,'');
+  if (firstClause.length <= 55) return firstClause;
+  const targetLabel = target[1].split(' - ')[0];
+  const action = {
+    client:'respond to',
+    gateway:'route through',
+    service:'invoke',
+    database:'access',
+    replica:source[3] === 'client' ? 'query' : 'replicate to',
+    cache:'update',
+    queue:'publish to',
+    worker:'dispatch to',
+    control:'update',
+    storage:'persist in',
+    index:'update',
+    node:'gossip to',
+    clock:'advance',
+    bitset:'set or check'
+  }[target[3]];
+  return `${action} ${targetLabel}`;
+};
+const systemDesignDiagramFromVisual = concept => {
+  const kind = systemDesignDiagramKind(concept.name);
+  const positions = systemDesignDiagramLayouts[kind];
+  const rawLabels = concept.visual.nodes.map(([label]) => systemDesignDiagramLabel(label));
+  const labelCounts = rawLabels.reduce((counts,label) => {
+    counts[label] = (counts[label] || 0) + 1;
+    return counts;
+  },{});
+  const components = concept.visual.nodes.map(([label,detail],index) => {
+    const rawLabel = rawLabels[index];
+    const diagramLabel = labelCounts[rawLabel] > 1 ? `${rawLabel} - ${detail}` : rawLabel;
+    const type = systemDesignDiagramType(diagramLabel,detail);
+    return [`c${index}`,diagramLabel,detail,systemDesignDiagramTypes.has(type) ? type : 'control',positions[index][0],positions[index][1]];
+  });
+  const links = kind === 'topology'
+    ? components.slice(1).map((component,index) => ['c0',component[0],systemDesignDiagramLinkLabel(concept.visual.steps[index+1]?.[2] || concept.visual.steps[index][2],components[0],component)])
+    : components.slice(1).map((component,index) => [`c${index}`,component[0],systemDesignDiagramLinkLabel(concept.visual.steps[index+1]?.[2] || concept.visual.steps[index][2],components[index],component)]);
+  const frames = concept.visual.steps.map((step,index) => {
+    const states = {};
+    for (const completed of step[1]) states[`c${completed}`] = 'done';
+    states[`c${step[0]}`] = index === concept.visual.steps.length-1 ? 'done' : 'active';
+    return [index === 0 ? -1 : Math.min(index-1,links.length-1),states];
+  });
+  return {kind,components,links,frames};
+};
+const systemDesignDiagram = (kind,components,links,frames) => ({kind,components,links,frames});
+const systemDesignCachingLinkLabels = {
+  'Cache-aside':['cache lookup misses','read authoritative v3','fill cache with v3 and TTL'],
+  'Read-through cache':['cache lookup misses','invoke configured loader','store and return loaded value'],
+  'Write-through cache':['update cache entry','persist source synchronously','acknowledge both writes'],
+  'Write-behind cache':['buffer accepted write','flush coalesced batch','persist source asynchronously'],
+  'Refresh-ahead':['detect hot near-expiry key','refresh value in background','atomically replace cached version'],
+  'Cache warming':['select bounded hot set','preload from source','admit traffic to warm cache'],
+  'Cache invalidation':['commit source version','broadcast invalidate key','refill on next read'],
+  'TTL':['age cached entry','expire entry at deadline','reload with jittered TTL'],
+  'Negative caching':['confirm authoritative miss','cache short-lived not-found','suppress repeated source reads'],
+  'Cache stampede':['observe simultaneous misses','elect one refill owner','release waiters after refill'],
+  'Thundering herd':['detect synchronized burst','jitter and limit requests','restore bounded arrival rate'],
+  'Request coalescing':['register in-flight request','join shared promise','publish one shared response'],
+  'Single-flight':['elect per-key leader','attach follower callers','complete and clear flight'],
+  'Probabilistic early expiration':['compute randomized threshold','refresh one request early','install a fresh expiry'],
+  'Distributed cache':['route key to cache owner','replicate hot entry','remap after membership change'],
+  'Local + distributed cache':['miss local L1','read shared L2 or source','invalidate both cache layers'],
+  'Cache consistency':['observe stale cached version','apply freshness contract','return permitted version'],
+  'Cache versioning':['address current generation','ignore stale generation fill','serve versioned cache entry'],
+  'Hot-key mitigation':['serve from near-caches','coalesce source refill','spread residual hot-key load']
+};
+const systemDesignDiagramOverrides = {
+  'Eventual consistency':systemDesignDiagram('timeline',[
+    ['writer','Checkout API','writes inventory v2','client',8,18],
+    ['primary','Inventory primary','v1 -> v2 at T0','database',30,18],
+    ['replicaA','Read replica A','v1, then v2 at T1','replica',55,18],
+    ['replicaB','Read replica B','v1, then v2 at Tn','replica',80,18],
+    ['reader','Product page','may read stale v1','client',55,75]
+  ],[
+    ['writer','primary','PUT stock=v2'],
+    ['primary','replicaA','async replicate v2'],
+    ['primary','replicaB','async replicate v2'],
+    ['reader','replicaA','GET stock'],
+    ['reader','replicaB','later GET stock']
+  ],[
+    [0,{writer:'active',primary:'active',replicaA:'risk',replicaB:'risk'}],
+    [1,{writer:'done',primary:'done',replicaA:'active',replicaB:'risk'}],
+    [3,{replicaA:'done',reader:'active',replicaB:'risk'}],
+    [2,{primary:'done',replicaA:'done',replicaB:'done',reader:'done'}]
+  ]),
+  'Gossip protocols':systemDesignDiagram('topology',[
+    ['nodeA','Node A','membership generation 5','node',15,18],
+    ['nodeB','Node B','membership generation 4','node',50,12],
+    ['nodeC','Node C','membership generation 3','node',82,28],
+    ['nodeD','Node D','joining peer','node',72,78],
+    ['nodeE','Node E','membership generation 4','node',25,78]
+  ],[
+    ['nodeA','nodeB','digest + newer member'],
+    ['nodeB','nodeC','gossip generation 5'],
+    ['nodeC','nodeD','share membership view'],
+    ['nodeD','nodeE','propagate join'],
+    ['nodeE','nodeA','anti-entropy round'],
+    ['nodeB','nodeE','random peer exchange']
+  ],[
+    [0,{nodeA:'active',nodeB:'active'}],
+    [1,{nodeA:'done',nodeB:'active',nodeC:'active'}],
+    [2,{nodeB:'done',nodeC:'active',nodeD:'active'}],
+    [4,{nodeA:'done',nodeB:'done',nodeC:'done',nodeD:'done',nodeE:'done'}]
+  ]),
+  'Quorum reads/writes':systemDesignDiagram('topology',[
+    ['client','Cart service','writes cart v7','client',8,50],
+    ['coordinator','Quorum coordinator','N=3, W=2, R=2','service',30,50],
+    ['replicaA','Replica A','stores v7','replica',66,12],
+    ['replicaB','Replica B','stores v7','replica',88,50],
+    ['replicaC','Replica C','still v6','replica',66,88],
+    ['reader','Cart reader','resolves latest version','client',30,88]
+  ],[
+    ['client','coordinator','PUT cart v7'],
+    ['coordinator','replicaA','write v7'],
+    ['coordinator','replicaB','write v7'],
+    ['reader','replicaB','read quorum member'],
+    ['reader','replicaC','read quorum member'],
+    ['replicaB','reader','return newer v7']
+  ],[
+    [0,{client:'active',coordinator:'active'}],
+    [1,{client:'done',coordinator:'active',replicaA:'active',replicaB:'active'}],
+    [3,{reader:'active',replicaB:'done',replicaC:'risk'}],
+    [5,{replicaA:'done',replicaB:'done',replicaC:'risk',reader:'done'}]
+  ]),
+  'Bloom filter':systemDesignDiagram('structure',[
+    ['item','Username alice','membership candidate','client',8,50],
+    ['hash1','Hash function h1','maps alice -> bit 2','service',32,18],
+    ['hash2','Hash function h2','maps alice -> bit 7','service',32,82],
+    ['bits','Bit array','0 0 1 0 0 0 0 1','bitset',70,50],
+    ['lookup','Username bob','checks all mapped bits','client',92,50]
+  ],[
+    ['item','hash1','hash alice with h1'],
+    ['item','hash2','hash alice with h2'],
+    ['hash1','bits','set bit 2'],
+    ['hash2','bits','set bit 7'],
+    ['lookup','bits','test bob positions']
+  ],[
+    [0,{item:'active',hash1:'active',hash2:'active'}],
+    [2,{item:'done',hash1:'done',bits:'active'}],
+    [3,{hash2:'done',bits:'active'}],
+    [4,{bits:'done',lookup:'active'}]
+  ]),
+  'Kafka-style logs':systemDesignDiagram('architecture',[
+    ['producer','Order producer','key=customer-42','client',8,50],
+    ['leader','Broker 1 / partition leader','append offset 42','queue',32,32],
+    ['follower','Broker 2 / partition replica','replicate offset 42','replica',58,12],
+    ['group','Consumer group','member owns partition','worker',82,42],
+    ['offsets','Offset store','next offset 43','database',58,82]
+  ],[
+    ['producer','leader','produce keyed record'],
+    ['leader','follower','replicate log entry'],
+    ['leader','group','fetch offset 42'],
+    ['group','offsets','commit offset 43']
+  ],[
+    [0,{producer:'active',leader:'active'}],
+    [1,{producer:'done',leader:'active',follower:'active'}],
+    [2,{leader:'done',follower:'done',group:'active'}],
+    [3,{group:'done',offsets:'done'}]
+  ]),
+  'Two-phase commit (2PC)':systemDesignDiagram('sequence',[
+    ['client','Transfer service','starts transaction TX9','client',8,18],
+    ['coordinator','2PC coordinator','durable decision owner','control',28,50],
+    ['accountDb','Account database','participant: debit','database',58,18],
+    ['ledgerDb','Ledger database','participant: journal','database',58,82],
+    ['decisionLog','Coordinator log','commit or abort TX9','database',88,50]
+  ],[
+    ['client','coordinator','begin TX9'],
+    ['coordinator','accountDb','PREPARE debit'],
+    ['coordinator','ledgerDb','PREPARE journal'],
+    ['accountDb','coordinator','YES, locks held'],
+    ['ledgerDb','coordinator','YES, record durable'],
+    ['coordinator','decisionLog','persist COMMIT'],
+    ['coordinator','accountDb','COMMIT TX9'],
+    ['coordinator','ledgerDb','COMMIT TX9']
+  ],[
+    [0,{client:'active',coordinator:'active'}],
+    [1,{client:'done',coordinator:'active',accountDb:'active',ledgerDb:'active'}],
+    [5,{accountDb:'done',ledgerDb:'done',decisionLog:'active'}],
+    [6,{coordinator:'done',accountDb:'done',ledgerDb:'done',decisionLog:'done'}]
+  ]),
+  'Paxos':systemDesignDiagram('sequence',[
+    ['proposer','Proposer','ballot 7, value X','service',8,50],
+    ['acceptorA','Acceptor A','promised ballot 7','replica',42,12],
+    ['acceptorB','Acceptor B','promised ballot 7','replica',42,50],
+    ['acceptorC','Acceptor C','unavailable','replica',42,88],
+    ['learner','Learner','value X chosen','worker',88,50]
+  ],[
+    ['proposer','acceptorA','PREPARE ballot 7'],
+    ['proposer','acceptorB','PREPARE ballot 7'],
+    ['acceptorA','proposer','PROMISE + prior accepted'],
+    ['acceptorB','proposer','PROMISE + prior accepted'],
+    ['proposer','acceptorA','ACCEPT ballot 7, X'],
+    ['proposer','acceptorB','ACCEPT ballot 7, X'],
+    ['acceptorA','learner','ACCEPTED X'],
+    ['acceptorB','learner','quorum chooses X']
+  ],[
+    [0,{proposer:'active',acceptorA:'active',acceptorB:'active',acceptorC:'risk'}],
+    [2,{acceptorA:'done',acceptorB:'done',proposer:'active'}],
+    [4,{proposer:'done',acceptorA:'active',acceptorB:'active'}],
+    [7,{acceptorA:'done',acceptorB:'done',learner:'done'}]
+  ]),
+  'Raft':systemDesignDiagram('sequence',[
+    ['client','Client','command SET x=5','client',8,50],
+    ['leader','Leader','term 8, log index 31','service',34,50],
+    ['followerA','Follower A','index 31 replicated','replica',64,18],
+    ['followerB','Follower B','index 31 replicated','replica',64,82],
+    ['machine','State machine','apply committed command','worker',92,50]
+  ],[
+    ['client','leader','submit command'],
+    ['leader','followerA','AppendEntries term 8'],
+    ['leader','followerB','AppendEntries term 8'],
+    ['followerA','leader','ack index 31'],
+    ['followerB','leader','majority reached'],
+    ['leader','machine','advance commit index'],
+    ['machine','client','return applied result']
+  ],[
+    [0,{client:'active',leader:'active'}],
+    [1,{client:'done',leader:'active',followerA:'active',followerB:'active'}],
+    [4,{followerA:'done',followerB:'done',leader:'active'}],
+    [5,{leader:'done',machine:'done',client:'done'}]
+  ])
+};
+
+systemDesignDiagramOverrides.Bulkheads = systemDesignDiagram('architecture',[
+  ['router','Checkout service','routes dependency calls','service',8,50],
+  ['poolA','Inventory pool','20 isolated permits','queue',34,18],
+  ['inventory','Inventory API','stalled dependency','service',66,18],
+  ['poolB','Payment pool','20 isolated permits','queue',34,82],
+  ['payment','Payment API','healthy dependency','service',66,82],
+  ['response','Checkout response','payment path remains available','client',92,50]
+],[
+  ['router','poolA','route inventory calls through isolated pool'],
+  ['poolA','inventory','invoke inventory with bounded permits'],
+  ['router','poolB','route payment calls to pool B'],
+  ['poolB','payment','invoke payment with bounded permits'],
+  ['inventory','poolA','exhaust only inventory permits'],
+  ['payment','response','return healthy payment result']
+],[
+  [0,{router:'active',poolA:'active',poolB:'active'}],
+  [1,{poolA:'active',inventory:'risk',poolB:'done',payment:'done'}],
+  [4,{inventory:'risk',poolA:'risk',poolB:'done',payment:'done'}],
+  [5,{inventory:'risk',poolA:'risk',payment:'done',response:'done'}]
+]);
+const systemDesignLinkLabelOverrides = {
+  'Causal consistency':{
+    0:'record causal dependency for reply B',
+    2:'deliver event A before reply B'
+  },
+  'Semi-synchronous replication':{
+    0:'wait for first follower durability',
+    1:'acknowledge after one follower',
+    2:'replicate remaining follower asynchronously'
+  },
+  'Message ordering':{
+    0:'append event A at offset 8',
+    1:'advance consumer through ordered offsets',
+    2:'apply event A before event B'
+  }
+};
+
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  for (const group of chapter.groups) {
+    for (const concept of group.concepts) {
+      concept.diagram = systemDesignDiagramOverrides[concept.name] || systemDesignDiagramFromVisual(concept);
+      const cachingLabels = systemDesignCachingLinkLabels[concept.name];
+      if (cachingLabels) {
+        concept.diagram.links.forEach((link,index) => {
+          link[2] = cachingLabels[index];
+        });
+      }
+      const labelOverrides = systemDesignLinkLabelOverrides[concept.name];
+      if (labelOverrides) {
+        for (const [index,label] of Object.entries(labelOverrides)) {
+          concept.diagram.links[Number(index)][2] = label;
+        }
+      }
+    }
+  }
+}

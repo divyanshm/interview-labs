@@ -16,7 +16,7 @@
     <a class="back" href="index.html">← All tracks</a>
     <input class="side-search" id="sideSearch" placeholder="Find any concept…">
     <div class="nav-label">Explore</div>
-    <nav><a href="#start">Overview</a><a href="#method">Design method</a><a href="#visuals">Visual theater</a><a href="#catalog">Concept catalog</a></nav>
+    <nav><a href="#start">Overview</a><a href="#method">Design method</a><a href="#visuals">Visual theater</a><a href="#realtime">Realtime connections</a><a href="#catalog">Concept catalog</a></nav>
     <div class="nav-label">26 chapters</div><nav class="chapter-nav" id="chapterNav"></nav>
   </aside>
   <main class="sd-main">
@@ -47,6 +47,45 @@
         <div class="theater-stage"><div class="controls"><select class="control" id="visualType"></select><button class="control" id="visualReset">↺ Reset</button><button class="control primary" id="visualStep">Step →</button><button class="control" id="visualPlay">▶ Play</button></div><div class="system-flow" id="systemFlow"></div></div>
         <div class="theater-info"><h3 id="visualTitle"></h3><div class="status" id="visualStatus"></div><div class="label">Mental model</div><p class="muted" id="visualMental"></p><div class="label">Invariant</div><div class="invariant" id="visualInvariant"></div><div class="label">Tradeoff</div><p class="muted" id="visualTradeoff"></p></div>
       </div>
+    </section>
+    <section id="realtime">
+      <div class="eyebrow">Realtime client communication</div><h2>Choose the connection shape that matches the conversation.</h2>
+      <p class="lede">Long polling, Server-Sent Events, and WebSockets all deliver timely updates, but they create different connection lifecycles, traffic directions, infrastructure demands, and failure modes.</p>
+      <div class="transport-grid">
+        <article class="transport-card">
+          <div class="transport-title"><span>HTTP</span><h3>Long polling</h3></div>
+          <div class="transport-diagram">
+            <div class="transport-node client-node">Client</div><div class="transport-route"><b>GET /events?cursor=42 →</b><small>request waits</small></div><div class="transport-node service-node">API instances</div><div class="transport-route"><b>← event or timeout</b><small>then reconnect</small></div><div class="transport-node queue-node">Event store / broker</div>
+          </div>
+          <ol><li>Client sends a normal HTTP request with its last cursor.</li><li>Server holds the request until an event arrives or a timeout expires.</li><li>Server returns one response; the client processes it and immediately opens another request.</li></ol>
+          <p><b>Best fit:</b> broad HTTP compatibility and infrequent updates when true streaming infrastructure is unavailable.</p>
+          <p class="transport-risk">Watch connection counts, timeout alignment, reconnect gaps, duplicate delivery, and load-balancer idle limits.</p>
+        </article>
+        <article class="transport-card">
+          <div class="transport-title"><span>HTTP stream</span><h3>Server-Sent Events</h3></div>
+          <div class="transport-diagram">
+            <div class="transport-node client-node">EventSource</div><div class="transport-route one-way"><b>← text/event-stream</b><small>id · event · data</small></div><div class="transport-node gateway-node">Proxy / gateway</div><div class="transport-route one-way"><b>← subscribed events</b><small>heartbeat keeps stream open</small></div><div class="transport-node queue-node">Service + pub/sub</div>
+          </div>
+          <ol><li>Browser opens one HTTP GET and the server keeps the response stream open.</li><li>Server emits UTF-8 events with IDs; intermediaries must not buffer the stream.</li><li>EventSource reconnects automatically and can send <code>Last-Event-ID</code> to resume.</li></ol>
+          <p><b>Best fit:</b> notifications, dashboards, progress, and feeds where traffic is predominantly server → client.</p>
+          <p class="transport-risk">Plan heartbeat cadence, replay retention, per-origin connection limits, proxy buffering, and slow-client backpressure.</p>
+        </article>
+        <article class="transport-card">
+          <div class="transport-title"><span>Full duplex</span><h3>WebSockets</h3></div>
+          <div class="transport-diagram">
+            <div class="transport-node client-node">WebSocket client</div><div class="transport-route duplex"><b>⇄ frames</b><small>after HTTP Upgrade</small></div><div class="transport-node gateway-node">WebSocket gateway</div><div class="transport-route duplex"><b>⇄ route / fan-out</b><small>connection ID + topic</small></div><div class="transport-node queue-node">Services + pub/sub</div>
+          </div>
+          <ol><li>Client performs an authenticated HTTP Upgrade handshake.</li><li>One persistent connection carries independent messages in both directions.</li><li>At scale, gateways register connections and use shared pub/sub so any service can reach the owning gateway.</li></ol>
+          <p><b>Best fit:</b> chat, multiplayer, collaborative editing, trading, and interactive bidirectional protocols.</p>
+          <p class="transport-risk">Handle authentication renewal, ping/pong, ordering, bounded send queues, backpressure, reconnect/resume, and rolling gateway drains.</p>
+        </article>
+      </div>
+      <div class="transport-table-wrap"><table class="transport-table"><thead><tr><th>Choice</th><th>Direction</th><th>Connection lifecycle</th><th>Natural recovery</th><th>Primary scaling concern</th></tr></thead><tbody>
+        <tr><td>Long polling</td><td>Request / response</td><td>Repeated held HTTP requests</td><td>Reconnect with cursor</td><td>Request churn and held server resources</td></tr>
+        <tr><td>SSE</td><td>Server → client</td><td>One long-lived HTTP response</td><td>Automatic reconnect + Last-Event-ID</td><td>Open streams, buffering, and slow consumers</td></tr>
+        <tr><td>WebSockets</td><td>Bidirectional</td><td>Persistent upgraded connection</td><td>Application-defined resume protocol</td><td>Connection ownership, fan-out, and backpressure</td></tr>
+      </tbody></table></div>
+      <div class="hero-note"><b>Interview shortcut:</b> start with the least stateful option. Use long polling for compatibility, SSE for one-way streams, and WebSockets only when the client and server both need low-latency independent messages.</div>
     </section>
     <section id="catalog" class="catalog">
       <div class="catalog-head"><div><div class="eyebrow">Searchable concept catalog</div><h2>Everything in one place.</h2></div><p class="muted">Chapters stay collapsed to reduce clutter. Select any concept to open its visual explainer and quick recap.</p></div>
