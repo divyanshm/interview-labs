@@ -559,6 +559,65 @@
   );
 
   add(
+    'partitioning-sharding::Shard merging',
+    'shard-merge',
+    'Two adjacent, underutilized customer-ID ranges are merged online while requests continue and ownership changes atomically.',
+    [
+      ['router', 'Range router', 'Resolves customer IDs using a versioned routing epoch', 10, 50],
+      ['a', 'Shard A', 'Owns customer IDs 000-499', 35, 20],
+      ['b', 'Shard B', 'Owns customer IDs 500-999', 35, 80],
+      ['merged', 'Merged shard C', 'Receives the combined range before cutover', 72, 50],
+      ['controller', 'Merge controller', 'Copies, validates, fences, and publishes ownership', 50, 50]
+    ],
+    [
+      ['router', 'a', 'route customer 218 under epoch 41'],
+      ['router', 'b', 'route customer 742 under epoch 41'],
+      ['a', 'merged', 'snapshot rows 000-499 through LSN 840'],
+      ['b', 'merged', 'snapshot rows 500-999 through LSN 615'],
+      ['controller', 'merged', 'replay deltas and verify checksum'],
+      ['controller', 'router', 'publish epoch 42: 000-999 → C'],
+      ['router', 'merged', 'route customer 742 under epoch 42']
+    ],
+    [
+      ['Two small owners', 'The directory maps two adjacent ranges to separate shards; customer 742 resolves to Shard B.', null, [
+        {epoch:'41',map:'000-499→A | 500-999→B',lookup742:'Shard B'},
+        {range:'000-499',rows:'1.2M',writes:'authoritative',status:'serving'},
+        {range:'500-999',rows:'0.8M',writes:'authoritative',status:'serving'},
+        {range:'000-999',copy:'0%',deltaLag:'—',status:'empty'},
+        {phase:'select',fence:'off',validation:'pending'}
+      ], 'The merge candidate is adjacent and lightly loaded, but both sources still own writes.', 'Every key has exactly one authoritative owner in routing epoch 41.'],
+      ['Bulk copy', 'The controller takes consistent snapshots and streams both key ranges into the new combined shard.', ['a', 'merged', 'copy snapshots A@840 and B@615'], [
+        {epoch:'41',map:'000-499→A | 500-999→B',lookup742:'Shard B'},
+        {range:'000-499',rows:'1.2M',writes:'authoritative',status:'copying @ LSN840'},
+        {range:'500-999',rows:'0.8M',writes:'authoritative',status:'copying @ LSN615'},
+        {range:'000-999',copy:'76%',deltaLag:'18,420 writes',status:'building'},
+        {phase:'snapshot copy',fence:'off',validation:'pending'}
+      ], 'Foreground traffic remains on A and B while C receives a stable baseline.', 'A snapshot alone is insufficient because writes continue after its LSN.'],
+      ['Catch up and verify', 'Change streams replay post-snapshot writes until C matches both source logs and checksums.', ['controller', 'merged', 'replay to A@917, B@688; verify 2.0M rows'], [
+        {epoch:'41',map:'000-499→A | 500-999→B',lookup742:'Shard B'},
+        {range:'000-499',rows:'1.2M',writes:'authoritative',status:'head LSN917'},
+        {range:'500-999',rows:'0.8M',writes:'authoritative',status:'head LSN688'},
+        {range:'000-999',copy:'100%',deltaLag:'0 writes',status:'checksum matched'},
+        {phase:'catch-up',fence:'off',validation:'2.0M rows match'}
+      ], 'C now contains the union of both ranges at the same log positions as its sources.', 'Do not cut over until row counts, checksums, and change-stream lag meet the safety gate.'],
+      ['Fence and cut over', 'Writes are briefly fenced, final deltas apply, and the directory atomically publishes one combined owner.', ['controller', 'router', 'CAS epoch 41→42; map 000-999 to C'], [
+        {epoch:'42',map:'000-999→C',lookup742:'Shard C'},
+        {range:'000-499',rows:'1.2M',writes:'fenced',status:'read drain'},
+        {range:'500-999',rows:'0.8M',writes:'fenced',status:'read drain'},
+        {range:'000-999',copy:'100%',deltaLag:'0 writes',status:'authoritative'},
+        {phase:'cutover',fence:'token 42',validation:'passed'}
+      ], 'New requests, including customer 742, resolve directly to C under epoch 42.', 'The routing update must be atomic: overlapping or missing ownership would duplicate or lose writes.'],
+      ['Retire old shards', 'After old-epoch requests drain and rollback time expires, A and B release their storage.', ['router', 'merged', 'serve customer 742 from C under epoch 42'], [
+        {epoch:'42',map:'000-999→C',lookup742:'Shard C'},
+        {range:'released',rows:'0',writes:'blocked',status:'retired'},
+        {range:'released',rows:'0',writes:'blocked',status:'retired'},
+        {range:'000-999',copy:'100%',deltaLag:'0 writes',status:'serving 2.0M rows'},
+        {phase:'complete',fence:'token 42',validation:'rollback window closed'}
+      ], 'One shard now owns the contiguous range, reducing per-shard overhead without downtime.', 'Retire sources only after stale routers and in-flight epoch-41 requests can no longer write.']
+    ]
+  );
+
+  add(
     'partitioning-sharding::Consistent hashing',
     'topology',
     'A cache ring assigns one key clockwise and moves only an adjacent range when a node joins.',
@@ -734,6 +793,43 @@
       ['Fresh value published', 'The owner stores version 32 and releases the gate.', ['db', 'cache', 'SET user7 v32 TTL300+jitter'], [
         {arrivals:'45/s',responses:'v32'}, {key:'user7',version:'32',ttl:'327s'}, {owner:'none',waiters:'0'}, {queries:'2/s',version:'32'}, {version:'32',maxStale:'60s'}
       ], 'Traffic returns to cache hits with a jittered expiry.', 'Only a successfully published fresh value completes the refill generation.']
+    ]
+  );
+
+  add(
+    'distributed-caching::Thundering herd',
+    'capacity',
+    'Ten thousand clients reconnect after a shared outage and would overwhelm an authentication dependency without jitter and admission control.',
+    [
+      ['clients', 'Client fleet', '10,000 clients sharing one retry boundary', 10, 50],
+      ['timers', 'Retry timers', 'Schedules each client retry attempt', 34, 18],
+      ['gate', 'Admission gate', 'Limits concurrent authentication work', 52, 72],
+      ['auth', 'Authentication API', 'Can sustainably process 800 requests per second', 78, 24],
+      ['queue', 'Bounded wait queue', 'Holds admitted retries without unbounded growth', 86, 78]
+    ],
+    [
+      ['timers', 'clients', 'all retry at t+5s'],
+      ['clients', 'auth', '10,000 simultaneous reconnects'],
+      ['clients', 'gate', 'retryAfter + random jitter'],
+      ['gate', 'queue', 'admit 800/s; reject overflow'],
+      ['queue', 'auth', 'drain at sustainable capacity']
+    ],
+    [
+      ['Healthy baseline', 'Clients are connected and authentication traffic remains below sustainable capacity.', null, [
+        {connected:'10,000',retrying:'0'}, {policy:'none',nextWake:'none'}, {permits:'800/s',admitted:'300/s'}, {capacity:'800/s',arrival:'300/s',p99:'90ms'}, {depth:'0',oldest:'0ms'}
+      ], 'Normal traffic leaves recovery headroom.', 'Recovery capacity must be reserved before an outage occurs.'],
+      ['Shared wake-up', 'A five-second retry timer expires for every disconnected client at once.', ['timers', 'clients', 'wake 10,000 clients at t+5s'], [
+        {connected:'0',retrying:'10,000'}, {policy:'fixed 5s',nextWake:'same instant'}, {permits:'800/s',admitted:'300/s'}, {capacity:'800/s',arrival:'300/s',p99:'90ms'}, {depth:'0',oldest:'0ms'}
+      ], 'A synchronized retry boundary creates the herd.', 'Independent clients can become one correlated failure source.'],
+      ['Dependency overloads', 'The unshaped reconnect burst exceeds authentication capacity by more than twelve times.', ['clients', 'auth', '10,000 Authenticate requests'], [
+        {connected:'0',retrying:'10,000'}, {policy:'fixed 5s',nextWake:'same instant'}, {permits:'800/s',admitted:'unbounded'}, {capacity:'800/s',arrival:'10,000 burst',p99:'timeout'}, {depth:'9,200',oldest:'12s'}
+      ], 'Latency and timeouts trigger more retries, sustaining collapse.', 'Retries are additional load and must consume a bounded budget.'],
+      ['Jitter and admission', 'Clients receive randomized retry times while the gate admits only sustainable work.', ['clients', 'gate', 'retry in 0-20s with token budget'], [
+        {connected:'2,400',retrying:'7,600 spread'}, {policy:'full jitter 0-20s',nextWake:'distributed'}, {permits:'800/s',admitted:'800/s'}, {capacity:'800/s',arrival:'800/s',p99:'180ms'}, {depth:'800',oldest:'1s'}
+      ], 'The burst becomes a controlled arrival curve.', 'Jitter removes synchronization; admission control protects finite capacity.'],
+      ['Fleet recovers', 'The bounded queue drains and clients reconnect without another synchronized wave.', ['queue', 'auth', 'drain 800 retries per second'], [
+        {connected:'10,000',retrying:'0'}, {policy:'full jitter',nextWake:'none'}, {permits:'800/s',admitted:'300/s'}, {capacity:'800/s',arrival:'300/s',p99:'95ms'}, {depth:'0',oldest:'0ms'}
+      ], 'Service returns to its healthy operating point.', 'A successful recovery keeps offered load below dependency capacity.']
     ]
   );
 

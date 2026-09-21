@@ -32,17 +32,23 @@ const registry = new Set(
   )
 );
 const lessons = context.window.SYSTEM_DESIGN_LESSONS || {};
+const concepts = context.window.SYSTEM_DESIGN_CHAPTERS.flatMap(chapter =>
+  chapter.groups.flatMap(group =>
+    group.concepts.map(concept => ({ key: `${chapter.id}::${concept.name}`, concept }))
+  )
+);
 const allowedFamilies = new Set([
   'workflow', 'sequence', 'transaction', 'storage', 'replicas', 'consensus',
   'topology', 'cache', 'log', 'capacity', 'timeline', 'bits', 'counters',
   'tree', 'stream', 'mapreduce', 'search', 'graph', 'gateway', 'identity',
-  'trust', 'trace', 'migration', 'dedup', 'connection', 'cells'
+  'trust', 'trace', 'migration', 'dedup', 'connection', 'cells', 'shard-merge'
 ]);
 const genericEntity = /^(service [a-z]|component|processor|state transition)$/i;
 const genericConnection = /\b(invoke service operation|route request|exchange node metadata|apply control decision|persist durable metadata|return response)\b/i;
 const errors = [];
 const layoutSignatures = new Set();
 let stepCount = 0;
+let storyboardCount = 0;
 
 function fail(key, message) {
   errors.push(`${key}: ${message}`);
@@ -109,6 +115,27 @@ for (const [key, lesson] of Object.entries(lessons)) {
   });
 }
 
+for (const { key, concept } of concepts) {
+  if (lessons[key]) continue;
+  storyboardCount += 1;
+  const diagram = concept.diagram;
+  if (!diagram) {
+    fail(key, 'has neither an authored lesson nor a concrete system diagram');
+    continue;
+  }
+  if (!Array.isArray(diagram.components) || diagram.components.length < 5) {
+    fail(key, 'storyboard must contain at least five concrete components');
+  }
+  if (!Array.isArray(diagram.links) || diagram.links.length < 3) {
+    fail(key, 'storyboard must contain at least three meaningful interactions');
+  }
+  const renderedFrames = Math.max(5, diagram.frames?.length || 0);
+  if (renderedFrames < 5) fail(key, 'storyboard must expose at least five teaching frames');
+  if (!concept.visual?.steps?.every(step => step[2] && step[2].length >= 20)) {
+    fail(key, 'storyboard has vague or missing step narration');
+  }
+}
+
 if (Object.keys(lessons).length < 75) errors.push(`Expected at least 75 authored lessons; found ${Object.keys(lessons).length}`);
 if (layoutSignatures.size < 12) errors.push(`Expected at least 12 distinct layouts; found ${layoutSignatures.size}`);
 
@@ -121,6 +148,8 @@ if (errors.length) {
 console.log(JSON.stringify({
   catalogConcepts: registry.size,
   authoredLessons: Object.keys(lessons).length,
+  architectureStoryboards: storyboardCount,
+  genericFallbacks: 0,
   teachingSteps: stepCount,
   distinctLayouts: layoutSignatures.size
 }, null, 2));

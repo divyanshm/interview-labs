@@ -175,29 +175,8 @@ const lessonLayouts={
   connection:[[10,22],[38,22],[68,22],[90,22],[22,75],[50,75],[78,75],[50,48],[90,75]],
   cells:[[50,12],[16,40],[50,48],[84,40],[25,82],[75,82],[50,82],[12,78],[88,78]]
 };
-function fallbackLesson(entry){
-  const visual=entry.concept.visual;
-  const nodes=visual?.nodes||[[entry.concept.name,entry.concept.summary]];
-  return {
-    family:'explain',
-    scenario:`Build a mental model of ${entry.concept.name} before applying it to an architecture.`,
-    entities:nodes.map((node,index)=>[`idea${index}`,node[0],node[1],0,0]),
-    connections:[],
-    steps:(visual?.steps||[[0,[],entry.concept.summary]]).map((step,index)=>({
-      title:`Idea ${index+1}: ${nodes[Math.min(index,nodes.length-1)][0]}`,
-      narration:step[2],
-      action:null,
-      states:Object.fromEntries(nodes.map((node,nodeIndex)=>[`idea${nodeIndex}`,{
-        role:node[1],
-        focus:nodeIndex===step[0]?'Examine now':nodeIndex<index?'Established':'Coming next'
-      }])),
-      outcome:index===0?'Start with the concrete pressure and actors.':`Connect this idea to ${nodes[Math.min(index,nodes.length-1)][0]}.`,
-      invariant:entry.concept.tradeoff
-    }))
-  };
-}
 function lessonFor(entry){
-  return authoredLessons[`${entry.chapter.id}::${entry.concept.name}`]||fallbackLesson(entry);
+  return authoredLessons[`${entry.chapter.id}::${entry.concept.name}`]||null;
 }
 function modelFromLesson(lesson){
   return {
@@ -224,8 +203,29 @@ function mechanismFor(entry){
     })
   };
 }
+function modelFromStoryboard(entry){
+  const source=entry.concept.diagram;
+  if(!source)throw new Error(`Missing visualization for ${entry.chapter.id}::${entry.concept.name}`);
+  const frames=source.frames.map(frame=>[frame[0],{...frame[1]}]);
+  const narratives=(entry.concept.visual?.steps||[]).map(step=>step[2]);
+  if(frames.length<5){
+    frames.unshift([-1,{[source.components[0][0]]:'active'}]);
+    narratives.unshift(entry.concept.summary);
+  }
+  while(frames.length<5)frames.push([-1,{...frames[frames.length-1][1]}]);
+  while(narratives.length<frames.length)narratives.push(entry.concept.tradeoff);
+  return {
+    kind:'storyboard',
+    diagram:{...source,frames},
+    summary:entry.concept.summary,
+    tradeoff:entry.concept.tradeoff,
+    nodes:source.components.map(component=>[component[1],component[2]]),
+    steps:frames.map((_,index)=>[index,[...Array(index).keys()],narratives[index]])
+  };
+}
 function makeConceptModel(entry){
-  return modelFromLesson(lessonFor(entry));
+  const lesson=lessonFor(entry);
+  return lesson?modelFromLesson(lesson):modelFromStoryboard(entry);
 }
 function nodeState(index,step){return index===step[0]?'active':step[1].includes(index)?'done':''}
 function nodeCard(node,index,step,className='system-node'){return `<div class="${className} ${nodeState(index,step)}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}
@@ -298,6 +298,22 @@ function renderArchitecture(scene,step,stepCount,currentIndex=conceptStep){
   const components=scene.components.map((node,index)=>{const state=activeEndpoints.has(index)?'active':frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0],node[2])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
   return `<svg class="architecture-links" viewBox="0 0 100 100" preserveAspectRatio="none">${defs}${links}</svg>${components}`;
 }
+function renderStoryboard(model,step){
+  const scene=sceneFromDiagram(model.diagram);
+  const frame=scene.frames[conceptStep]||{edge:-1,states:{}};
+  const focused=Object.entries(frame.states||{}).filter(([,state])=>state==='active').map(([index])=>scene.components[index]?.[0]).filter(Boolean);
+  const focus=focused.length?focused.join(' ↔ '):'System state';
+  const stages=model.diagram.components.map((component,index)=>{
+    const state=frame.states?.[index]||'';
+    return `<span class="${state}"><i>${componentIcon(component[1],component[3])}</i>${esc(component[1])}</span>`;
+  }).join('');
+  return `<div class="system-storyboard storyboard-${esc(model.diagram.kind)}">
+    <div class="storyboard-head"><span><small>Current interaction</small><b>${esc(focus)}</b></span><p>${esc(step[2])}</p></div>
+    <div class="storyboard-canvas">${renderArchitecture(scene,step,model.steps.length)}</div>
+    <div class="storyboard-components">${stages}</div>
+    <div class="storyboard-tension"><small>Design pressure / cost</small>${esc(model.tradeoff)}</div>
+  </div>`;
+}
 function radialScene(nodes,step,ring=false){
   const points=nodes.map((_,index)=>{const angle=-Math.PI/2+index*2*Math.PI/nodes.length;return [50+36*Math.cos(angle),50+36*Math.sin(angle)]});
   const edges=[];if(ring){points.forEach((point,index)=>edges.push([point,points[(index+1)%points.length],index]))}else{points.forEach((point,index)=>{for(let other=index+1;other<points.length;other++)edges.push([point,points[other],Math.max(index,other)-1])})}
@@ -338,8 +354,58 @@ function collisionFreeLessonPoints(count){
     return [rowX[index%columns],y[row]];
   });
 }
+function renderShardMergeLesson(lesson){
+  const step=lesson.steps[conceptStep],states=step.states;
+  const sourceA=states.a,sourceB=states.b,target=states.merged,router=states.router,controller=states.controller;
+  const copying=controller.phase==='snapshot copy',catching=controller.phase==='catch-up';
+  const cutover=['cutover','complete'].includes(controller.phase),retired=controller.phase==='complete';
+  const copyValue=parseInt(target.copy,10)||0;
+  const source=(id,label,state,range)=>`<article class="merge-shard source ${retired?'retired':''} ${step.action?.[0]===id?'active':''}">
+    <header><b>${label}</b><span>${esc(state.status)}</span></header>
+    <div class="merge-range">${range}<i>${esc(state.rows)} rows</i></div>
+    <footer><span>Writes</span><b>${esc(state.writes)}</b></footer>
+  </article>`;
+  return `<div class="teaching-lesson shard-merge-lesson">
+    <div class="lesson-scenario"><b>Worked example</b>${esc(lesson.scenario)}</div>
+    <div class="lesson-action active"><b>${esc(step.title)}</b><span>${esc(step.action?.[2]||'Inspect the original ownership map')}</span></div>
+    <div class="merge-stage">
+      <section class="merge-routing">
+        <header><b>Routing directory</b><span>epoch ${esc(router.epoch)}</span></header>
+        <div class="merge-map ${cutover?'combined':''}">
+          ${cutover?'<span class="range-c">000–999 → C</span>':'<span class="range-a">000–499 → A</span><span class="range-b">500–999 → B</span>'}
+        </div>
+        <div class="merge-lookup"><span>lookup(customer_id = 742)</span><b>→ ${esc(router.lookup742)}</b></div>
+      </section>
+      <section class="merge-sources">
+        ${source('a','Shard A',sourceA,'000–499')}
+        ${source('b','Shard B',sourceB,'500–999')}
+      </section>
+      <div class="merge-copy-lanes ${copying?'copying':''} ${catching?'catching':''} ${cutover?'done':''}">
+        <span>A snapshot / deltas</span><i>→</i><span>B snapshot / deltas</span><i>→</i>
+      </div>
+      <article class="merge-shard target ${target.status==='empty'?'empty':''} ${step.action?.[1]==='merged'?'active':''}">
+        <header><b>Merged shard C</b><span>${esc(target.status)}</span></header>
+        <div class="merge-range combined">000–999<i>${esc(target.copy)} copied</i></div>
+        <div class="merge-progress"><i style="width:${copyValue}%"></i></div>
+        <footer><span>Delta lag</span><b>${esc(target.deltaLag)}</b></footer>
+      </article>
+      <section class="merge-controller">
+        <header><b>Merge controller</b><span>${esc(controller.phase)}</span></header>
+        <div class="merge-checks">
+          <span class="${copyValue===100?'done':''}">① snapshot copy</span>
+          <span class="${target.deltaLag==='0 writes'?'done':''}">② delta catch-up</span>
+          <span class="${controller.validation==='passed'||controller.validation.includes('match')||controller.validation.includes('closed')?'done':''}">③ validate</span>
+          <span class="${cutover?'done':''}">④ epoch cutover</span>
+          <span class="${retired?'done':''}">⑤ retire sources</span>
+        </div>
+        <footer><span>Fence</span><b>${esc(controller.fence)}</b><span>Validation</span><b>${esc(controller.validation)}</b></footer>
+      </section>
+    </div>
+  </div>`;
+}
 function renderTeachingLesson(model){
   const lesson=model.lesson,step=lesson.steps[conceptStep],previous=lesson.steps[Math.max(0,conceptStep-1)];
+  if(lesson.family==='shard-merge')return renderShardMergeLesson(lesson);
   if(lesson.family==='explain'){
     return `<div class="lesson-explainer"><div class="lesson-scenario">${esc(lesson.scenario)}</div><div class="lesson-idea-grid">${lesson.entities.map((entity,index)=>{
       const state=step.states?.[entity[0]]||{};
@@ -369,6 +435,7 @@ function renderTeachingLesson(model){
 function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
   if(kind==='lesson'){ $('#conceptFlow').className=`concept-flow kind-lesson family-${model.lesson.family}`;return renderTeachingLesson(model) }
+  if(kind==='storyboard'){ $('#conceptFlow').className=`concept-flow kind-storyboard storyboard-${model.diagram.kind}`;return renderStoryboard(model,step) }
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
   if(model.diagram&&kind==='mechanism'){$('#conceptFlow').className='concept-flow kind-authored kind-mechanism';return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
@@ -387,8 +454,8 @@ function renderConceptScene(model,step){
 }
 function drawConcept(){
   const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
-  $('#conceptPanel').classList.toggle('lesson-mode',presentation.kind==='lesson');
-  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.lesson?.family==='explain'?'Guided mental model':'Production scenario · data, messages, and invariants';
+  $('#conceptPanel').classList.toggle('lesson-mode',presentation.kind==='lesson'||presentation.kind==='storyboard');
+  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
   $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;
   $('#conceptFlow').innerHTML=`<div class="concept-zoom-layer" style="--concept-zoom:${conceptZoom}">${renderConceptScene(presentation,step)}</div>`;
   $('#conceptZoomReset').textContent=`${Math.round(conceptZoom*100)}%`;
