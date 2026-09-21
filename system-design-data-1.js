@@ -450,6 +450,99 @@ for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
   }
 }
 
+const systemDesignDiagramContext = {
+  'Consistency and availability':['consistencyPlane','Consistency policy plane','routes reads by required guarantee','control','enforce consistency policy','report observed version'],
+  'Failure, time, and semantics':['operationHistory','Operation history','records clocks, delivery, and failures','storage','record operation evidence','read ordering evidence'],
+  'Consensus and leadership':['consensusJournal','Consensus journal','persists ballots, terms, and decisions','storage','persist consensus metadata','recover chosen decision'],
+  'Coordination services and membership':['coordinationStore','Coordination metadata store','holds leases, epochs, and membership','database','commit coordination metadata','watch metadata revision'],
+  'Replication topologies':['replicationWal','Replication WAL','durable ordered update stream','storage','append replication record','replay replication record'],
+  'Lag, conflicts, and geography':['versionStore','Version metadata store','tracks causality and replica progress','database','record version metadata','resolve replica version'],
+  'Placement strategies':['shardDirectory','Shard directory','maps keys and ranges to owners','index','resolve shard owner','publish placement epoch'],
+  'Movement and skew':['rebalanceControl','Rebalance controller','plans bounded ownership movement','control','schedule ownership change','publish routing cutover'],
+  'Query and tenancy behavior':['queryPlanner','Distributed query planner','bounds fan-out and tenant routing','gateway','plan partition requests','merge partition responses'],
+  'Access patterns':['productStore','Authoritative product store','source of truth behind cache','database','read authoritative value','persist authoritative value'],
+  'Freshness and misses':['freshnessIndex','Freshness metadata index','tracks versions, TTLs, and refill ownership','index','check freshness metadata','commit refill metadata'],
+  'Topology and correctness':['cacheRing','Cache routing ring','maps keys to cache owners and replicas','index','resolve cache owner','publish cache membership'],
+  'Membership':['exactSet','Exact backing set','verifies positive membership candidates','storage','verify positive candidate','record inserted member'],
+  'Cardinality and frequency':['streamVerifier','Stream verification store','checks sampled frequencies and counts','storage','verify sketch estimate','sample exact counter'],
+  'Similarity and sampling':['sourcePopulation','Source population','provides vectors, sets, or stream records','storage','sample source records','verify sampled estimate'],
+  'Messaging models':['brokerMetadata','Broker metadata quorum','owns topics, partitions, and assignments','control','resolve broker ownership','publish partition assignment'],
+  'Progress and retention':['segmentStore','Broker segment store','retains ordered records and offsets','storage','read retained segment','compact broker segment'],
+  'Delivery control':['deliveryScheduler','Delivery scheduler','manages attempts, priority, and visibility','control','schedule delivery attempt','record delivery outcome'],
+  'Integration patterns':['schemaRegistry','Event schema registry','governs compatible event contracts','control','validate event contract','publish schema version'],
+  'Atomic commit':['recoveryJournal','Transaction recovery journal','stores votes and final decisions','storage','persist transaction decision','recover in-doubt participant'],
+  'Long-running workflows':['workflowJournal','Workflow journal','stores durable step and compensation state','storage','record workflow transition','resume pending workflow'],
+  'Concurrency control':['versionCatalog','Transaction version catalog','tracks locks, snapshots, and versions','database','validate transaction version','publish committed version'],
+  'Remote-call resilience':['dependencyTelemetry','Dependency telemetry','measures latency, attempts, and failures','control','record dependency outcome','update resilience policy'],
+  'Overload and isolation':['capacityController','Capacity controller','owns queue, rate, and concurrency budgets','control','grant capacity permit','adjust admission budget'],
+  'Failure policy and domains':['incidentControl','Incident control plane','tracks health, domains, and degraded mode','control','publish failure-domain health','activate recovery policy']
+};
+const systemDesignDiagramCoordinates = {
+  5:[[14,50],[36,16],[36,84],[66,24],[86,68]],
+  6:[[14,50],[34,16],[34,84],[62,16],[62,84],[86,50]],
+  7:[[14,50],[32,16],[32,84],[58,16],[58,84],[82,28],[82,72]],
+  8:[[14,50],[30,16],[30,84],[52,16],[52,84],[72,16],[72,84],[86,50]]
+};
+const systemDesignStateLikeLabel = /^(closed|open|half-open|closed\/reopen|decision|recovery|failure|commit|ack|outcome|completion|miss|retry|delay|cap|limit)$/i;
+const systemDesignCompactEndpointLabel = component => {
+  const label = component[1].split(' - ')[0].replace(/\//g,' or ');
+  if (label.length <= 24) return label;
+  return label.split(/\s+/).slice(0,3).join(' ');
+};
+const systemDesignCompactLinkLabel = (source,target) => {
+  const targetLabel = systemDesignCompactEndpointLabel(target);
+  const action = {
+    client:'return response to',
+    gateway:'route request through',
+    service:'invoke',
+    database:'commit record to',
+    replica:source[3] === 'client' ? 'query' : 'replicate update to',
+    cache:'read or update',
+    queue:'publish record to',
+    worker:'dispatch work to',
+    control:'update',
+    storage:'persist record in',
+    index:'look up or update',
+    node:'exchange state with',
+    clock:'advance',
+    bitset:'set or test'
+  }[target[3]];
+  return `${action} ${targetLabel}`;
+};
+const systemDesignReworkDiagram = (concept,groupTitle) => {
+  const diagram = concept.diagram;
+  if (diagram.components.length < 5) {
+    const [id,label,detail,type,forwardLabel,returnLabel] = systemDesignDiagramContext[groupTitle];
+    diagram.components.push([id,label,detail,type,50,50]);
+    const branchTarget = diagram.components[1][0];
+    const feedbackSource = diagram.components[3][0];
+    diagram.links.push([id,branchTarget,forwardLabel]);
+    diagram.links.push([feedbackSource,id,returnLabel]);
+  }
+  for (const component of diagram.components) {
+    if (systemDesignStateLikeLabel.test(component[1])) {
+      component[1] = `${concept.name} - ${component[1]}`;
+    }
+  }
+  const coordinates = systemDesignDiagramCoordinates[diagram.components.length];
+  diagram.components.forEach((component,index) => {
+    component[4] = coordinates[index][0];
+    component[5] = coordinates[index][1];
+  });
+  for (const frame of diagram.frames) {
+    if (frame[0] < 0) continue;
+    const [fromId,toId] = diagram.links[frame[0]];
+    frame[1][fromId] = 'active';
+    frame[1][toId] = 'active';
+  }
+  const componentsById = Object.fromEntries(diagram.components.map(component => [component[0],component]));
+  for (const link of diagram.links) {
+    if (link[2].length > 45) {
+      link[2] = systemDesignCompactLinkLabel(componentsById[link[0]],componentsById[link[1]]);
+    }
+  }
+};
+
 const systemDesignDiagramTypes = new Set(['client','gateway','service','database','replica','cache','queue','worker','control','storage','index','node','clock','bitset']);
 const systemDesignDiagramLayouts = {
   architecture:[[10,50],[38,20],[65,20],[90,50]],
@@ -479,13 +572,13 @@ const systemDesignDiagramType = (label, detail) => {
   if (/(client|caller|reader|writer|producer|publisher|request|session|user)/.test(value)) return 'client';
   if (/(gateway|router|admission|limiter|dispatcher|load balancer)/.test(value)) return 'gateway';
   if (/(bit array|bitset)/.test(value)) return 'bitset';
-  if (/(clock|timer|time source)/.test(value)) return 'clock';
+  if (/(physical clock|logical clock|hybrid logical|wall clock|monotonic clock|timer|time source)/.test(value)) return 'clock';
+  if (/(replica|follower|backup|acceptor|voter|region|datacenter|shard)/.test(value)) return 'replica';
   if (/(index|directory|offset store|membership map|range map)/.test(value)) return 'index';
   if (/(storage|segment|snapshot|transaction log|event store|compacted log)/.test(value)) return 'storage';
   if (/(cache|filter|register|counter|sketch|reservoir)/.test(value)) return 'cache';
   if (/(database|table|ledger|metadata|decision log|epoch store)/.test(value)) return 'database';
   if (/(node)/.test(value)) return 'node';
-  if (/(replica|follower|backup|acceptor|voter|region|datacenter|shard)/.test(value)) return 'replica';
   if (/(queue|topic|broker|partition log|event bus|stream|outbox|inbox|dlq|message)/.test(value)) return 'queue';
   if (/(worker|consumer|operator|subscriber)/.test(value)) return 'worker';
   if (/(leader|primary|service|authority|dependency|resolver|processor|projector|scheduler|controller|sequencer|loader|relay|cleaner)/.test(value)) return 'service';
@@ -761,6 +854,16 @@ const systemDesignLinkLabelOverrides = {
     0:'append event A at offset 8',
     1:'advance consumer through ordered offsets',
     2:'apply event A before event B'
+  },
+  'Consistent hashing':{
+    0:'locate clockwise token successor',
+    1:'select next nodes for replicas',
+    2:'remap affected token intervals'
+  },
+  'Leader/follower replication':{
+    0:'append write at leader index 30',
+    1:'replay index 30 on followers',
+    2:'route read by freshness requirement'
   }
 };
 
@@ -780,6 +883,15 @@ for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
           concept.diagram.links[Number(index)][2] = label;
         }
       }
+    }
+  }
+
+}
+
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  for (const group of chapter.groups) {
+    for (const concept of group.concepts) {
+      systemDesignReworkDiagram(concept,group.title);
     }
   }
 }

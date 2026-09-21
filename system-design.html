@@ -16,15 +16,15 @@
     <a class="back" href="index.html">← All tracks</a>
     <input class="side-search" id="sideSearch" placeholder="Find any concept…">
     <div class="nav-label">Explore</div>
-    <nav><a href="#start">Overview</a><a href="#method">Design method</a><a href="#visuals">Visual theater</a><a href="#realtime">Realtime connections</a><a href="#catalog">Concept catalog</a></nav>
-    <div class="nav-label">26 chapters</div><nav class="chapter-nav" id="chapterNav"></nav>
+    <nav><a href="#start">Overview</a><a href="#method">Design method</a><a href="#visuals">Visual theater</a><a href="#catalog">Concept catalog</a></nav>
+    <div class="nav-label">27 chapters</div><nav class="chapter-nav" id="chapterNav"></nav>
   </aside>
   <main class="sd-main">
     <section id="start" class="sd-hero">
       <div class="eyebrow">Senior / staff system design</div><h1>Reason from <span style="color:var(--sd)">invariants and tradeoffs</span>.</h1>
       <p class="lede">A concise visual handbook for distributed systems, storage, messaging, reliability, identity, observability, migration, and large-scale architecture.</p>
       <input class="hero-search" id="heroSearch" placeholder="Search CAP, fencing tokens, Bloom filters, outbox, watermarks, SPIFFE…">
-      <div class="stats"><span class="stat"><b id="chapterCount">26</b> chapters</span><span class="stat"><b id="conceptCount">—</b> concepts</span><span class="stat"><b>14</b> visual models</span></div>
+      <div class="stats"><span class="stat"><b id="chapterCount">27</b> chapters</span><span class="stat"><b id="conceptCount">—</b> concepts</span><span class="stat"><b>14</b> visual models</span></div>
       <div class="hero-note"><b>Use it actively:</b> search a term, open its chapter, explain the failure it addresses, then name the cost it introduces. Architecture quality lives in that tradeoff.</div>
     </section>
     <section id="method">
@@ -49,7 +49,7 @@
       </div>
     </section>
     <section id="realtime">
-      <div class="eyebrow">Realtime client communication</div><h2>Choose the connection shape that matches the conversation.</h2>
+      <div class="eyebrow">Realtime Connections · chapter deep dive</div><h2>Choose the connection shape that matches the conversation.</h2>
       <p class="lede">Long polling, Server-Sent Events, and WebSockets all deliver timely updates, but they create different connection lifecycles, traffic directions, infrastructure demands, and failure modes.</p>
       <div class="transport-grid">
         <article class="transport-card">
@@ -85,7 +85,7 @@
         <tr><td>SSE</td><td>Server → client</td><td>One long-lived HTTP response</td><td>Automatic reconnect + Last-Event-ID</td><td>Open streams, buffering, and slow consumers</td></tr>
         <tr><td>WebSockets</td><td>Bidirectional</td><td>Persistent upgraded connection</td><td>Application-defined resume protocol</td><td>Connection ownership, fan-out, and backpressure</td></tr>
       </tbody></table></div>
-      <div class="hero-note"><b>Interview shortcut:</b> start with the least stateful option. Use long polling for compatibility, SSE for one-way streams, and WebSockets only when the client and server both need low-latency independent messages.</div>
+      <div class="hero-note"><b>Interview shortcut:</b> start with the least stateful option. Use long polling for compatibility, SSE for one-way streams, and WebSockets only when the client and server both need low-latency independent messages. <a href="#chapter-realtime-connections">Open the Realtime Connections chapter.</a></div>
     </section>
     <section id="catalog" class="catalog">
       <div class="catalog-head"><div><div class="eyebrow">Searchable concept catalog</div><h2>Everything in one place.</h2></div><p class="muted">Chapters stay collapsed to reduce clutter. Select any concept to open its visual explainer and quick recap.</p></div>
@@ -101,7 +101,11 @@
     </header>
     <div class="concept-layout">
       <div class="concept-stage">
-        <div class="architecture-label">Architecture &amp; animated data flow</div>
+        <div class="concept-view-switch" id="conceptViewSwitch">
+          <button class="active" data-concept-view="mechanism">1 · Mechanism</button>
+          <button data-concept-view="architecture">2 · Production architecture</button>
+        </div>
+        <div class="architecture-label" id="conceptViewLabel">Architecture &amp; step-driven data flow</div>
         <div class="controls">
           <button class="control" id="conceptReset">↺ Reset</button>
           <button class="control" id="conceptPrev">← Back</button>
@@ -125,6 +129,7 @@
 <script src="system-design-data-1.js"></script>
 <script src="system-design-data-2.js"></script>
 <script src="system-design-data-3.js"></script>
+<script src="system-design-mechanisms.js"></script>
 <script src="system-design.js"></script>
 </body>
 </html>

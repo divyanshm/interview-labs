@@ -1,6 +1,7 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const esc=s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const chapters=(window.SYSTEM_DESIGN_CHAPTERS||[]);
+const sortedChapters=[...chapters].sort((a,b)=>a.title.localeCompare(b.title,undefined,{sensitivity:'base'}));
 const visuals={
   cap:{title:'CAP + PACELC',mental:'A partition forces a choice for each operation: reject/delay it to preserve one-copy correctness, or serve it with potentially divergent state. When there is no partition, replicas still trade latency against consistency.',invariant:'Partition behavior and normal-operation behavior are separate design choices.',tradeoff:'CAP is not “pick two” during normal operation; partition tolerance is unavoidable once communication can fail.',nodes:[['Client','operation'],['Replica A','reachable'],['Network','partition'],['Replica B','isolated'],['Decision','C or A']],steps:[
     [0,[],'A client sends an operation while all replicas initially agree.'],[2,[0,1],'The link between replicas fails; neither side can distinguish a partition from delay.'],[4,[0,1,2,3],'Choose consistency: one side rejects/delays, or availability: both sides serve and may diverge.'],[1,[0,1,2,3,4],'After healing, reconcile divergent versions or resume the single authoritative history.']]},
@@ -36,7 +37,7 @@ let currentVisual='cap',visualStep=0,visualPlaying=false;
 function drawVisual(){
   const v=visuals[currentVisual],s=v.steps[visualStep];
   $('#visualTitle').textContent=v.title;$('#visualMental').textContent=v.mental;$('#visualInvariant').textContent=v.invariant;$('#visualTradeoff').textContent=v.tradeoff;$('#visualStatus').innerHTML=`<b>Step ${visualStep+1}/${v.steps.length}</b><br>${s[2]}`;
-  const concept=chapters.flatMap(chapter=>chapter.groups.flatMap(group=>group.concepts)).find(item=>item.name===visualConceptNames[currentVisual]);
+  const concept=sortedChapters.flatMap(chapter=>chapter.groups.flatMap(group=>group.concepts)).find(item=>item.name===visualConceptNames[currentVisual]);
   if(concept?.diagram){$('#systemFlow').className='system-flow kind-authored';$('#systemFlow').innerHTML=renderArchitecture(sceneFromDiagram(concept.diagram),s,v.steps.length,visualStep)}
   else{$('#systemFlow').className='system-flow';$('#systemFlow').innerHTML=v.nodes.map((n,i)=>`<div class="system-node ${i===s[0]?'active':s[1].includes(i)?'done':''}"><b>${n[0]}</b><small>${n[1]}</small></div>${i<v.nodes.length-1?'<span class="system-arrow">→</span>':''}`).join('')}
   $('#visualStep').disabled=visualStep===v.steps.length-1;
@@ -46,7 +47,7 @@ Object.entries(visuals).forEach(([key,v])=>$('#visualType').add(new Option(v.tit
 $('#visualType').onchange=e=>{currentVisual=e.target.value;resetVisual()};$('#visualReset').onclick=resetVisual;$('#visualStep').onclick=()=>{if(visualStep<visuals[currentVisual].steps.length-1){visualStep++;drawVisual()}};
 $('#visualPlay').onclick=async()=>{visualPlaying=!visualPlaying;$('#visualPlay').textContent=visualPlaying?'❚❚ Pause':'▶ Play';while(visualPlaying&&visualStep<visuals[currentVisual].steps.length-1){await sleep(800);if(visualPlaying){visualStep++;drawVisual()}}visualPlaying=false;$('#visualPlay').textContent='▶ Play'};
 
-const conceptRegistry=chapters.flatMap((chapter,chapterIndex)=>chapter.groups.flatMap((group,groupIndex)=>group.concepts.map((concept,conceptIndex)=>({chapter,group,concept,chapterIndex,groupIndex,conceptIndex}))));
+const conceptRegistry=sortedChapters.flatMap((chapter,chapterIndex)=>chapter.groups.flatMap((group,groupIndex)=>group.concepts.map((concept,conceptIndex)=>({chapter,group,concept,chapterIndex,groupIndex,conceptIndex}))));
 const conceptIndexes=new Map(conceptRegistry.map((entry,index)=>[entry.concept,index]));
 const chapterScenes={
   'distributed-systems-fundamentals':[['Client','request'],['Node A','local state'],['Network','delay / partition'],['Node B','remote state'],['Observer','visible outcome']],
@@ -129,7 +130,38 @@ function inferVisualKind(entry){
     'distributed-deduplication-idempotency':'swimlane','time-based-distributed-patterns':'timeline','advanced-senior-staff-level-concepts':'layers'
   }[chapter]||'pipeline';
 }
-let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false;
+const mechanismVisuals={
+  'Token bucket':{
+    kind:'mechanism-token-bucket',
+    steps:[
+      [0,[],`Start with 3 tokens in a bucket whose burst capacity is 5. Refill rate r = 1 token/second.`,{tokens:3,elapsed:0,cost:0,result:'ready',active:'bucket'}],
+      [0,[],`Two seconds pass. Lazily refill on the next request: min(5, 3 + 2 × 1) = 5 tokens.`,{tokens:5,elapsed:2,cost:0,result:'refill',active:'clock'}],
+      [0,[],`A request arrives with cost 3. Compare its cost with the 5 currently available tokens.`,{tokens:5,elapsed:2,cost:3,result:'check',active:'request'}],
+      [0,[],`Enough tokens exist, so atomically subtract 3. The request is admitted and 2 tokens remain.`,{tokens:2,elapsed:2,cost:3,result:'admit',active:'decision'}],
+      [0,[],`A burst request costing 4 arrives while only 2 tokens are available. Do not let the balance go negative.`,{tokens:2,elapsed:2,cost:4,result:'check',active:'request'}],
+      [0,[],`Reject or delay that request. Return retry guidance derived from the 2-token deficit and refill rate.`,{tokens:2,elapsed:2,cost:4,result:'reject',active:'decision'}],
+      [0,[],`After 3 more seconds, refill to capacity: min(5, 2 + 3 × 1) = 5. Bursts are bounded while average rate stays near r.`,{tokens:5,elapsed:3,cost:0,result:'refill',active:'clock'}]
+    ]
+  }
+};
+let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture';
+function mechanismFor(entry){
+  if(entry.concept.name==='Token bucket')return mechanismVisuals['Token bucket'];
+  const mechanism=(window.SYSTEM_DESIGN_MECHANISMS||{})[`${entry.chapter.id}::${entry.concept.name}`];
+  if(!mechanism)return null;
+  const indexes=new Map(mechanism.diagram.components.map((component,index)=>[component[0],index]));
+  return {
+    kind:'mechanism',
+    diagram:mechanism.diagram,
+    nodes:mechanism.diagram.components.map(component=>[component[1],component[2]]),
+    steps:mechanism.steps.map((description,index)=>{
+      const frame=mechanism.diagram.frames[index];
+      const active=frame?.[0]>=0?indexes.get(mechanism.diagram.links[frame[0]][1]):0;
+      const done=Object.entries(frame?.[1]||{}).filter(([,state])=>state==='done').map(([id])=>indexes.get(id));
+      return [active??0,done,description];
+    })
+  };
+}
 function makeConceptModel(entry){
   if(entry.concept.visual){
     return {
@@ -214,9 +246,12 @@ function architectureScene(name){
 function renderArchitecture(scene,step,stepCount,currentIndex=conceptStep){
   const frameIndex=Math.round(currentIndex*(scene.frames.length-1)/Math.max(1,stepCount-1));
   const frame=scene.frames[frameIndex]||{edge:-1,states:{}};
-  const edge=scene.edges[frame.edge],defs='<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>';
-  const links=scene.edges.map(([from,to,label],index)=>{const a=scene.points[from],b=scene.points[to],state=index===frame.edge?'active':index<frame.edge?'done':'';return `<g class="architecture-link ${state}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/><text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(label)}</text></g>`}).join('');
-  const components=scene.components.map((node,index)=>{const state=frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${scene.points[index][0]}%;top:${scene.points[index][1]}%"><i>${componentIcon(node[0],node[2])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
+  const edge=scene.edges[frame.edge],points=scene.points.map(([x,y])=>[Math.max(16,Math.min(84,x)),Math.max(14,Math.min(86,y))]);
+  const completedEdges=new Set(scene.frames.slice(0,frameIndex).map(item=>item.edge).filter(index=>index>=0));
+  const activeEndpoints=new Set(edge?[edge[0],edge[1]]:[]);
+  const defs='<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>';
+  const links=scene.edges.map(([from,to,label],index)=>{const a=points[from],b=points[to],state=index===frame.edge?'active':completedEdges.has(index)?'done':'';return `<g class="architecture-link ${state}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/><text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(label)}</text></g>`}).join('');
+  const components=scene.components.map((node,index)=>{const state=activeEndpoints.has(index)?'active':frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0],node[2])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
   return `<svg class="architecture-links" viewBox="0 0 100 100" preserveAspectRatio="none">${defs}${links}</svg>${components}`;
 }
 function radialScene(nodes,step,ring=false){
@@ -238,8 +273,15 @@ function shardScene(nodes,step){
   const edges=nodes.slice(1).map((_,index)=>index===0?[points[0],points[1],0]:[points[1],points[index+1],index]);
   return `<svg class="scene-lines" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="shardArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${edges.map(([a,b,index])=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#shardArrow)" class="${conceptStep>index?'done':conceptStep===index?'active':''}"/>`).join('')}</svg>${nodes.map((node,index)=>`<div class="diagram-node shard-component ${nodeState(index,step)}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`).join('')}`;
 }
+function renderTokenBucketMechanism(step){
+  const state=step[3],tokens=Array.from({length:5},(_,index)=>`<i class="token-slot ${index<state.tokens?'full':''}"></i>`).join('');
+  const result={ready:'Waiting for a request',refill:`Refilled to ${state.tokens} tokens`,check:`Need ${state.cost}; have ${state.tokens}`,admit:`ADMIT · ${state.tokens} remain`,reject:`REJECT · keep ${state.tokens} tokens`}[state.result];
+  return `<div class="token-mechanism"><div class="token-clock ${state.active==='clock'?'active':''}"><b>Refill clock</b><small>elapsed = ${state.elapsed}s<br>rate = 1 token/s</small></div><div class="bucket-wrap"><div class="bucket-formula">tokens = min(B, tokens + elapsed × r)</div><div class="token-bucket-shape"><span class="bucket-capacity">capacity B = 5</span>${tokens}</div><div class="token-result ${state.result}">${result}</div></div><div><div class="token-request ${state.active==='request'?'active':''}"><b>Incoming request</b><small>cost = ${state.cost||'—'} tokens</small></div><div class="token-decision ${state.active==='decision'?'active':''}" style="margin-top:12px"><b>Atomic decision</b><small>consume or reject</small></div></div><div class="token-pseudocode">refill = min(capacity, tokens + elapsed × rate)<br>if refill ≥ cost: tokens = refill - cost; admit<br>else: tokens = refill; reject or delay</div></div>`;
+}
 function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
+  if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
+  if(model.diagram&&kind==='mechanism'){$('#conceptFlow').className='concept-flow kind-authored kind-mechanism';return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
   if(model.diagram){$('#conceptFlow').className=`concept-flow kind-authored kind-${model.diagram.kind}`;return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   if(kind==='network'||kind==='ring')return radialScene(nodes,step,kind==='ring');
@@ -255,16 +297,21 @@ function renderConceptScene(model,step){
   return nodes.map((node,index)=>`${nodeCard(node,index,step)}${index<nodes.length-1?`<span class="system-arrow ${conceptStep===index?'active':''}">→</span>`:''}`).join('');
 }
 function drawConcept(){
-  const step=conceptModel.steps[conceptStep];
-  $('#conceptFlow').className=`concept-flow kind-${conceptModel.kind}`;$('#conceptFlow').innerHTML=renderConceptScene(conceptModel,step);
-  $('#conceptStatus').innerHTML=`<b>Step ${conceptStep+1} of ${conceptModel.steps.length}</b><br>${esc(step[2])}`;
-  $('#conceptDots').innerHTML=conceptModel.steps.map((_,index)=>`<button class="concept-dot ${index===conceptStep?'active':index<conceptStep?'done':''}" data-step="${index}" aria-label="Go to step ${index+1}"></button>`).join('');
+  const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
+  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':'Production architecture & interaction flow';
+  $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;$('#conceptFlow').innerHTML=renderConceptScene(presentation,step);
+  $('#conceptStatus').innerHTML=`<b>Step ${conceptStep+1} of ${presentation.steps.length}</b><br>${esc(step[2])}`;
+  $('#conceptDots').innerHTML=presentation.steps.map((_,index)=>`<button class="concept-dot ${index===conceptStep?'active':index<conceptStep?'done':''}" data-step="${index}" aria-label="Go to step ${index+1}"></button>`).join('');
   $$('.concept-dot').forEach(dot=>dot.onclick=()=>{conceptStep=Number(dot.dataset.step);drawConcept()});
-  $('#conceptPrev').disabled=conceptStep===0;$('#conceptNext').disabled=conceptStep===conceptModel.steps.length-1;
+  $('#conceptPrev').disabled=conceptStep===0;$('#conceptNext').disabled=conceptStep===presentation.steps.length-1;
 }
 function stopConceptPlay(){conceptPlaying=false;$('#conceptPlay').textContent='▶ Play'}
 function openConcept(index){
   activeConcept=conceptRegistry[index];conceptModel=makeConceptModel(activeConcept);conceptStep=0;stopConceptPlay();
+  const mechanism=mechanismFor(activeConcept);
+  conceptView=mechanism?'mechanism':'architecture';
+  $('#conceptViewSwitch').classList.toggle('hidden',!mechanism);
+  $$('[data-concept-view]').forEach(button=>button.classList.toggle('active',button.dataset.conceptView===conceptView));
   $('#conceptChapter').textContent=`Chapter ${activeConcept.chapterIndex+1} · ${activeConcept.chapter.title}`;
   $('#conceptTitle').textContent=activeConcept.concept.name;$('#conceptSummary').textContent=activeConcept.concept.summary;$('#conceptTradeoff').textContent=activeConcept.concept.tradeoff;
   $('#conceptRecall').textContent=`Explain what pressure ${activeConcept.concept.name} addresses, trace one request through the visual, then name the failure mode or cost you accept.`;
@@ -273,14 +320,16 @@ function openConcept(index){
   $$('#conceptRelated button').forEach(button=>button.onclick=()=>openConcept(Number(button.dataset.related)));
   drawConcept();if(!$('#conceptDialog').open)$('#conceptDialog').showModal();
 }
-$('#conceptClose').onclick=()=>$('#conceptDialog').close();$('#conceptReset').onclick=()=>{stopConceptPlay();conceptStep=0;drawConcept()};$('#conceptPrev').onclick=()=>{stopConceptPlay();if(conceptStep>0){conceptStep--;drawConcept()}};$('#conceptNext').onclick=()=>{stopConceptPlay();if(conceptStep<conceptModel.steps.length-1){conceptStep++;drawConcept()}};
-$('#conceptPlay').onclick=async()=>{conceptPlaying=!conceptPlaying;$('#conceptPlay').textContent=conceptPlaying?'❚❚ Pause':'▶ Play';while(conceptPlaying&&conceptStep<conceptModel.steps.length-1){await sleep(950);if(conceptPlaying){conceptStep++;drawConcept()}}stopConceptPlay()};
+$('#conceptClose').onclick=()=>$('#conceptDialog').close();$('#conceptReset').onclick=()=>{stopConceptPlay();conceptStep=0;drawConcept()};$('#conceptPrev').onclick=()=>{stopConceptPlay();if(conceptStep>0){conceptStep--;drawConcept()}};
+$$('[data-concept-view]').forEach(button=>button.onclick=()=>{stopConceptPlay();conceptView=button.dataset.conceptView;conceptStep=0;$$('[data-concept-view]').forEach(item=>item.classList.toggle('active',item===button));drawConcept()});
+$('#conceptNext').onclick=()=>{stopConceptPlay();const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel;if(conceptStep<presentation.steps.length-1){conceptStep++;drawConcept()}};
+$('#conceptPlay').onclick=async()=>{conceptPlaying=!conceptPlaying;$('#conceptPlay').textContent=conceptPlaying?'❚❚ Pause':'▶ Play';const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel;while(conceptPlaying&&conceptStep<presentation.steps.length-1){await sleep(950);if(conceptPlaying){conceptStep++;drawConcept()}}stopConceptPlay()};
 $('#conceptDialog').addEventListener('close',stopConceptPlay);$('#conceptDialog').onclick=e=>{if(e.target===$('#conceptDialog'))$('#conceptDialog').close()};
 
 function renderCatalog(){
-  $('#chapterCount').textContent=chapters.length;$('#conceptCount').textContent=chapters.reduce((n,c)=>n+c.groups.reduce((m,g)=>m+g.concepts.length,0),0);
-  $('#chapterNav').innerHTML=chapters.map((c,i)=>`<a href="#chapter-${esc(c.id)}" data-chapter="${esc(c.id)}">${String(i+1).padStart(2,'0')} · ${esc(c.title)}</a>`).join('');
-  $('#chapters').innerHTML=chapters.map((c,i)=>`<details class="chapter" id="chapter-${esc(c.id)}" ${i===0?'open':''}><summary><span class="chapter-num">${String(i+1).padStart(2,'0')}</span><span class="chapter-title">${esc(c.title)}</span><span class="chapter-intro">${esc(c.intro)}</span></summary><div class="chapter-body">${c.groups.map(g=>`<div class="concept-group"><h3>${esc(g.title)}</h3><div class="concept-grid">${g.concepts.map(x=>`<button type="button" class="concept" data-concept="${conceptIndexes.get(x)}" data-search="${esc((x.name+' '+x.summary+' '+x.tradeoff).toLowerCase())}"><b>${esc(x.name)}</b><p>${esc(x.summary)}</p><span class="tradeoff">Tradeoff: ${esc(x.tradeoff)}</span></button>`).join('')}</div></div>`).join('')}</div></details>`).join('');
+  $('#chapterCount').textContent=sortedChapters.length;$('#conceptCount').textContent=sortedChapters.reduce((n,c)=>n+c.groups.reduce((m,g)=>m+g.concepts.length,0),0);
+  $('#chapterNav').innerHTML=sortedChapters.map((c,i)=>`<a href="#chapter-${esc(c.id)}" data-chapter="${esc(c.id)}">${String(i+1).padStart(2,'0')} · ${esc(c.title)}</a>`).join('');
+  $('#chapters').innerHTML=sortedChapters.map((c,i)=>`<details class="chapter" id="chapter-${esc(c.id)}" ${i===0?'open':''}><summary><span class="chapter-num">${String(i+1).padStart(2,'0')}</span><span class="chapter-title">${esc(c.title)}</span><span class="chapter-intro">${esc(c.intro)}</span></summary><div class="chapter-body">${c.groups.map(g=>`<div class="concept-group"><h3>${esc(g.title)}</h3><div class="concept-grid">${g.concepts.map(x=>`<button type="button" class="concept" data-concept="${conceptIndexes.get(x)}" data-search="${esc((x.name+' '+x.summary+' '+x.tradeoff).toLowerCase())}"><b>${esc(x.name)}</b><p>${esc(x.summary)}</p><span class="tradeoff">Tradeoff: ${esc(x.tradeoff)}</span></button>`).join('')}</div></div>`).join('')}</div></details>`).join('');
   $$('.chapter-nav a').forEach(a=>a.onclick=()=>{const d=$(`#chapter-${a.dataset.chapter}`);d.open=true});
   $$('.concept').forEach(button=>button.onclick=()=>openConcept(Number(button.dataset.concept)));
 }

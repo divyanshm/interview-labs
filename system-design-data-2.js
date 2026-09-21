@@ -1767,3 +1767,231 @@ window.applySystemDesignDiagrams2 = () => {
 
 window.applySystemDesignDiagrams2();
 delete window.applySystemDesignDiagrams2;
+
+{
+  const chapters = window.SYSTEM_DESIGN_CHAPTERS.slice(-9);
+  const profiles = {
+    'Resilience Patterns':[
+      ['users','Service clients','Send production traffic and observe availability','client'],
+      ['traffic','Traffic manager','Routes only to the currently safe serving path','gateway']
+    ],
+    'Rate Limiting & Traffic Management':[
+      ['callers','API callers','Generate traffic under user and tenant identities','client'],
+      ['edge','Policy gateway','Classifies requests and applies admission policy','gateway']
+    ],
+    'Distributed Scheduling':[
+      ['submitters','Job submitters','Create durable scheduled or immediate work','client'],
+      ['registry','Job registry','Stores definitions, ownership epochs, and progress','database']
+    ],
+    'Storage Systems':[
+      ['application','Application requests','Read and mutate durable application data','client'],
+      ['metadata','Storage metadata','Tracks versions, locations, and durable manifests','control']
+    ],
+    'Database Distributed-System Concepts':[
+      ['dbclients','Database clients','Issue versioned reads and transactional writes','client'],
+      ['router','Shard router','Uses current placement and consistency metadata','gateway']
+    ],
+    'Streaming & Real-Time Processing':[
+      ['producers','Event producers','Publish timestamped, uniquely identified events','client'],
+      ['eventlog','Partitioned event log','Retains ordered offsets for replay and recovery','queue']
+    ],
+    'Distributed Data Processing':[
+      ['coordinator','Job coordinator','Builds the execution graph and tracks attempts','control'],
+      ['dataset','Distributed dataset','Provides immutable partitioned input blocks','storage']
+    ],
+    'Search & Retrieval':[
+      ['searchers','Search clients','Send text, vector, filter, and ranking requests','client'],
+      ['queryrouter','Query coordinator','Plans shard fan-out under one deadline','gateway']
+    ],
+    'Distributed Algorithms':[
+      ['caller','Algorithm caller','Supplies graph, membership, or partitioned data','client'],
+      ['workers','Partition workers','Own vertices, replicas, or data partitions','worker']
+    ]
+  };
+  const strongDiagrams = new Set([
+    'Resilience Patterns::Active-passive',
+    'Resilience Patterns::Automatic failover',
+    'Rate Limiting & Traffic Management::Token bucket',
+    'Storage Systems::LSM trees',
+    'Streaming & Real-Time Processing::Watermarks',
+    'Distributed Data Processing::MapReduce',
+    'Search & Retrieval::HNSW',
+    'Distributed Algorithms::Topological sort'
+  ]);
+  const graphAlgorithms = new Map([
+    ['BFS / DFS',['Traversal frontier','Visited vertices','Traversal forest']],
+    ['Dijkstra',['Distance heap','Settled vertices','Shortest-path tree']],
+    ['Bellman-Ford',['Relaxation workers','Distance table','Cycle detector']],
+    ['Minimum spanning tree',['Edge candidates','Disjoint components','Spanning tree']],
+    ['Kruskal',['Sorted edge queue','Union-Find forest','Kruskal tree']],
+    ['Prim',['Cut-edge heap','Growing tree','Prim tree']],
+    ['Topological sort',['Ready queue','In-degree table','Dependency order']],
+    ['Union-Find',['Parent forest','Rank metadata','Connectivity answers']]
+  ]);
+  const layout = [
+    [14,24],[14,72],[38,16],[66,16],[86,44],[66,84],[38,84],[52,50]
+  ];
+  const allowedTypes = new Set([
+    'client','gateway','service','database','replica','cache','queue','worker',
+    'control','storage','index','node','clock','bitset'
+  ]);
+  const inferType = (label,detail) => {
+    const value = `${label} ${detail}`.toLowerCase();
+    if (/\b(bit|bloom)\b/.test(value)) return 'bitset';
+    if (/\b(index|heap|tree|forest|table|postings|graph|vertex|component|distance)\b/.test(value)) return 'index';
+    if (/\b(replica|standby|follower|leader|primary|region)\b/.test(value)) return 'replica';
+    if (/\b(queue|log|shuffle|frontier|stream|bucket)\b/.test(value)) return 'queue';
+    if (/\b(file|block|object|snapshot|backup|segment|sstable|wal|volume|chunk|dataset)\b/.test(value)) return 'storage';
+    if (/\b(database|record|memtable|state|registry|manifest|accumulator)\b/.test(value)) return 'database';
+    if (/\b(cache)\b/.test(value)) return 'cache';
+    if (/\b(worker|mapper|reducer|operator|task|combiner)\b/.test(value)) return 'worker';
+    if (/\b(clock|timer|time|watermark|deadline|window)\b/.test(value)) return 'clock';
+    if (/\b(router|gateway|load balancer|traffic manager|coordinator)\b/.test(value)) return 'gateway';
+    if (/\b(client|user|caller|request|query|producer|submitter)\b/.test(value)) return 'client';
+    if (/\b(controller|monitor|detector|policy|quorum|election|scheduler|limiter|allocator|metadata)\b/.test(value)) return 'control';
+    if (/\b(service|sink|processor|engine|pipeline)\b/.test(value)) return 'service';
+    return 'node';
+  };
+  const actionFor = component => {
+    const value = `${component[1]} ${component[2]}`.toLowerCase();
+    if (/\b(health|heartbeat|probe)\b/.test(value)) return 'health probe';
+    if (/\b(replica|standby|follower)\b/.test(value)) return 'replicate state';
+    if (/\b(failover|promot|leader)\b/.test(value)) return 'publish owner epoch';
+    if (/\b(token|bucket|limiter)\b/.test(value)) return 'check allowance';
+    if (/\b(lease|ownership|claim)\b/.test(value)) return 'renew fenced lease';
+    if (/\b(queue|frontier|ready)\b/.test(value)) return 'enqueue work';
+    if (/\b(wal|write-ahead)\b/.test(value)) return 'append WAL';
+    if (/\b(memtable)\b/.test(value)) return 'update memtable';
+    if (/\b(sstable|flush)\b/.test(value)) return 'flush SSTable';
+    if (/\b(compact|merge)\b/.test(value)) return 'merge durable runs';
+    if (/\b(index|postings|dictionary)\b/.test(value)) return 'query index';
+    if (/\b(watermark)\b/.test(value)) return 'advance watermark';
+    if (/\b(window|session)\b/.test(value)) return 'update window state';
+    if (/\b(checkpoint)\b/.test(value)) return 'commit checkpoint';
+    if (/\b(shuffle)\b/.test(value)) return 'shuffle by key';
+    if (/\b(mapper|map task)\b/.test(value)) return 'dispatch map task';
+    if (/\b(reducer|reduce task)\b/.test(value)) return 'dispatch reduce task';
+    if (/\b(join)\b/.test(value)) return 'join matching keys';
+    if (/\b(aggregate|summary|combiner)\b/.test(value)) return 'merge partial aggregate';
+    if (/\b(sort|ordered)\b/.test(value)) return 'sort partition';
+    if (/\b(distance|relax)\b/.test(value)) return 'relax graph edge';
+    if (/\b(union|component|forest)\b/.test(value)) return 'merge graph components';
+    if (/\b(rank|score|top k|top-k)\b/.test(value)) return 'rank candidates';
+    if (/\b(vector|nearest|hnsw|centroid)\b/.test(value)) return 'search vector neighbors';
+    if (/\b(result|sink|answer|order)\b/.test(value)) return 'emit verified result';
+    if (/\b(storage|file|block|object|snapshot)\b/.test(value)) return 'persist durable data';
+    if (/\b(control|policy|metadata)\b/.test(value)) return 'publish control decision';
+    return 'exchange protocol message';
+  };
+  const uniqueLabel = (label,used) => {
+    if (!used.has(label)) {
+      used.add(label);
+      return label;
+    }
+    let suffix = 2;
+    while (used.has(`${label} ${suffix}`)) suffix++;
+    const next = `${label} ${suffix}`;
+    used.add(next);
+    return next;
+  };
+  const normalizeStrong = diagram => {
+    diagram.components = diagram.components.map((component,index)=>{
+      const [x,y] = layout[index];
+      return [component[0],component[1],component[2],component[3],x,y];
+    });
+    return diagram;
+  };
+  const buildGraphDiagram = (concept,parts) => {
+    const labels = ['Vertex A','Vertex B','Vertex C',...parts];
+    const components = labels.map((label,index)=>{
+      const [x,y] = layout[index];
+      const detail = index < 3
+        ? `Graph vertex participating in ${concept.name}`
+        : concept.visual.nodes[Math.min(index - 3,concept.visual.nodes.length - 1)][1];
+      return [`g${index}`,label,detail,inferType(label,detail),x,y];
+    });
+    const links = [
+      ['g0','g1','weighted edge A-B'],
+      ['g0','g2','weighted edge A-C'],
+      ['g1','g2','graph edge B-C'],
+      ['g3','g0',actionFor(components[0])],
+      ['g3','g1',actionFor(components[1])],
+      ['g0','g4',actionFor(components[4])],
+      ['g1','g4',actionFor(components[4])],
+      ['g4','g5',actionFor(components[5])]
+    ];
+    return {kind:'structure',components,links};
+  };
+  const buildArchitecture = (chapter,concept) => {
+    const profile = profiles[chapter.title];
+    const used = new Set();
+    const visualNodes = concept.visual.nodes.slice(0,6);
+    const raw = [
+      ...profile,
+      ...visualNodes.map(([label,detail],index)=>[
+        `m${index}`,label,detail,inferType(label,detail)
+      ])
+    ].slice(0,8);
+    const components = raw.map((component,index)=>{
+      const [x,y] = layout[index];
+      return [
+        component[0],
+        uniqueLabel(component[1],used),
+        component[2],
+        allowedTypes.has(component[3]) ? component[3] : 'node',
+        x,y
+      ];
+    });
+    const ids = components.map(component=>component[0]);
+    const links = [
+      [ids[0],ids[2],actionFor(components[2])],
+      [ids[0],ids[3],actionFor(components[3])],
+      [ids[1],ids[2],actionFor(components[2])],
+      [ids[1],ids[3],actionFor(components[3])],
+      [ids[2],ids[4],actionFor(components[4])],
+      [ids[3],ids[4],actionFor(components[4])],
+      [ids[4],ids[5],actionFor(components[5])],
+      [ids[5],ids[1],actionFor(components[1])]
+    ];
+    if (ids[6]) links.push([ids[4],ids[6],actionFor(components[6])]);
+    if (ids[7]) links.push([ids[6] || ids[5],ids[7],actionFor(components[7])]);
+    return {
+      kind:chapter.title === 'Storage Systems' || chapter.title === 'Search & Retrieval'
+        ? 'structure'
+        : chapter.title === 'Distributed Algorithms'
+          ? 'topology'
+          : 'architecture',
+      components,
+      links:links.slice(0,10)
+    };
+  };
+  const buildFrames = (concept,diagram) => {
+    const priorDone = new Set();
+    return concept.visual.steps.map((step,index)=>{
+      const activeLinkIndex = index % diagram.links.length;
+      const [fromId,toId] = diagram.links[activeLinkIndex];
+      const states = {};
+      for (const id of priorDone) states[id] = 'done';
+      states[fromId] = 'active';
+      states[toId] = 'active';
+      priorDone.add(fromId);
+      priorDone.add(toId);
+      return [activeLinkIndex,states];
+    });
+  };
+  for (const chapter of chapters) {
+    for (const concept of chapter.groups.flatMap(group=>group.concepts)) {
+      const key = `${chapter.title}::${concept.name}`;
+      let diagram;
+      if (strongDiagrams.has(key)) {
+        diagram = normalizeStrong(concept.diagram);
+      } else if (chapter.title === 'Distributed Algorithms' && graphAlgorithms.has(concept.name)) {
+        diagram = buildGraphDiagram(concept,graphAlgorithms.get(concept.name));
+      } else {
+        diagram = buildArchitecture(chapter,concept);
+      }
+      diagram.frames = buildFrames(concept,diagram);
+      concept.diagram = diagram;
+    }
+  }
+}

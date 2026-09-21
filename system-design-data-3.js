@@ -14,11 +14,6 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
         {name:'Server-side load balancing',summary:'A proxy or load balancer selects backends on behalf of clients.',tradeoff:'The shared tier adds latency and capacity risk.'},
         {name:'Request routing',summary:'Routing selects a destination using path, identity, version, locality, or health.',tradeoff:'Complex rules become difficult to reason about.'}
       ]},
-      {title:'Realtime delivery',concepts:[
-        {name:'Long polling',summary:'Long polling holds an HTTP request until an event or timeout, then the client reconnects immediately.',tradeoff:'Repeated requests and held connections consume gateway and server capacity.'},
-        {name:'Server-Sent Events (SSE)',summary:'SSE keeps one HTTP response open for a server-to-client event stream with built-in reconnect support.',tradeoff:'It is one-way and intermediaries must support long-lived streaming responses.'},
-        {name:'WebSockets',summary:'WebSockets upgrade HTTP to a persistent full-duplex framed connection for low-latency bidirectional messaging.',tradeoff:'Connection ownership, fan-out, backpressure, and recovery complicate horizontal scaling.'}
-      ]},
       {title:'Service networking',concepts:[
         {name:'Service mesh',summary:'A service mesh standardizes transport security, telemetry, and traffic policy between services.',tradeoff:'It adds infrastructure and debugging complexity.'},
         {name:'Sidecars',summary:'Sidecars colocate networking or policy capabilities beside each workload instance.',tradeoff:'Per-instance proxies consume resources and obscure call paths.'},
@@ -33,6 +28,18 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
         {name:'Blue-green deployments',summary:'Blue-green deployments switch traffic between two complete environments.',tradeoff:'They require duplicate capacity and data compatibility.'},
         {name:'A/B routing',summary:'A/B routing assigns cohorts to variants to compare product or system outcomes.',tradeoff:'Cross-cohort effects can bias results.'},
         {name:'Feature flags',summary:'Feature flags separate code deployment from behavior exposure and support targeted rollback.',tradeoff:'Long-lived flags create combinatorial states.'}
+      ]}
+    ]
+  },
+  {
+    id:'realtime-connections',
+    title:'Realtime Connections',
+    intro:'Choose and operate client connection lifecycles for timely one-way or bidirectional updates.',
+    groups:[
+      {title:'Connection models',concepts:[
+        {name:'Long polling',summary:'Long polling holds an HTTP request until an event or timeout, then the client reconnects immediately.',tradeoff:'Repeated requests and held connections consume gateway and server capacity.'},
+        {name:'Server-Sent Events (SSE)',summary:'SSE keeps one HTTP response open for a server-to-client event stream with built-in reconnect support.',tradeoff:'It is one-way and intermediaries must support long-lived streaming responses.'},
+        {name:'WebSockets',summary:'WebSockets upgrade HTTP to a persistent full-duplex framed connection for low-latency bidirectional messaging.',tradeoff:'Connection ownership, fan-out, backpressure, and recovery complicate horizontal scaling.'}
       ]}
     ]
   },
@@ -292,9 +299,6 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Client-side load balancing',[['Registry','endpoint set'],['Client library','local policy'],['Instance A','healthy'],['Instance B','healthy']],['Client refreshes endpoints from discovery.','Local policy filters health and locality.','Client selects one instance directly.','Failures update local state and influence the next selection.']],
     ['Server-side load balancing',[['Client','single address'],['Load balancer','central policy'],['Backend pool','health set'],['Selected backend','serve']],['Client sends traffic to one stable address.','Load balancer checks the current backend health set.','Central policy selects a backend for the request or connection.','Selected backend serves while membership stays hidden from the client.']],
     ['Request routing',[['Request','path + identity'],['Route table','ordered rules'],['Policy','version + locality'],['Destination','selected cluster']],['Request arrives with routable attributes.','Route table finds the first valid matching rule.','Policy applies version, tenant, locality, and health constraints.','Request reaches the selected destination with a traceable decision.']],
-    ['Long polling',[['Client','GET /events'],['Gateway','open HTTP request'],['Long-poll API','registered waiter'],['Event source','event or timeout'],['Client','response then reconnect']],['Client opens an HTTP request for the next event.','Gateway and API hold the request while registering a bounded waiter.','An event completes the waiter, or a deadline returns an empty timeout response.','API releases request resources and sends the response.','Client processes the result and immediately opens the next long poll.']],
-    ['Server-Sent Events (SSE)',[['EventSource client','GET text/event-stream'],['Proxy','streaming response'],['SSE service','encode id/event/data'],['Pub/sub','published events'],['Resume cursor','Last-Event-ID']],['Browser EventSource opens a streaming HTTP request through the proxy.','SSE service keeps the response open and subscribes to relevant pub/sub events.','Published events flow one way to the client as id, event, and data fields.','Disconnect triggers automatic reconnect carrying Last-Event-ID.','Service resumes after that cursor and continues the stream without a client-to-server channel.']],
-    ['WebSockets',[['Client','HTTP Upgrade'],['Gateway','connection routing'],['WebSocket service','full-duplex session'],['Connection registry','owner + presence'],['Pub/sub','cross-node fan-out'],['Flow control','ping/pong + backpressure']],['Client requests an HTTP Upgrade and gateway returns a persistent route.','WebSocket service accepts the session and registers its owning node.','Client and service exchange independent full-duplex frames.','Pub/sub routes messages to the node currently owning each destination connection.','Ping/pong detects dead peers while bounded send queues apply backpressure.','Disconnect removes registry state and the client reconnects with application-level recovery.']],
     ['Service mesh',[['Service A','application call'],['Mesh proxy A','mTLS + policy'],['Mesh control plane','config + identity'],['Mesh proxy B','deliver to Service B']],['Service A makes a normal local outbound call.','Its proxy applies identity, telemetry, and traffic policy.','Control-plane configuration tells both proxies how to trust and route.','Peer proxy authenticates the channel and delivers to Service B.']],
     ['Sidecars',[['Application','localhost call'],['Sidecar','intercept traffic'],['Peer sidecar','verify + forward'],['Peer application','receive']],['Application sends traffic through its colocated sidecar.','Sidecar handles transport concerns outside business code.','Peer sidecar verifies identity and inbound policy.','Peer application receives a local trusted connection.']],
     ['North-south traffic',[['External client','internet request'],['Edge','public trust boundary'],['Gateway','route + protect'],['Internal service','serve']],['External traffic reaches the public edge.','Edge terminates external transport and rejects unsafe input.','Gateway applies API policy and selects an internal route.','Internal service responds without becoming directly public.']],
@@ -306,6 +310,11 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Blue-green deployments',[['Blue','current live'],['Green','new idle'],['Validation','smoke + readiness'],['Traffic switch','green live']],['Green environment is deployed beside the live blue environment.','Tests validate green without changing production authority.','Router atomically switches new traffic to green.','Blue remains rollback-ready until green and data compatibility are proven.']],
     ['A/B routing',[['Eligible users','experiment population'],['Assignment','stable cohort hash'],['Variant A','control'],['Variant B','treatment']],['Eligible users enter the experiment population.','Stable assignment places each user in one cohort.','Requests consistently reach control or treatment behavior.','Outcome metrics compare cohorts while guarding reliability.']],
     ['Feature flags',[['Code deploy','flagged path'],['Flag service','versioned rule'],['Evaluator','context decision'],['Behavior','old or new']],['Code containing both paths deploys while the flag stays off.','Flag service publishes a targeted rule and version.','Evaluator chooses behavior from stable request context.','Operators expand or disable exposure without redeploying code.']]
+  ],
+  'realtime-connections':[
+    ['Long polling',[['Client','GET /events'],['Gateway','open HTTP request'],['Long-poll API','registered waiter'],['Event source','event or timeout'],['Client','response then reconnect']],['Client opens an HTTP request for the next event.','Gateway and API hold the request while registering a bounded waiter.','An event completes the waiter, or a deadline returns an empty timeout response.','API releases request resources and sends the response.','Client processes the result and immediately opens the next long poll.']],
+    ['Server-Sent Events (SSE)',[['EventSource client','GET text/event-stream'],['Proxy','streaming response'],['SSE service','encode id/event/data'],['Pub/sub','published events'],['Resume cursor','Last-Event-ID']],['Browser EventSource opens a streaming HTTP request through the proxy.','SSE service keeps the response open and subscribes to relevant pub/sub events.','Published events flow one way to the client as id, event, and data fields.','Disconnect triggers automatic reconnect carrying Last-Event-ID.','Service resumes after that cursor and continues the stream without a client-to-server channel.']],
+    ['WebSockets',[['Client','HTTP Upgrade'],['Gateway','connection routing'],['WebSocket service','full-duplex session'],['Connection registry','owner + presence'],['Pub/sub','cross-node fan-out'],['Flow control','ping/pong + backpressure']],['Client requests an HTTP Upgrade and gateway returns a persistent route.','WebSocket service accepts the session and registers its owning node.','Client and service exchange independent full-duplex frames.','Pub/sub routes messages to the node currently owning each destination connection.','Ping/pong detects dead peers while bounded send queues apply backpressure.','Disconnect removes registry state and the client reconnects with application-level recovery.']]
   ],
   'distributed-identity-security':[
     ['OAuth 2.0',[['Resource owner','grant intent'],['Authorization server','issue token'],['Client','bearer or proof'],['Resource server','scope check']],['Resource owner or workload authorizes a bounded grant.','Authorization server authenticates the client and issues a scoped access token.','Client presents the token to its intended resource.','Resource server validates it and authorizes the requested scope.']],
@@ -661,10 +670,784 @@ const SYSTEM_DESIGN_DIAGRAM_KIND_3 = name => {
   };
 
   const realtimeConcepts = window.SYSTEM_DESIGN_CHAPTERS
-    .find(chapter=>chapter.id === 'api-service-architecture')
+    .find(chapter=>chapter.id === 'realtime-connections')
     .groups.flatMap(group=>group.concepts);
   for (const concept of realtimeConcepts) {
     if (SYSTEM_DESIGN_REALTIME_DIAGRAMS_3[concept.name]) {
       concept.diagram = SYSTEM_DESIGN_REALTIME_DIAGRAMS_3[concept.name];
     }
   }
+
+const SYSTEM_DESIGN_IDENTITY_DIAGRAM_SPECS_3 = {
+  'OAuth 2.0':['architecture',[
+    ['user','User agent','resource owner session','client',14,22],
+    ['client','OAuth client','redirect URI + PKCE','service',38,22],
+    ['authorize','Authorization endpoint','login and consent','control',62,18],
+    ['token','Token endpoint','code exchange','control',62,52],
+    ['api','Resource server','scope enforcement','service',86,52],
+    ['keys','Signing keys','issuer key material','storage',38,78]
+  ],[
+    ['user','client','start protected action'],
+    ['client','authorize','authorize + PKCE challenge'],
+    ['authorize','user','authenticate and consent'],
+    ['authorize','client','redirect with code'],
+    ['client','token','exchange code + verifier'],
+    ['keys','token','sign access token'],
+    ['client','api','Bearer access token']
+  ],[1,3,4,6]],
+  'OIDC':['architecture',[
+    ['browser','User agent','interactive login','client',14,20],
+    ['rp','OIDC client','relying party','service',38,20],
+    ['idp','Identity provider','authorize endpoint','control',62,18],
+    ['token','Token endpoint','ID/access tokens','control',62,52],
+    ['userinfo','UserInfo endpoint','profile claims','service',86,52],
+    ['session','Client session','secure cookie','storage',38,80]
+  ],[
+    ['browser','rp','request sign-in'],
+    ['rp','idp','authorize + nonce + PKCE'],
+    ['idp','browser','authenticate user'],
+    ['idp','rp','redirect authorization code'],
+    ['rp','token','exchange code'],
+    ['rp','userinfo','access token'],
+    ['rp','session','create local session']
+  ],[1,3,4,6]],
+  'JWT':['structure',[
+    ['client','API client','presents bearer token','client',14,50],
+    ['auth','Authorization server','claims issuer','control',38,18],
+    ['vault','Key vault','private signing key','storage',62,18],
+    ['jwt','Signed JWT','header + claims + signature','storage',50,50],
+    ['jwks','JWKS endpoint','public verification keys','service',62,80],
+    ['api','Resource server','claim validation','service',86,50]
+  ],[
+    ['auth','vault','request signing operation'],
+    ['vault','auth','return JWT signature'],
+    ['auth','jwt','issue signed claims'],
+    ['client','api','send JWT'],
+    ['api','jwks','fetch key by kid'],
+    ['jwks','api','return public key'],
+    ['jwt','api','verify signature and claims']
+  ],[0,2,3,6]],
+  'JWKS':['architecture',[
+    ['vault','Key vault / HSM','active public keys','storage',14,20],
+    ['issuer','Token issuer','signs with key ID','control',38,20],
+    ['endpoint','JWKS endpoint','published JWK set','service',62,20],
+    ['cache','Validator JWKS cache','TTL + refresh','cache',62,78],
+    ['api','Protected API','token validator','service',86,50],
+    ['token','Access token','header contains kid','storage',38,72]
+  ],[
+    ['vault','issuer','provide signing handle'],
+    ['issuer','endpoint','publish public JWK'],
+    ['issuer','token','sign token with kid'],
+    ['token','api','present signed token'],
+    ['api','cache','resolve key by kid'],
+    ['cache','endpoint','refresh JWK set'],
+    ['cache','api','return verification key']
+  ],[0,1,3,6]],
+  'Token introspection':['sequence',[
+    ['client','API client','opaque access token','client',14,22],
+    ['api','Resource server','token enforcement','service',38,22],
+    ['cache','Introspection cache','short active TTL','cache',62,18],
+    ['introspect','Introspection endpoint','active token state','control',62,60],
+    ['registry','Token registry','claims + revocation','database',38,82],
+    ['resource','Protected resource','authorized data','storage',86,60]
+  ],[
+    ['client','api','send opaque token'],
+    ['api','cache','check active token'],
+    ['cache','introspect','cache miss lookup'],
+    ['introspect','registry','read current token state'],
+    ['registry','introspect','return claims + active'],
+    ['introspect','api','introspection response'],
+    ['api','resource','allow scoped operation']
+  ],[0,2,5,6]],
+  'Access-token validation':['architecture',[
+    ['client','API client','access token holder','client',14,50],
+    ['api','Resource server','validation pipeline','service',38,50],
+    ['metadata','Issuer metadata','trusted issuer + JWKS URI','control',38,18],
+    ['jwks','JWKS cache','key selected by kid','cache',62,18],
+    ['claims','Claims policy','aud + exp + scopes','control',62,80],
+    ['resource','Protected resource','domain operation','storage',86,50]
+  ],[
+    ['client','api','Authorization: Bearer token'],
+    ['api','metadata','verify trusted issuer'],
+    ['api','jwks','verify token signature'],
+    ['jwks','metadata','refresh public keys'],
+    ['api','claims','validate audience and lifetime'],
+    ['claims','api','return scope decision'],
+    ['api','resource','execute authorized action']
+  ],[0,2,4,6]],
+  'Edge token validation':['topology',[
+    ['client','External client','untrusted token','client',14,50],
+    ['edge','API gateway','edge validator','gateway',38,50],
+    ['jwks','Edge JWKS cache','issuer keys','cache',38,18],
+    ['channel','Protected service channel','mTLS context','gateway',62,50],
+    ['service','Internal service','resource authorization','service',86,50],
+    ['policy','Service policy','action + resource rules','control',62,82]
+  ],[
+    ['client','edge','send bearer token'],
+    ['edge','jwks','verify issuer signature'],
+    ['edge','channel','forward verified identity'],
+    ['channel','service','deliver over mTLS'],
+    ['service','policy','check resource permission'],
+    ['policy','service','allow or deny action']
+  ],[0,1,3,5]],
+  'Token caching':['architecture',[
+    ['app','Calling application','needs API token','client',14,24],
+    ['library','Token acquisition library','cache key builder','service',38,24],
+    ['cache','Encrypted token cache','token + expiry','cache',62,18],
+    ['lock','Single-flight lock','one refresh owner','control',62,80],
+    ['issuer','Token endpoint','new access token','control',38,80],
+    ['api','Downstream API','target audience','service',86,50]
+  ],[
+    ['app','library','request audience + scopes'],
+    ['library','cache','lookup valid token'],
+    ['library','lock','claim refresh on miss'],
+    ['lock','issuer','acquire fresh token'],
+    ['issuer','cache','store encrypted token'],
+    ['library','api','call with cached token']
+  ],[0,1,3,5]],
+  'Key rotation':['timeline',[
+    ['hsm','Key vault / HSM','old + new private keys','storage',14,22],
+    ['issuer','Token issuer','active signing key','control',38,22],
+    ['jwks','JWKS endpoint','overlapping public keys','service',62,18],
+    ['cache','Validator cache','old + new keys','cache',62,80],
+    ['api','Resource server','signature validator','service',86,50],
+    ['old','Old tokens','valid until expiry','storage',38,80]
+  ],[
+    ['hsm','jwks','publish new public key'],
+    ['cache','jwks','refresh overlapping set'],
+    ['issuer','hsm','sign with new key'],
+    ['issuer','api','send newly signed token'],
+    ['old','api','validate old token'],
+    ['jwks','cache','remove retired key']
+  ],[0,1,2,5]],
+  'Credential rotation':['timeline',[
+    ['vault','Secret vault','v1 + v2 credentials','storage',14,20],
+    ['issuer','Credential issuer','provisions v2','control',38,20],
+    ['service','Calling service','staged credential client','service',38,78],
+    ['target','Target service','accepts overlap','service',86,50],
+    ['telemetry','Usage telemetry','v1/v2 observations','storage',62,80],
+    ['revoke','Revocation control','disable v1','control',62,18]
+  ],[
+    ['issuer','vault','store credential v2'],
+    ['vault','service','deliver v2 securely'],
+    ['service','target','authenticate with v2'],
+    ['target','telemetry','record credential version'],
+    ['telemetry','revoke','confirm no v1 use'],
+    ['revoke','target','remove v1 trust']
+  ],[0,1,2,5]],
+  'Revocation':['architecture',[
+    ['signal','Security signal','logout or compromise','client',14,20],
+    ['authority','Revocation authority','records invalidation','control',38,20],
+    ['store','Revocation store','session/key/token status','database',62,18],
+    ['push','Revocation feed','cache invalidations','queue',62,80],
+    ['cache','Enforcement cache','current deny state','cache',38,80],
+    ['api','Protected API','rejects revoked use','service',86,50]
+  ],[
+    ['signal','authority','request early invalidation'],
+    ['authority','store','persist revoked state'],
+    ['store','push','publish revocation event'],
+    ['push','cache','invalidate active entry'],
+    ['api','cache','check current deny state'],
+    ['cache','api','return revoked decision']
+  ],[0,1,3,5]],
+  'Workload identity':['topology',[
+    ['workload','Service workload','runtime process','service',14,52],
+    ['platform','Platform attestor','pod/VM evidence','control',38,18],
+    ['issuer','Identity issuer','short-lived credential','control',62,18],
+    ['agent','Local identity agent','credential delivery','service',38,82],
+    ['peer','Peer service','trusts workload issuer','service',86,52],
+    ['policy','Peer authorization','workload permissions','control',62,82]
+  ],[
+    ['workload','agent','request local identity'],
+    ['agent','platform','submit runtime evidence'],
+    ['platform','issuer','attest workload subject'],
+    ['issuer','agent','issue short-lived credential'],
+    ['workload','peer','present workload identity'],
+    ['peer','policy','authorize service action']
+  ],[0,2,4,5]],
+  'Workload identity federation':['architecture',[
+    ['workload','External workload','platform identity','service',14,22],
+    ['external','External issuer','signed assertion','control',38,18],
+    ['exchange','Federation endpoint','token exchange','control',62,18],
+    ['trust','Federation policy','issuer + subject mapping','storage',62,80],
+    ['token','Local access token','short-lived scope','storage',38,82],
+    ['resource','Cloud resource','local authorization','service',86,50]
+  ],[
+    ['workload','external','request signed assertion'],
+    ['external','workload','return audience assertion'],
+    ['workload','exchange','exchange external assertion'],
+    ['exchange','trust','match issuer and subject'],
+    ['exchange','token','issue local token'],
+    ['token','resource','call with federated identity']
+  ],[0,2,3,5]],
+  'SPIFFE':['topology',[
+    ['workload','Workload A','process identity request','service',14,52],
+    ['agent','SPIFFE Workload API','local credential socket','service',38,78],
+    ['attestor','Workload attestor','selectors + node evidence','control',38,18],
+    ['issuer','SPIFFE issuer','trust-domain CA','control',62,18],
+    ['bundle','Trust bundle','CA public roots','storage',62,82],
+    ['peer','Peer workload B','SPIFFE policy + mTLS','service',86,52]
+  ],[
+    ['workload','agent','request SPIFFE identity'],
+    ['agent','attestor','verify workload selectors'],
+    ['attestor','issuer','authorize SPIFFE ID'],
+    ['issuer','agent','issue short-lived SVID'],
+    ['bundle','peer','supply trust-domain roots'],
+    ['workload','peer','mTLS with SPIFFE IDs']
+  ],[0,2,3,5]],
+  'SPIRE':['topology',[
+    ['node','Compute node','attestable platform','node',14,20],
+    ['agent','SPIRE agent','node + workload attestor','service',38,50],
+    ['server','SPIRE server','registration entries','control',62,18],
+    ['ca','SPIRE CA','signing authority','storage',86,18],
+    ['workload','Local workload','Workload API client','service',14,80],
+    ['peer','Peer workload','validates SVID','service',86,80]
+  ],[
+    ['agent','server','attest node identity'],
+    ['workload','agent','present workload selectors'],
+    ['agent','server','request registered SPIFFE ID'],
+    ['server','ca','sign SVID'],
+    ['agent','workload','deliver rotated SVID'],
+    ['workload','peer','establish SPIFFE mTLS']
+  ],[0,2,3,5]],
+  'SVID':['structure',[
+    ['workload','Workload process','SPIFFE ID subject','service',14,52],
+    ['agent','Workload API','SVID delivery','service',38,78],
+    ['issuer','Trust-domain CA','short-lived signer','control',38,18],
+    ['svid','X.509 or JWT SVID','identity document','storage',62,18],
+    ['bundle','Trust bundle','verification roots','storage',62,82],
+    ['peer','Peer workload','identity authorization','service',86,52]
+  ],[
+    ['workload','agent','request identity document'],
+    ['agent','issuer','request SPIFFE ID SVID'],
+    ['issuer','svid','sign short-lived SVID'],
+    ['agent','workload','deliver SVID + bundle'],
+    ['workload','peer','present SVID'],
+    ['bundle','peer','verify trust-domain issuer']
+  ],[0,2,3,5]],
+  'mTLS':['architecture',[
+    ['client','Client workload','client certificate','service',14,52],
+    ['clientKey','Client key store','private key','storage',38,18],
+    ['server','Server workload','server certificate','service',86,52],
+    ['serverKey','Server key store','private key','storage',62,18],
+    ['ca','Trusted CA bundle','chain roots','storage',50,82],
+    ['policy','Peer identity policy','authorized subject','control',62,82]
+  ],[
+    ['client','server','ClientHello + certificate'],
+    ['server','client','server certificate + proof'],
+    ['clientKey','client','sign handshake proof'],
+    ['serverKey','server','sign handshake proof'],
+    ['ca','client','validate server chain'],
+    ['ca','server','validate client chain'],
+    ['server','policy','authorize peer identity']
+  ],[0,1,5,6]],
+  'PKI':['structure',[
+    ['root','Offline root CA','trust anchor','storage',50,16],
+    ['intermediate','Intermediate CA','bounded issuer','control',50,42],
+    ['ra','Registration authority','identity proofing','control',20,42],
+    ['subject','Workload / user','key pair holder','client',20,80],
+    ['cert','Identity certificate','subject + public key','storage',72,42],
+    ['relying','Relying service','chain validator','service',84,80]
+  ],[
+    ['root','intermediate','sign issuer certificate'],
+    ['subject','ra','submit enrollment proof'],
+    ['ra','intermediate','approve certificate request'],
+    ['intermediate','cert','sign identity certificate'],
+    ['cert','subject','deliver certificate'],
+    ['subject','relying','present certificate + proof'],
+    ['root','relying','validate certificate chain']
+  ],[0,2,3,6]],
+  'Certificate rotation':['timeline',[
+    ['workload','Service workload','current certificate','service',14,52],
+    ['agent','Certificate agent','renewal controller','worker',38,78],
+    ['ca','Certificate authority','identity validation','control',38,18],
+    ['old','Old certificate','valid during overlap','storage',62,18],
+    ['new','New certificate','fresh key + lifetime','storage',62,82],
+    ['peer','Peer validator','trusts overlap','service',86,52]
+  ],[
+    ['agent','ca','request renewal'],
+    ['ca','new','issue replacement certificate'],
+    ['agent','workload','install new certificate'],
+    ['workload','peer','handshake with new cert'],
+    ['old','peer','accept old during overlap'],
+    ['agent','old','retire expired certificate']
+  ],[0,1,3,5]],
+  'Service-to-service authentication':['topology',[
+    ['serviceA','Service A','calling workload','service',14,52],
+    ['agent','Identity agent','short-lived credential','service',38,18],
+    ['issuer','Workload issuer','trusted authority','control',62,18],
+    ['channel','mTLS / token channel','proof in transit','gateway',38,82],
+    ['serviceB','Service B','authenticator','service',86,52],
+    ['trust','Trust metadata','issuer keys + roots','storage',62,82]
+  ],[
+    ['serviceA','agent','request workload credential'],
+    ['agent','issuer','attest caller identity'],
+    ['issuer','serviceA','issue bounded credential'],
+    ['serviceA','channel','open authenticated call'],
+    ['channel','serviceB','present caller proof'],
+    ['trust','serviceB','validate trusted issuer']
+  ],[0,2,4,5]],
+  'Service-to-service authorization':['architecture',[
+    ['caller','Service A principal','authenticated caller','service',14,52],
+    ['pep','Service B PEP','enforcement point','gateway',38,52],
+    ['pdp','Policy decision point','authorization engine','control',62,18],
+    ['pip','Attribute provider','tenant + resource data','service',38,18],
+    ['store','Policy store','service permissions','storage',62,82],
+    ['resource','Service B resource','protected operation','service',86,52]
+  ],[
+    ['caller','pep','request action on resource'],
+    ['pep','pip','load caller + resource facts'],
+    ['pep','pdp','submit authorization query'],
+    ['store','pdp','load policy version'],
+    ['pdp','pep','return allow or deny'],
+    ['pep','resource','enforce allowed action']
+  ],[0,1,2,5]],
+  'RBAC':['architecture',[
+    ['principal','User / service principal','authenticated subject','client',14,52],
+    ['pep','Policy enforcement point','request interceptor','gateway',38,52],
+    ['pdp','RBAC decision point','role evaluation','control',62,18],
+    ['roles','Role assignments','principal to role','database',38,18],
+    ['perms','Permission catalog','role to actions','storage',62,82],
+    ['resource','Protected resource','requested object','service',86,52]
+  ],[
+    ['principal','pep','request resource action'],
+    ['pep','roles','load active role assignments'],
+    ['roles','pdp','supply principal roles'],
+    ['perms','pdp','map roles to permissions'],
+    ['pdp','pep','return role decision'],
+    ['pep','resource','enforce permitted action']
+  ],[0,1,3,5]],
+  'ABAC':['architecture',[
+    ['subject','Authenticated subject','subject attributes','client',14,52],
+    ['pep','Policy enforcement point','request context','gateway',38,52],
+    ['pdp','ABAC decision point','expression evaluator','control',62,18],
+    ['pip','Attribute providers','subject + environment','service',38,18],
+    ['catalog','Resource catalog','owner + classification','database',62,82],
+    ['resource','Protected resource','requested object','service',86,52]
+  ],[
+    ['subject','pep','request action'],
+    ['pep','pip','fetch trusted attributes'],
+    ['pep','catalog','fetch resource attributes'],
+    ['pep','pdp','evaluate attribute policy'],
+    ['pdp','pep','return contextual decision'],
+    ['pep','resource','enforce decision']
+  ],[0,1,3,5]],
+  'Policy engines':['architecture',[
+    ['caller','Application caller','actor + request','client',14,52],
+    ['pep','Policy enforcement point','builds decision input','gateway',38,52],
+    ['pdp','Policy engine','evaluates rules','control',62,18],
+    ['bundle','Policy bundle store','versioned rules','storage',38,18],
+    ['pip','Context provider','attributes + risk','service',62,82],
+    ['resource','Protected service','enforced operation','service',86,52]
+  ],[
+    ['caller','pep','submit protected request'],
+    ['pep','pip','gather decision context'],
+    ['bundle','pdp','load signed policy bundle'],
+    ['pep','pdp','query actor action resource'],
+    ['pdp','pep','return decision + reason'],
+    ['pep','resource','apply policy result']
+  ],[0,1,3,5]],
+  'Policy propagation':['topology',[
+    ['author','Policy author','proposed rules','client',14,18],
+    ['control','Policy control plane','validate + version','control',38,18],
+    ['store','Policy repository','immutable bundles','storage',62,18],
+    ['dist','Distribution service','staged fan-out','service',50,50],
+    ['pepA','PEP cohort A','active version','gateway',30,82],
+    ['pepB','PEP cohort B','next cohort','gateway',70,82]
+  ],[
+    ['author','control','submit policy change'],
+    ['control','store','commit signed version'],
+    ['store','dist','publish immutable bundle'],
+    ['dist','pepA','roll out to canary PEPs'],
+    ['pepA','control','report decision metrics'],
+    ['dist','pepB','expand or roll back']
+  ],[0,1,3,5]],
+  'Distributed authorization':['topology',[
+    ['user','User / workload','request principal','client',14,52],
+    ['gateway','Gateway PEP','coarse boundary policy','gateway',34,20],
+    ['serviceA','Service A PEP','domain authorization','service',54,20],
+    ['serviceB','Service B PEP','resource authorization','service',86,52],
+    ['pdp','Shared policy service','versioned decisions','control',54,82],
+    ['audit','Decision audit log','linked policy trail','storage',34,82]
+  ],[
+    ['user','gateway','present identity + request'],
+    ['gateway','serviceA','forward bounded context'],
+    ['serviceA','pdp','authorize domain action'],
+    ['serviceA','serviceB','call with delegation'],
+    ['serviceB','pdp','authorize target resource'],
+    ['pdp','audit','record decision chain']
+  ],[0,1,3,5]],
+  'Zero Trust':['topology',[
+    ['subject','User + workload','explicit identity','client',14,52],
+    ['edge','Access proxy','continuous enforcement','gateway',38,52],
+    ['identity','Identity provider','authentication strength','control',38,18],
+    ['context','Risk / device service','current posture','service',62,18],
+    ['policy','Policy decision point','least privilege','control',62,82],
+    ['resource','Protected resource','micro-segmented service','service',86,52]
+  ],[
+    ['subject','edge','request without network trust'],
+    ['edge','identity','verify user + workload'],
+    ['edge','context','fetch current risk posture'],
+    ['edge','policy','evaluate contextual access'],
+    ['policy','edge','return least-privilege grant'],
+    ['edge','resource','open bounded session']
+  ],[0,1,3,5]],
+  'Trust boundaries':['topology',[
+    ['external','External caller','lower assurance zone','client',14,52],
+    ['edge','Public boundary','TLS + input validation','gateway',36,20],
+    ['service','Trusted service zone','normalized request','service',62,20],
+    ['data','Sensitive data zone','restricted records','database',86,52],
+    ['egress','Egress boundary','destination control','gateway',62,82],
+    ['audit','Boundary audit','crossing evidence','storage',36,82]
+  ],[
+    ['external','edge','cross public trust boundary'],
+    ['edge','service','forward validated request'],
+    ['service','data','authorize sensitive access'],
+    ['service','egress','request outbound call'],
+    ['egress','external','send sanitized response'],
+    ['edge','audit','record boundary crossing']
+  ],[0,1,2,5]],
+  'Auditability':['architecture',[
+    ['actor','User / workload','attributed principal','client',14,52],
+    ['service','Protected service','sensitive action','service',38,52],
+    ['policy','Policy engine','decision + version','control',38,18],
+    ['collector','Audit collector','schema + redaction','worker',62,18],
+    ['ledger','Immutable audit ledger','ordered retention','storage',62,82],
+    ['investigator','Security investigator','authorized query','client',86,52]
+  ],[
+    ['actor','service','perform sensitive action'],
+    ['service','policy','obtain policy decision'],
+    ['service','collector','emit attributed audit event'],
+    ['policy','collector','attach policy version'],
+    ['collector','ledger','append tamper-evident record'],
+    ['investigator','ledger','query decision history']
+  ],[0,1,2,5]],
+  'Delegated identity':['architecture',[
+    ['user','User agent','original principal','client',14,20],
+    ['client','Front-end client','user session','service',38,20],
+    ['apiA','API A','delegating workload','service',38,80],
+    ['sts','Security token service','delegation exchange','control',62,18],
+    ['token','Delegated token','user + caller + scope','storage',62,80],
+    ['apiB','API B','target resource','service',86,52]
+  ],[
+    ['user','client','start delegated operation'],
+    ['client','apiA','send user access token'],
+    ['apiA','sts','exchange user assertion'],
+    ['sts','token','issue audience-bound token'],
+    ['token','apiA','return delegated authority'],
+    ['apiA','apiB','call with delegated token']
+  ],[0,1,2,5]],
+  'OBO':['architecture',[
+    ['user','User','delegated principal','client',14,18],
+    ['client','Client application','interactive token','service',38,18],
+    ['apiA','API A','middle-tier caller','service',38,80],
+    ['token','Token endpoint','OBO exchange','control',62,18],
+    ['cache','OBO token cache','user + API B scope','cache',62,80],
+    ['apiB','API B','downstream resource','service',86,52]
+  ],[
+    ['user','client','authenticate and consent'],
+    ['client','apiA','token for API A'],
+    ['apiA','token','assert user token + client'],
+    ['token','cache','store API B token'],
+    ['cache','apiA','return scoped OBO token'],
+    ['apiA','apiB','call with user delegation']
+  ],[0,1,2,5]],
+  'Confused deputy':['architecture',[
+    ['caller','Untrusted caller','supplied target','client',14,52],
+    ['deputy','Privileged service','ambient authority','service',38,52],
+    ['authz','Authorization service','caller + target policy','control',38,18],
+    ['exchange','Token exchange','narrow target token','control',62,18],
+    ['victim','Protected resource','potential victim','service',86,52],
+    ['audit','Security audit','bound intent evidence','storage',62,82]
+  ],[
+    ['caller','deputy','request target operation'],
+    ['deputy','authz','bind caller action target'],
+    ['authz','exchange','approve narrow delegation'],
+    ['exchange','deputy','issue target-bound token'],
+    ['deputy','victim','call only approved resource'],
+    ['deputy','audit','record bound delegation']
+  ],[0,1,3,5]],
+  'Credential blast radius':['topology',[
+    ['credential','Compromised credential','scope + lifetime','storage',14,52],
+    ['serviceA','Trusted service A','accepted audience','service',38,18],
+    ['serviceB','Trusted service B','separate audience','service',38,82],
+    ['boundary','Tenant / cell boundary','isolation policy','gateway',62,52],
+    ['detector','Threat detector','anomalous use','control',62,18],
+    ['revoke','Revocation service','disable credential','control',86,18],
+    ['resource','Sensitive resource','bounded exposure','database',86,82]
+  ],[
+    ['credential','serviceA','attempt authorized scope'],
+    ['credential','serviceB','reject wrong audience'],
+    ['serviceA','boundary','enforce tenant boundary'],
+    ['boundary','resource','allow bounded resource'],
+    ['serviceA','detector','report anomalous use'],
+    ['detector','revoke','trigger containment']
+  ],[0,1,3,5]]
+};
+
+const SYSTEM_DESIGN_AUTHORED_DIAGRAM_3 = ([kind,components,links,routes],stepCount) => {
+  const completed = new Set();
+  const frames = routes.slice(0,stepCount).map((linkIndex,index)=>{
+    const [from,to] = links[linkIndex];
+    const states = {};
+    for (const id of completed) states[id] = 'done';
+    states[from] = 'active';
+    states[to] = 'active';
+    completed.add(from);
+    completed.add(to);
+    return [linkIndex,states];
+  });
+  return {kind,components,links,frames};
+};
+
+const identityChapter = window.SYSTEM_DESIGN_CHAPTERS
+  .find(chapter=>chapter.id === 'distributed-identity-security');
+for (const concept of identityChapter.groups.flatMap(group=>group.concepts)) {
+  const spec = SYSTEM_DESIGN_IDENTITY_DIAGRAM_SPECS_3[concept.name];
+  if (!spec) throw new Error(`Missing authored identity diagram: ${concept.name}`);
+  concept.diagram = SYSTEM_DESIGN_AUTHORED_DIAGRAM_3(spec,concept.visual.steps.length);
+}
+
+const SYSTEM_DESIGN_DOMAIN_CONTEXT_3 = {
+  'api-service-architecture/Edge and routing':[
+    ['requester','Client fleet','public service requests','client'],
+    ['registry','Health registry','endpoints + route health','control']
+  ],
+  'api-service-architecture/Service networking':[
+    ['caller','Calling service','internal workload traffic','service'],
+    ['networkControl','Network control plane','identity + route policy','control']
+  ],
+  'api-service-architecture/Progressive delivery':[
+    ['users','User cohorts','stable traffic assignment','client'],
+    ['deliveryControl','Delivery controller','guardrails + rollback','control']
+  ],
+  'observability-distributed-debugging/Telemetry signals':[
+    ['workload','Instrumented workload','production operations','service'],
+    ['telemetryStore','Telemetry backend','indexed signal storage','storage']
+  ],
+  'observability-distributed-debugging/Sampling and measurement':[
+    ['serviceTraffic','Service traffic','measured user events','client'],
+    ['sloBackend','SLO analytics store','windows + objectives','database']
+  ],
+  'observability-distributed-debugging/Distributed diagnosis':[
+    ['fleet','Service fleet','distributed runtime','service'],
+    ['diagnostics','Diagnostics backend','profiles + dependency data','storage']
+  ],
+  'distributed-system-migration-patterns/Coexistence patterns':[
+    ['traffic','Production traffic','live migration requests','client'],
+    ['migrationControl','Migration controller','authority + routing phase','control']
+  ],
+  'distributed-system-migration-patterns/Data movement':[
+    ['sourceDb','Source database','authoritative records','database'],
+    ['reconcile','Reconciliation ledger','checkpoints + differences','storage']
+  ],
+  'distributed-system-migration-patterns/Compatibility and rollout':[
+    ['mixedClients','Mixed-version clients','old + new contracts','client'],
+    ['rolloutControl','Rollout controller','cohorts + compatibility','control']
+  ],
+  'distributed-system-migration-patterns/Authority transition':[
+    ['production','Production router','current authority route','gateway'],
+    ['cutoverControl','Cutover controller','gates + recovery plan','control']
+  ],
+  'consistency-conflict-patterns/Conflict selection':[
+    ['coordinator','Replica coordinator','collects concurrent versions','service'],
+    ['versionStore','Version metadata store','causal + ordering data','storage']
+  ],
+  'consistency-conflict-patterns/Replica repair':[
+    ['repairControl','Repair coordinator','range comparison schedule','worker'],
+    ['replicaSet','Replica membership','owners + repair epochs','control']
+  ],
+  'consistency-conflict-patterns/Consistency contracts':[
+    ['sessionClient','Session client','read/write consistency need','client'],
+    ['replicaControl','Replica coordinator','quorum + session progress','control']
+  ],
+  'distributed-deduplication-idempotency/Request identity':[
+    ['commandSource','Command source','stable operation identity','client'],
+    ['dedupLedger','Deduplication ledger','keys + completion records','database']
+  ],
+  'distributed-deduplication-idempotency/Delivery semantics':[
+    ['broker','Message broker','at-least-once delivery','queue'],
+    ['inbox','Consumer inbox','processed event identities','database']
+  ],
+  'distributed-deduplication-idempotency/Distributed state':[
+    ['requestFleet','Request fleet','concurrent duplicate attempts','client'],
+    ['durableLedger','Durable dedup ledger','authoritative outcomes','database']
+  ],
+  'time-based-distributed-patterns/Retention and partitioning':[
+    ['writer','Data writer','timestamped records','client'],
+    ['timerStore','Retention metadata','expiry + partition bounds','storage']
+  ],
+  'time-based-distributed-patterns/Windows and stream time':[
+    ['eventLog','Partitioned event log','timestamped source events','queue'],
+    ['checkpoint','Window checkpoint store','watermarks + aggregates','storage']
+  ],
+  'time-based-distributed-patterns/Coordination and scheduling':[
+    ['schedulerControl','Scheduler control plane','ownership + due work','control'],
+    ['timerDb','Durable timer store','deadlines + lease epochs','database']
+  ],
+  'advanced-senior-staff-level-concepts/Topology and placement':[
+    ['globalRouter','Global request router','membership-aware placement','gateway'],
+    ['membership','Membership control','nodes + ownership epochs','control']
+  ],
+  'advanced-senior-staff-level-concepts/Convergence and ordering':[
+    ['distributedClient','Distributed client','ordered operation request','client'],
+    ['coordinationLog','Coordination log','terms + committed metadata','storage']
+  ],
+  'advanced-senior-staff-level-concepts/Transactions and state models':[
+    ['commandGateway','Command gateway','stable workflow identity','gateway'],
+    ['recoveryLog','Recovery log','progress + compensation','storage']
+  ],
+  'advanced-senior-staff-level-concepts/Overload and latency':[
+    ['incomingTraffic','Incoming traffic','bursty production load','client'],
+    ['capacityControl','Capacity controller','limits + saturation signals','control']
+  ],
+  'advanced-senior-staff-level-concepts/Streaming and snapshots':[
+    ['durableLog','Durable event log','partition offsets','queue'],
+    ['stateBackend','State backend','checkpoints + snapshots','storage']
+  ],
+  'advanced-senior-staff-level-concepts/Global resilience and architecture':[
+    ['globalTraffic','Global traffic manager','region + cell routing','gateway'],
+    ['operations','Operations control plane','health + failover policy','control']
+  ]
+};
+
+const SYSTEM_DESIGN_RICH_LAYOUTS_3 = {
+  6:[[14,50],[34,18],[66,18],[86,50],[66,82],[34,82]],
+  7:[[14,50],[30,18],[58,18],[86,40],[78,82],[42,82],[50,50]],
+  8:[[14,50],[28,18],[54,18],[80,28],[86,66],[62,82],[34,82],[50,52]]
+};
+
+const SYSTEM_DESIGN_FLOW_LABEL_3 = type => ({
+  client:'return response',
+  gateway:'route request',
+  service:'invoke service operation',
+  database:'commit records',
+  replica:'replicate version',
+  cache:'lookup cached value',
+  queue:'publish durable event',
+  worker:'dispatch background work',
+  control:'apply control decision',
+  storage:'persist durable metadata',
+  index:'resolve indexed owner',
+  node:'exchange node metadata',
+  clock:'evaluate time boundary',
+  bitset:'update compact estimate'
+})[type] || 'exchange protocol data';
+
+const SYSTEM_DESIGN_UNIQUE_COMPONENTS_3 = entries => {
+  const labels = new Set();
+  return entries.map(entry=>{
+    const copy = [...entry];
+    if (labels.has(copy[1])) copy[1] = `${copy[1]} peer`;
+    labels.add(copy[1]);
+    return copy;
+  });
+};
+
+const SYSTEM_DESIGN_RICH_DIAGRAM_3 = (concept,context) => {
+  const raw = [
+    context[0],
+    ...concept.visual.nodes.map(([label,detail],index)=>[
+      `mechanism${index}`,
+      label,
+      detail,
+      SYSTEM_DESIGN_COMPONENT_TYPE_3(label,detail)
+    ]),
+    context[1]
+  ];
+  const layout = SYSTEM_DESIGN_RICH_LAYOUTS_3[raw.length];
+  const components = SYSTEM_DESIGN_UNIQUE_COMPONENTS_3(raw).map((entry,index)=>[
+    ...entry,
+    layout[index][0],
+    layout[index][1]
+  ]);
+  const lastCore = components.length-2;
+  const support = components.length-1;
+  const links = [];
+  for (let index=0;index<lastCore;index++) {
+    links.push([
+      components[index][0],
+      components[index+1][0],
+      SYSTEM_DESIGN_FLOW_LABEL_3(components[index+1][3])
+    ]);
+  }
+  links.push([
+    components[support][0],
+    components[2][0],
+    SYSTEM_DESIGN_FLOW_LABEL_3(components[2][3])
+  ]);
+  links.push([
+    components[lastCore][0],
+    components[support][0],
+    SYSTEM_DESIGN_FLOW_LABEL_3(components[support][3])
+  ]);
+  links.push([
+    components[lastCore][0],
+    components[0][0],
+    SYSTEM_DESIGN_FLOW_LABEL_3(components[0][3])
+  ]);
+  const supportLink = lastCore;
+  const completionLink = links.length-1;
+  const route = [0,Math.min(1,lastCore-1),supportLink,completionLink];
+  const completed = new Set();
+  const frames = concept.visual.steps.map((step,index)=>{
+    const linkIndex = route[Math.min(index,route.length-1)];
+    const [from,to] = links[linkIndex];
+    const states = {};
+    for (const id of completed) states[id] = 'done';
+    states[from] = 'active';
+    states[to] = 'active';
+    completed.add(from);
+    completed.add(to);
+    return [linkIndex,states];
+  });
+  return {
+    kind:concept.diagram.kind,
+    components,
+    links,
+    frames
+  };
+};
+
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  if (chapter.id === 'distributed-identity-security' || chapter.id === 'realtime-connections') continue;
+  if (!Object.keys(SYSTEM_DESIGN_DOMAIN_CONTEXT_3).some(key=>key.startsWith(`${chapter.id}/`))) continue;
+  for (const group of chapter.groups) {
+    const context = SYSTEM_DESIGN_DOMAIN_CONTEXT_3[`${chapter.id}/${group.title}`];
+    if (!context) throw new Error(`Missing diagram context: ${chapter.id}/${group.title}`);
+    for (const concept of group.concepts) {
+      concept.diagram = SYSTEM_DESIGN_RICH_DIAGRAM_3(concept,context);
+    }
+  }
+}
+
+const realtimeChapter = window.SYSTEM_DESIGN_CHAPTERS
+  .find(chapter=>chapter.id === 'realtime-connections');
+const realtimeRoutes = {
+  'Long polling':[0,1,2,4,5],
+  'Server-Sent Events (SSE)':[0,1,3,4,5],
+  'WebSockets':[0,1,2,6,7,0]
+};
+for (const concept of realtimeChapter.groups.flatMap(group=>group.concepts)) {
+  const diagram = concept.diagram;
+  const remappedX = {
+    'Long polling':[14,34,54,80,80],
+    'Server-Sent Events (SSE)':[14,34,54,80,80],
+    'WebSockets':[14,34,58,58,82,82]
+  }[concept.name];
+  diagram.components.forEach((component,index)=>{
+    component[4] = remappedX[index];
+    component[5] = Math.max(16,Math.min(84,component[5]));
+  });
+  const completed = new Set();
+  diagram.frames = realtimeRoutes[concept.name].map(linkIndex=>{
+    const [from,to] = diagram.links[linkIndex];
+    const states = {};
+    for (const id of completed) states[id] = 'done';
+    states[from] = 'active';
+    states[to] = 'active';
+    completed.add(from);
+    completed.add(to);
+    return [linkIndex,states];
+  });
+}
