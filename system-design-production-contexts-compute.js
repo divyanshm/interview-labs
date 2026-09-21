@@ -503,7 +503,7 @@ const contexts = {
   'distributed-algorithms::Consistent hashing': {
     scenario: 'A CDN edge layer places cache keys on a changing fleet of regional caches.',
     components: place(LAYOUTS.ring, [
-      ['edgeCaller','Edge request path','job caller','client'],
+      ['edgeCaller','CDN edge servers','cache clients that route asset lookups','client'],
       ['cacheRouter','Cache routing service','coordinating service','service'],
       ['membershipRegistry','Cache membership and asset registry','source of truth','storage'],
       ['cacheRing','Regional cache ring members','worker boundary','cluster'],

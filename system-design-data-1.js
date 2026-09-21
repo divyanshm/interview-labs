@@ -826,19 +826,19 @@ systemDesignDiagramOverrides.Bulkheads = systemDesignDiagram('architecture',[
   ['inventory','Inventory API','stalled dependency','service',66,18],
   ['poolB','Payment pool','20 isolated permits','queue',34,82],
   ['payment','Payment API','healthy dependency','service',66,82],
-  ['response','Checkout response','payment path remains available','client',92,50]
+  ['storefront','Storefront client','originates the checkout request','client',92,50]
 ],[
   ['router','poolA','route inventory calls through isolated pool'],
   ['poolA','inventory','invoke inventory with bounded permits'],
   ['router','poolB','route payment calls to pool B'],
   ['poolB','payment','invoke payment with bounded permits'],
   ['inventory','poolA','exhaust only inventory permits'],
-  ['payment','response','return healthy payment result']
+  ['payment','storefront','return healthy payment result']
 ],[
   [0,{router:'active',poolA:'active',poolB:'active'}],
   [1,{poolA:'active',inventory:'risk',poolB:'done',payment:'done'}],
   [4,{inventory:'risk',poolA:'risk',poolB:'done',payment:'done'}],
-  [5,{inventory:'risk',poolA:'risk',payment:'done',response:'done'}]
+  [5,{inventory:'risk',poolA:'risk',payment:'done',storefront:'done'}]
 ]);
 const systemDesignLinkLabelOverrides = {
   'Causal consistency':{
@@ -892,6 +892,283 @@ for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
   for (const group of chapter.groups) {
     for (const concept of group.concepts) {
       systemDesignReworkDiagram(concept,group.title);
+    }
+  }
+}
+
+const systemDesignExplicitDiagrams = new Set([
+  'Eventual consistency','Gossip protocols','Quorum reads/writes','Bloom filter',
+  'Kafka-style logs','Two-phase commit (2PC)','Paxos','Raft','Bulkheads'
+]);
+const systemDesignActorBlueprints = {
+  'Consistency and availability':[
+    ['API client','issues consistency-scoped operations','client'],
+    ['Request gateway','routes by consistency contract','gateway'],
+    ['Primary database','orders authoritative writes','database'],
+    ['Read replica A','serves synchronized reads','replica'],
+    ['Read replica B','may lag or partition','replica'],
+    ['Consistency controller','enforces read and write policy','control']
+  ],
+  'Failure, time, and semantics':[
+    ['API client','submits retryable operations','client'],
+    ['Service node A','handles the first attempt','service'],
+    ['Service node B','independent peer or failover target','node'],
+    ['Durable operation log','records identities and ordering','storage'],
+    ['Failure detector','tracks peer evidence and suspicion','control'],
+    ['Coordination node','publishes current ownership','control']
+  ],
+  'Consensus and leadership':[
+    ['Command client','submits a replicated command','client'],
+    ['Consensus leader','proposes the next log entry','service'],
+    ['Voting replica A','persists term and vote','replica'],
+    ['Voting replica B','forms a majority with A','replica'],
+    ['Voting replica C','survives one voter failure','replica'],
+    ['Consensus journal','stores committed log entries','storage']
+  ],
+  'Coordination services and membership':[
+    ['Control-plane client','reads and updates metadata','client'],
+    ['Coordination leader','serializes metadata changes','service'],
+    ['Coordination follower A','replicates revisions','replica'],
+    ['Coordination follower B','provides quorum durability','replica'],
+    ['Metadata store','holds leases and membership','database'],
+    ['Watch client','reacts to revision changes','worker']
+  ],
+  'Replication topologies':[
+    ['Write client','submits a versioned mutation','client'],
+    ['Write authority','orders or coordinates writes','service'],
+    ['Replica A','stores a durable copy','replica'],
+    ['Replica B','provides fault independence','replica'],
+    ['Replication WAL','carries ordered updates','storage'],
+    ['Read client','selects a freshness level','client']
+  ],
+  'Lag, conflicts, and geography':[
+    ['Regional writer A','creates version X','client'],
+    ['Regional writer B','creates version Y','client'],
+    ['Region A replica','stores regional history','replica'],
+    ['Region B replica','stores regional history','replica'],
+    ['Version metadata store','tracks causality and progress','database'],
+    ['Conflict resolver','merges concurrent versions','service']
+  ],
+  'Placement strategies':[
+    ['API gateway','extracts the partition key','gateway'],
+    ['Shard router','evaluates the placement rule','service'],
+    ['Shard directory','stores ownership epochs','index'],
+    ['Shard A','owns one key subset','database'],
+    ['Shard B','owns another key subset','database'],
+    ['Shard C','supports growth and movement','database']
+  ],
+  'Movement and skew':[
+    ['Traffic router','sends requests by ownership epoch','gateway'],
+    ['Source shard','currently owns the hot range','database'],
+    ['Target shard','receives copied data','database'],
+    ['Change stream','captures writes during movement','queue'],
+    ['Rebalance controller','plans bounded movement','control'],
+    ['Load telemetry','reports bytes and request rate','control']
+  ],
+  'Query and tenancy behavior':[
+    ['Query client','submits a tenant-scoped query','client'],
+    ['Query coordinator','plans bounded fan-out','service'],
+    ['Tenant directory','maps tenants to partitions','index'],
+    ['Shard A','executes one subquery','database'],
+    ['Shard B','executes another subquery','database'],
+    ['Result merger','combines partial responses','worker']
+  ],
+  'Access patterns':[
+    ['Web client','requests or updates an item','client'],
+    ['Application service','implements cache policy','service'],
+    ['Local cache','holds process-local hot data','cache'],
+    ['Distributed cache','shares cached values','cache'],
+    ['Authoritative database','owns durable values','database'],
+    ['Invalidation bus','distributes version changes','queue']
+  ],
+  'Freshness and misses':[
+    ['Web client','requests a cached item','client'],
+    ['Cache gateway','routes by key and version','gateway'],
+    ['Cache node','stores value and expiry','cache'],
+    ['Refill worker','coalesces source loads','worker'],
+    ['Authoritative database','answers cache misses','database'],
+    ['Freshness index','tracks TTL and refill ownership','index']
+  ],
+  'Topology and correctness':[
+    ['Application client','looks up a cache key','client'],
+    ['Cache router','maps keys to owners','gateway'],
+    ['Cache node A','serves the primary copy','cache'],
+    ['Cache node B','serves a replica copy','cache'],
+    ['Source database','owns authoritative data','database'],
+    ['Invalidation service','publishes current versions','service']
+  ],
+  'Messaging models':[
+    ['Event producer','publishes a keyed record','client'],
+    ['Broker leader','appends to an owned partition','queue'],
+    ['Broker replica','copies the partition log','replica'],
+    ['Consumer A','processes one assignment','worker'],
+    ['Consumer B','processes another assignment','worker'],
+    ['Broker controller','owns topics and assignments','control']
+  ],
+  'Progress and retention':[
+    ['Event producer','appends retained records','client'],
+    ['Partition leader','assigns ordered offsets','queue'],
+    ['Segment store','holds immutable log segments','storage'],
+    ['Stream consumer','reads from a cursor','worker'],
+    ['Offset database','stores consumer progress','database'],
+    ['Retention cleaner','compacts or removes segments','worker']
+  ],
+  'Delivery control':[
+    ['Job producer','submits durable work','client'],
+    ['Ready queue','holds eligible messages','queue'],
+    ['Delivery scheduler','controls attempts and delay','control'],
+    ['Consumer worker','executes the business action','worker'],
+    ['Effect database','stores the durable result','database'],
+    ['Recovery queue','holds retry or dead-letter work','queue']
+  ],
+  'Integration patterns':[
+    ['Domain service','commits a business change','service'],
+    ['Domain database','stores authoritative state','database'],
+    ['Change journal','captures integration records','storage'],
+    ['Event broker','delivers committed events','queue'],
+    ['Projection worker','builds downstream views','worker'],
+    ['Read model','serves projected state','database']
+  ],
+  'Atomic commit':[
+    ['Transaction client','starts a multi-resource write','client'],
+    ['Commit coordinator','owns the final decision','control'],
+    ['Participant database A','prepares local changes','database'],
+    ['Participant database B','prepares local changes','database'],
+    ['Decision journal','persists commit or abort','storage'],
+    ['Recovery worker','resolves in-doubt branches','worker']
+  ],
+  'Long-running workflows':[
+    ['Workflow client','starts a business workflow','client'],
+    ['Workflow coordinator','tracks durable progress','control'],
+    ['Service A','commits one local step','service'],
+    ['Service B','commits the next local step','service'],
+    ['Workflow journal','stores step outcomes','storage'],
+    ['Compensation worker','reverses completed steps','worker']
+  ],
+  'Concurrency control':[
+    ['Transaction client A','reads and proposes changes','client'],
+    ['Transaction client B','runs concurrently','client'],
+    ['Transaction manager','checks conflicts and isolation','control'],
+    ['Primary database','stores committed rows','database'],
+    ['Version catalog','tracks snapshots and versions','index'],
+    ['Lock manager','owns conflicting lock state','control']
+  ],
+  'Remote-call resilience':[
+    ['Mobile client','starts a bounded request','client'],
+    ['API gateway','propagates deadline and identity','gateway'],
+    ['Application service','applies resilience policy','service'],
+    ['Dependency A','handles the primary call','service'],
+    ['Dependency B','offers an independent path','service'],
+    ['Dependency telemetry','feeds latency and failure data','control']
+  ],
+  'Overload and isolation':[
+    ['Client fleet','generates variable demand','client'],
+    ['Admission gateway','enforces rate and priority','gateway'],
+    ['Bounded work queue','caps waiting operations','queue'],
+    ['Application workers','consume admitted work','worker'],
+    ['Downstream service','provides finite capacity','service'],
+    ['Capacity controller','adjusts permits and limits','control']
+  ],
+  'Failure policy and domains':[
+    ['External client','calls a regional endpoint','client'],
+    ['Global gateway','routes around failed domains','gateway'],
+    ['Service cell A','serves one bounded population','service'],
+    ['Service cell B','serves an independent population','service'],
+    ['Health controller','publishes domain health','control'],
+    ['Durable data tier','survives cell replacement','storage']
+  ]
+};
+const systemDesignActorPatterns = [
+  [[0,1],[1,2],[1,3],[2,4],[3,4],[4,5]],
+  [[0,1],[1,2],[1,3],[2,5],[3,5],[5,4],[4,1]],
+  [[0,1],[1,2],[2,3],[2,4],[3,5],[4,5],[5,1]],
+  [[0,1],[1,2],[1,4],[2,3],[3,5],[4,5],[5,2]],
+  [[0,1],[1,3],[1,4],[3,2],[4,2],[2,5],[5,1]],
+  [[0,1],[1,2],[2,4],[1,3],[3,4],[4,5],[5,0]],
+  [[0,2],[0,1],[1,3],[2,4],[3,5],[4,5],[5,1]],
+  [[0,1],[1,4],[4,2],[4,3],[2,5],[3,5],[5,4]],
+  [[0,1],[1,2],[2,5],[1,3],[3,5],[5,4],[4,2]],
+  [[0,1],[1,5],[5,2],[5,3],[2,4],[3,4],[4,1]],
+  [[0,2],[2,1],[1,3],[1,4],[3,5],[4,5],[5,2]],
+  [[0,1],[1,2],[2,3],[3,5],[1,4],[4,5],[5,0]],
+  [[0,1],[1,2],[1,3],[2,4],[4,5],[5,3],[3,1]],
+  [[0,1],[1,2],[2,5],[5,3],[3,4],[4,1],[2,4]],
+  [[0,2],[2,1],[1,4],[4,3],[3,5],[5,2],[1,5]],
+  [[0,1],[1,3],[3,2],[2,5],[1,4],[4,5],[5,3]],
+  [[0,2],[0,1],[2,3],[1,4],[3,5],[4,5],[5,0]],
+  [[0,1],[1,4],[4,2],[2,3],[3,5],[5,1],[4,5]]
+];
+const systemDesignActorLayouts = [
+  [[14,50],[32,50],[56,18],[56,82],[78,32],[86,72]],
+  [[14,28],[14,72],[42,50],[66,18],[66,82],[86,50]],
+  [[14,50],[38,20],[38,80],[66,20],[66,80],[86,50]],
+  [[14,18],[14,82],[44,50],[70,16],[70,50],[70,84]]
+];
+const systemDesignActorLink = (source,target) => {
+  const targetName = systemDesignCompactEndpointLabel(target);
+  if (target[3] === 'gateway') return `route request through ${targetName}`;
+  if (target[3] === 'database') return `commit data to ${targetName}`;
+  if (target[3] === 'storage') return `append record to ${targetName}`;
+  if (target[3] === 'replica') return `replicate update to ${targetName}`;
+  if (target[3] === 'queue') return `publish work to ${targetName}`;
+  if (target[3] === 'worker') return `dispatch work to ${targetName}`;
+  if (target[3] === 'cache') return `read or update ${targetName}`;
+  if (target[3] === 'index') return `look up ownership in ${targetName}`;
+  if (target[3] === 'control') return `report control data to ${targetName}`;
+  if (target[3] === 'client') return `return response to ${targetName}`;
+  return `call ${targetName}`;
+};
+const systemDesignBuildActorDiagram = (concept,groupTitle,ordinal) => {
+  const blueprint = systemDesignActorBlueprints[groupTitle];
+  const pattern = systemDesignActorPatterns[ordinal % systemDesignActorPatterns.length];
+  const layout = systemDesignActorLayouts[Math.floor(ordinal / systemDesignActorPatterns.length) % systemDesignActorLayouts.length];
+  const components = blueprint.map(([label,detail,type],index) => [
+    `a${index}`,label,`${concept.name}: ${detail}`,type,layout[index][0],layout[index][1]
+  ]);
+  const links = pattern.map(([from,to]) => [
+    `a${from}`,`a${to}`,systemDesignActorLink(components[from],components[to])
+  ]);
+  const frames = concept.visual.steps.map((step,index) => {
+    const linkIndex = index % links.length;
+    const [fromId,toId] = links[linkIndex];
+    const states = {[fromId]:'active',[toId]:'active'};
+    for (let prior=0;prior<index;prior++) {
+      const [priorFrom,priorTo] = links[prior % links.length];
+      if (!(priorFrom in states)) states[priorFrom] = 'done';
+      if (!(priorTo in states)) states[priorTo] = 'done';
+    }
+    return [linkIndex,states];
+  });
+  return {kind:concept.diagram.kind,components,links,frames};
+};
+
+let systemDesignGeneratedOrdinal = 0;
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  for (const group of chapter.groups) {
+    for (const concept of group.concepts) {
+      if (!systemDesignExplicitDiagrams.has(concept.name) &&
+          ['architecture','topology','sequence'].includes(concept.diagram.kind)) {
+        concept.diagram = systemDesignBuildActorDiagram(concept,group.title,systemDesignGeneratedOrdinal++);
+      }
+    }
+
+  }
+}
+
+const systemDesignConcreteLabelOverrides = {
+  PACELC:{Request:'Replicated API call'},
+  'Time and clocks':{Operation:'Timed service call'},
+  'Fail-open':{Request:'Protected API call'},
+  'Fail-closed':{Request:'Protected API call'}
+};
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  for (const group of chapter.groups) {
+    for (const concept of group.concepts) {
+      const replacements = systemDesignConcreteLabelOverrides[concept.name];
+      if (!replacements) continue;
+      for (const component of concept.diagram.components) {
+        component[1] = replacements[component[1]] || component[1];
+      }
     }
   }
 }

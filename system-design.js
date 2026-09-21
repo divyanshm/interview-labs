@@ -183,6 +183,17 @@ const jitterProductionModel={
     [1,[0],'The dependency receives a smoother arrival rate and can recover without another retry spike.',{phase:'smoothed',spread:100,peak:2}]
   ]
 };
+const rtoProductionModel={
+  kind:'production-rto',
+  nodes:[['Outage','service unavailable'],['Recovery','restore service']],
+  steps:[
+    [0,[],'The recovery clock starts when the service becomes unavailable.',{elapsed:0,phase:'outage',status:'Service unavailable'}],
+    [0,[],'Detection and incident declaration consume the first part of the recovery budget.',{elapsed:3,phase:'detect',status:'Incident declared'}],
+    [1,[0],'Automation restores infrastructure, data, dependencies, and configuration.',{elapsed:11,phase:'restore',status:'Recovery in progress'}],
+    [1,[0],'Readiness probes verify health and critical business journeys before traffic returns.',{elapsed:17,phase:'verify',status:'Readiness verified'}],
+    [1,[0],'Traffic resumes at 18 minutes, inside the 20-minute RTO.',{elapsed:18,phase:'restored',status:'Service restored'}]
+  ]
+};
 const lessonLayouts={
   sequence:[[10,20],[36,20],[64,20],[90,20],[23,72],[50,72],[77,72],[50,46],[90,72]],
   workflow:[[10,18],[38,18],[66,18],[90,18],[22,72],[50,72],[78,72],[50,45],[90,72]],
@@ -287,6 +298,7 @@ function modelFromProductionContext(entry,context){
 }
 function makeConceptModel(entry){
   if(entry.chapter.id==='reliability-fault-tolerance'&&entry.concept.name==='Jitter')return jitterProductionModel;
+  if(entry.chapter.id==='resilience-patterns'&&entry.concept.name==='RTO')return rtoProductionModel;
   const context=productionContexts[`${entry.chapter.id}::${entry.concept.name}`];
   if(context)return modelFromProductionContext(entry,context);
   const lesson=lessonFor(entry);
@@ -307,12 +319,55 @@ function componentIcon(label,type){
 }
 function sceneFromDiagram(diagram){
   const indexes=new Map(diagram.components.map((component,index)=>[component[0],index]));
-  return {
+  return layerDirectedScene({
+    kind:diagram.kind,
     components:diagram.components.map(component=>[component[1],component[2],component[3]]),
     points:diagram.components.map(component=>[component[4],component[5]]),
     edges:diagram.links.map(link=>[indexes.get(link[0]),indexes.get(link[1]),link[2]]),
     frames:diagram.frames.map(frame=>({edge:frame[0],states:Object.fromEntries(Object.entries(frame[1]).map(([id,state])=>[indexes.get(id),state]))}))
+  });
+}
+function layerDirectedScene(scene){
+  if(scene.layered||['timeline','comparison','structure'].includes(scene.kind))return scene;
+  const count=scene.components.length,graph=Array.from({length:count},()=>[]),feedback=new Set();
+  const reaches=(start,target)=>{
+    const pending=[start],seen=new Set();
+    while(pending.length){
+      const node=pending.pop();
+      if(node===target)return true;
+      if(seen.has(node))continue;
+      seen.add(node);
+      pending.push(...graph[node]);
+    }
+    return false;
   };
+  scene.edges.forEach(([from,to],index)=>{
+    if(from===undefined||to===undefined||from===to||reaches(to,from))feedback.add(index);
+    else graph[from].push(to);
+  });
+  const indegree=Array(count).fill(0);
+  graph.forEach(targets=>targets.forEach(target=>indegree[target]++));
+  const queue=indegree.map((value,index)=>value===0?index:-1).filter(index=>index>=0);
+  const rank=Array(count).fill(0);
+  while(queue.length){
+    const node=queue.shift();
+    for(const target of graph[node]){
+      rank[target]=Math.max(rank[target],rank[node]+1);
+      if(--indegree[target]===0)queue.push(target);
+    }
+  }
+  const maxRank=Math.max(...rank,1),layers=Array.from({length:maxRank+1},()=>[]);
+  rank.forEach((value,index)=>layers[value].push(index));
+  const points=Array(count);
+  layers.forEach((nodes,layer)=>{
+    nodes.forEach((node,index)=>{
+      points[node]=[
+        9+layer*(82/maxRank),
+        nodes.length===1?50:14+index*(72/(nodes.length-1))
+      ];
+    });
+  });
+  return {...scene,points,feedback,layered:true};
 }
 function architectureScene(name){
   if(name==='Gossip protocols')return {
@@ -353,21 +408,31 @@ function architectureScene(name){
   return null;
 }
 function renderArchitecture(scene,step,stepCount,currentIndex=conceptStep){
+  scene=layerDirectedScene(scene);
   const frameIndex=Math.round(currentIndex*(scene.frames.length-1)/Math.max(1,stepCount-1));
   const frame=scene.frames[frameIndex]||{edge:-1,states:{}};
-  const edge=scene.edges[frame.edge],points=scene.points.map(([x,y])=>[Math.max(16,Math.min(84,x)),Math.max(14,Math.min(86,y))]);
+  const edge=scene.edges[frame.edge],points=scene.points.map(([x,y])=>[Math.max(9,Math.min(91,x)),Math.max(12,Math.min(88,y))]);
   const completedEdges=new Set(scene.frames.slice(0,frameIndex).map(item=>item.edge).filter(index=>index>=0));
   const activeEndpoints=new Set(edge?[edge[0],edge[1]]:[]);
+  const trimmed=(a,b)=>{
+    const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1;
+    const xInset=Math.min(7,length*.22),yInset=Math.min(5,length*.18);
+    return [
+      [a[0]+dx/length*xInset,a[1]+dy/length*yInset],
+      [b[0]-dx/length*xInset,b[1]-dy/length*yInset]
+    ];
+  };
   const defs='<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>';
-  const links=scene.edges.map(([from,to,label],index)=>{const a=points[from],b=points[to],state=index===frame.edge?'active':completedEdges.has(index)?'done':'';return `<g class="architecture-link ${state}"><title>${esc(label)}</title><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/></g>`}).join('');
+  const links=scene.edges.map(([from,to,label],index)=>{const [a,b]=trimmed(points[from],points[to]),state=index===frame.edge?'active':completedEdges.has(index)?'done':'';return `<g class="architecture-link ${state} ${scene.feedback?.has(index)?'feedback':''}"><title>${esc(label)}</title><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/></g>`}).join('');
   const components=scene.components.map((node,index)=>{const state=activeEndpoints.has(index)?'active':frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0],node[2])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
   return `<svg class="architecture-links" viewBox="0 0 100 100" preserveAspectRatio="none">${defs}${links}</svg>${components}`;
 }
 function renderStoryboard(model,step){
   const scene=sceneFromDiagram(model.diagram);
   const frame=scene.frames[conceptStep]||{edge:-1,states:{}};
+  const activeEdge=scene.edges[frame.edge];
   const focused=Object.entries(frame.states||{}).filter(([,state])=>state==='active').map(([index])=>scene.components[index]?.[0]).filter(Boolean);
-  const focus=focused.length?focused.join(' ↔ '):'System state';
+  const focus=activeEdge?`${scene.components[activeEdge[0]]?.[0]} → ${scene.components[activeEdge[1]]?.[0]}`:focused.length?focused.join(' → '):'System state';
   const stages=model.diagram.components.map((component,index)=>{
     const state=frame.states?.[index]||'';
     return `<span class="${state}"><i>${componentIcon(component[1],component[3])}</i>${esc(component[1])}</span>`;
@@ -404,6 +469,27 @@ function renderJitterProduction(step){
       <div class="jitter-bars">${bars.map((height,index)=>`<i style="height:${Math.max(5,height/8*100)}%"><small>${index*100}ms</small></i>`).join('')}</div>
       <p>${state.phase==='synchronized'?'The retry policy recreates the original traffic spike. Backoff without randomness delays the herd but does not break it apart.':state.phase==='smoothed'?'Random timing converts one dangerous peak into a bounded stream of requests. Jitter protects recovery capacity; it does not increase the retry budget.':'Watch the vertical client wave spread horizontally as independent delays are chosen.'}</p>
     </section>
+  </div>`;
+}
+function renderRtoProduction(step){
+  const state=step[3],objective=20,position=Math.min(100,state.elapsed/objective*100);
+  const phases=[
+    ['Detect',0,3],
+    ['Restore',3,14],
+    ['Verify',14,18],
+    ['RTO budget',18,20]
+  ];
+  return `<div class="rto-visual">
+    <header><span><small>Recovery Time Objective</small><b>Restore service within ${objective} minutes</b></span><em class="${state.phase==='restored'?'healthy':'outage'}">${esc(state.status)}</em></header>
+    <div class="rto-clock"><b>${state.elapsed}</b><span>minutes elapsed</span><small>${objective-state.elapsed} min budget remaining</small></div>
+    <div class="rto-timeline">
+      <div class="rto-budget"></div>
+      ${phases.map(([label,start,end])=>`<div class="rto-phase ${state.elapsed>=end?'done':state.elapsed>start?'active':''}" style="left:${start/objective*100}%;width:${(end-start)/objective*100}%"><b>${label}</b><small>${start}–${end} min</small></div>`).join('')}
+      <div class="rto-now" style="left:${position}%"><i></i><b>NOW · ${state.elapsed}m</b></div>
+      <div class="rto-objective"><i></i><b>RTO · ${objective}m</b></div>
+    </div>
+    <div class="rto-equation"><span><small>Measured interval</small><b>outage begins → service restored</b></span><strong class="${state.phase==='restored'?'pass':''}">${state.phase==='restored'?'18m ≤ 20m · objective met':'Clock is still running'}</strong></div>
+    <p>RTO is not a component or workflow box. It is the maximum acceptable duration of the complete recovery sequence.</p>
   </div>`;
 }
 function radialScene(nodes,step,ring=false){
@@ -555,6 +641,7 @@ function renderConceptScene(model,step){
   if(kind==='storyboard'){ $('#conceptFlow').className=`concept-flow kind-storyboard storyboard-${model.diagram.kind}`;return renderStoryboard(model,step) }
   if(kind==='production'){ $('#conceptFlow').className='concept-flow kind-storyboard kind-production';return renderStoryboard(model,step) }
   if(kind==='production-jitter'){ $('#conceptFlow').className='concept-flow kind-production-jitter';return renderJitterProduction(step) }
+  if(kind==='production-rto'){ $('#conceptFlow').className='concept-flow kind-production-rto';return renderRtoProduction(step) }
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
   if(kind==='mechanism-bloom-filter'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderBloomFilterMechanism(step) }
   if(kind==='mechanism-count-min-sketch'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderCountMinSketchMechanism(step) }
@@ -575,8 +662,8 @@ function renderConceptScene(model,step){
 }
 function drawConcept(){
   const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
-  $('#conceptPanel').classList.toggle('lesson-mode',['lesson','storyboard','production','production-jitter'].includes(presentation.kind));
-  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='production-jitter'?'Production behavior · retry timing and downstream load':presentation.kind==='production'?'Production architecture · workload, authority, and operations':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
+  $('#conceptPanel').classList.toggle('lesson-mode',['lesson','storyboard','production','production-jitter','production-rto'].includes(presentation.kind));
+  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='production-rto'?'Recovery objective · outage duration versus target':presentation.kind==='production-jitter'?'Production behavior · retry timing and downstream load':presentation.kind==='production'?'Production architecture · workload, authority, and operations':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
   $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;
   $('#conceptFlow').innerHTML=`<div class="concept-zoom-layer" style="--concept-zoom:${conceptZoom}">${renderConceptScene(presentation,step)}</div>`;
   $('#conceptZoomReset').textContent=`${Math.round(conceptZoom*100)}%`;

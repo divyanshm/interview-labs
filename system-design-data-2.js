@@ -296,6 +296,7 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Resilience Patterns::Cold standby::Validation gate','Integrity verifier'],
   ['Resilience Patterns::Failure detection::Recovery action','Ownership controller'],
   ['Resilience Patterns::Disaster recovery::Data recovery','Replica snapshot set'],
+  ['Resilience Patterns::Disaster recovery::Recovery plan','Recovery orchestrator'],
   ['Resilience Patterns::Disaster recovery::Business validation','Journey probe suite'],
   ['Resilience Patterns::RPO::Disaster point','Disaster timestamp'],
   ['Resilience Patterns::RPO::Latest recovery point','Durable recovery point'],
@@ -313,7 +314,7 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Resilience Patterns::Fault injection::Target path','Target request slice'],
   ['Rate Limiting & Traffic Management::Token bucket::Admission','Protected service'],
   ['Rate Limiting & Traffic Management::Token bucket::Rejection','Throttle response'],
-  ['Rate Limiting & Traffic Management::Leaky bucket::Overflow','Throttle response'],
+  ['Rate Limiting & Traffic Management::Leaky bucket::Overflow','Throttle gateway'],
   ['Rate Limiting & Traffic Management::Fixed window::Limit check','Quota rule'],
   ['Rate Limiting & Traffic Management::Fixed window::Window boundary','Window rollover clock'],
   ['Rate Limiting & Traffic Management::Fixed window::Boundary burst','Boundary request burst'],
@@ -321,7 +322,7 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Rate Limiting & Traffic Management::Sliding window::Exact count','Rolling count state'],
   ['Rate Limiting & Traffic Management::Sliding window::Admission','Rate gate'],
   ['Rate Limiting & Traffic Management::Sliding window counter::Admission','Rate gate'],
-  ['Rate Limiting & Traffic Management::Distributed rate limiting::Admission result','Shared limiter response'],
+  ['Rate Limiting & Traffic Management::Distributed rate limiting::Admission result','Limiter coordinator'],
   ['Rate Limiting & Traffic Management::Global rate limiting::Rebalancer','Budget reallocator'],
   ['Rate Limiting & Traffic Management::Per-user limits::Decision','User rate gate'],
   ['Rate Limiting & Traffic Management::Per-tenant limits::Decision','Tenant rate gate'],
@@ -329,9 +330,11 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Rate Limiting & Traffic Management::Per-IP limits::Mitigation','Challenge service'],
   ['Rate Limiting & Traffic Management::Hierarchical rate limiting::Admission','Hierarchical rate gate'],
   ['Rate Limiting & Traffic Management::Adaptive rate limiting::Recovery ramp','Capacity ramp controller'],
-  ['Rate Limiting & Traffic Management::Concurrency limiting::Release','Completion signal'],
+  ['Rate Limiting & Traffic Management::Concurrency limiting::Release','Permit releaser'],
   ['Rate Limiting & Traffic Management::Concurrency limiting::Full pool','Wait queue'],
   ['Rate Limiting & Traffic Management::Load shedding::Critical path','Reserved worker pool'],
+  ['Rate Limiting & Traffic Management::Load shedding::Overload signal','Saturation monitor'],
+  ['Rate Limiting & Traffic Management::Load shedding::Request classifier','Admission classifier'],
   ['Rate Limiting & Traffic Management::Load shedding::Recovery','Readmission controller'],
   ['Rate Limiting & Traffic Management::Fair queuing::Isolation','Flow backlog state'],
   ['Distributed Scheduling::Distributed job scheduler::Recovery loop','Expiry scanner'],
@@ -340,7 +343,7 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Distributed Scheduling::Work stealing::Steal operation','Steal RPC'],
   ['Distributed Scheduling::Work stealing::Local execution','Balanced work deque'],
   ['Distributed Scheduling::Work stealing::Locality check','Pinning policy'],
-  ['Distributed Scheduling::Task queues::Acknowledgment','Completion ack'],
+  ['Distributed Scheduling::Task queues::Acknowledgment','Completion ledger'],
   ['Distributed Scheduling::Task queues::Redelivery','Visibility timeout'],
   ['Distributed Scheduling::Priority scheduling::Aging','Starvation guard'],
   ['Distributed Scheduling::Delayed execution::Clock advance','Scheduler clock'],
@@ -348,15 +351,17 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Distributed Scheduling::Retry scheduling::Next attempt','Retry task'],
   ['Distributed Scheduling::Retry scheduling::Terminal path','Dead-letter queue'],
   ['Distributed Scheduling::Lease-based workers::Lease renewal','Lease heartbeat'],
-  ['Distributed Scheduling::Lease-based workers::Lease expiry','Expired lease record'],
+  ['Distributed Scheduling::Lease-based workers::Lease expiry','Lease registry'],
   ['Distributed Scheduling::Lease-based workers::Protected effect','Fenced write API'],
+  ['Distributed Scheduling::Heartbeat-based ownership::Heartbeat record','Ownership registry'],
   ['Distributed Scheduling::Heartbeat-based ownership::Missed deadline','Expiry deadline'],
   ['Distributed Scheduling::Heartbeat-based ownership::Reassignment','Replacement worker'],
   ['Distributed Scheduling::Sharded schedulers::Rebalance','Shard handoff state'],
-  ['Distributed Scheduling::Exactly-once job execution::Atomic claim','Claim record'],
+  ['Distributed Scheduling::Exactly-once job execution::Atomic claim','Claim ledger'],
   ['Distributed Scheduling::Exactly-once job execution::Job effect','Protected write API'],
-  ['Distributed Scheduling::Exactly-once job execution::Single outcome','Outcome record'],
+  ['Distributed Scheduling::Exactly-once job execution::Single outcome','Completion ledger'],
   ['Distributed Scheduling::Idempotent jobs::Business operation','Protected write API'],
+  ['Distributed Scheduling::Idempotent jobs::Result record','Idempotency ledger'],
   ['Distributed Scheduling::Idempotent jobs::Duplicate attempt','Duplicate request'],
   ['Distributed Scheduling::Cron/distributed cron::Due instant','Scheduled occurrence'],
   ['Distributed Scheduling::Workflow engines::Decision loop','Workflow controller'],
@@ -403,14 +408,16 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Database Distributed-System Concepts::Quorum::Reconciliation','Version resolver'],
   ['Database Distributed-System Concepts::Read/write consistency::Write path','Write coordinator'],
   ['Database Distributed-System Concepts::Read/write consistency::Read path','Read coordinator'],
-  ['Database Distributed-System Concepts::Hot partitions::Mitigation','Skew mitigation plan'],
+  ['Database Distributed-System Concepts::Hot partitions::Mitigation','Hot-key controller'],
   ['Database Distributed-System Concepts::Hot partitions::Merge path','Fan-in query service'],
   ['Database Distributed-System Concepts::Secondary indexes::Validation','Base-record verifier'],
   ['Database Distributed-System Concepts::Global indexes::Index update','Index update relay'],
-  ['Database Distributed-System Concepts::Global indexes::Direct lookup','Targeted index lookup'],
+  ['Database Distributed-System Concepts::Distributed SQL::Result merger','SQL merge coordinator'],
+  ['Database Distributed-System Concepts::Distributed transactions::Decision record','Transaction coordinator log'],
+  ['Database Distributed-System Concepts::Global indexes::Direct lookup','Global index gateway'],
   ['Database Distributed-System Concepts::Global indexes::Base fetch','Base-partition fetch'],
   ['Database Distributed-System Concepts::Local indexes::Atomic update','Shard-local transaction'],
-  ['Database Distributed-System Concepts::Local indexes::Merge','Result merger'],
+  ['Database Distributed-System Concepts::Local indexes::Merge','Shard merge coordinator'],
   ['Database Distributed-System Concepts::Online schema migration::Expand phase','Expanded schema'],
   ['Database Distributed-System Concepts::Online schema migration::Backfill','Backfill worker'],
   ['Database Distributed-System Concepts::Online schema migration::Contract phase','Schema cleanup worker'],
@@ -427,11 +434,13 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Database Distributed-System Concepts::Dual writes::Partial failure','Divergence ledger'],
   ['Database Distributed-System Concepts::Dual writes::Reconciliation','Reconciliation worker'],
   ['Database Distributed-System Concepts::Read-after-write consistency::Replication','Replica progress'],
-  ['Database Distributed-System Concepts::Read-after-write consistency::Fresh result','Read response'],
+  ['Database Distributed-System Concepts::Read-after-write consistency::Fresh result','Consistency gateway'],
+  ['Database Distributed-System Concepts::Dual writes::Logical mutation','Write API'],
   ['Streaming & Real-Time Processing::Windowing::Trigger','Window trigger'],
   ['Streaming & Real-Time Processing::Windowing::Cleanup','State cleanup worker'],
   ['Streaming & Real-Time Processing::Tumbling windows::Window close','Window close watermark'],
-  ['Streaming & Real-Time Processing::Sliding windows::Window emissions','Window result stream'],
+  ['Streaming & Real-Time Processing::Sliding windows::Window emissions','Window output stream'],
+  ['Streaming & Real-Time Processing::Session windows::Keyed event','Session input partition'],
   ['Streaming & Real-Time Processing::Session windows::Late bridge','Session merger'],
   ['Streaming & Real-Time Processing::Session windows::Session close','Session close watermark'],
   ['Streaming & Real-Time Processing::Event time vs processing time::Time choice','Time-mode selector'],
@@ -446,43 +455,69 @@ const systemDesignOntologyLabelFixes2 = new Map([
   ['Streaming & Real-Time Processing::Backpressure::Demand signal','Flow-control credits'],
   ['Streaming & Real-Time Processing::Backpressure::Source retention','Source backlog'],
   ['Streaming & Real-Time Processing::Backpressure::Recovery','Credit ramp controller'],
-  ['Streaming & Real-Time Processing::Replay::Replay start','Replay cursor'],
+  ['Streaming & Real-Time Processing::Replay::Replay start','Replay offset store'],
+  ['Streaming & Real-Time Processing::Stream aggregation::Keyed event','Keyed event partition'],
+  ['Streaming & Real-Time Processing::Stream aggregation::Aggregate output','Aggregate sink'],
   ['Streaming & Real-Time Processing::Replay::Catch-up','Live-head sync'],
   ['Streaming & Real-Time Processing::Stream aggregation::Trigger','Aggregate trigger'],
   ['Streaming & Real-Time Processing::Windowed aggregation::Late update','Correction stream'],
-  ['Streaming & Real-Time Processing::CEP / Complex Event Processing::Completed match','Match record'],
+  ['Streaming & Real-Time Processing::Windowed aggregation::Initial result','Window output topic'],
+  ['Streaming & Real-Time Processing::CEP / Complex Event Processing::Completed match','Match event topic'],
   ['Distributed Data Processing::Shuffle::Merge','Merge reader'],
   ['Distributed Data Processing::Partitioning::Boundary operation','Cross-partition transfer'],
-  ['Distributed Data Processing::Partitioning::Repartition','Repartition plan'],
+  ['Distributed Data Processing::Partitioning::Repartition','Partition planner'],
+  ['Distributed Data Processing::Combiners::Mapper output','Mapper spill store'],
+  ['Distributed Data Processing::Map-side aggregation::Map input','Input split reader'],
+  ['Distributed Data Processing::Reduce-side aggregation::Partitioned output','Reducer output store'],
+  ['Distributed Data Processing::Distributed joins::Joined output','Join sink'],
+  ['Distributed Data Processing::Skew handling::Heavy-key plan','Skew controller'],
   ['Distributed Data Processing::Map-side aggregation::Shuffle output','Partial aggregate blocks'],
   ['Distributed Data Processing::Hash joins::Skew path','Skew handling plan'],
-  ['Distributed Data Processing::Skew handling::Final merge','Result merger'],
+  ['Distributed Data Processing::Skew handling::Final merge','Partial merge coordinator'],
   ['Distributed Data Processing::Stragglers::Mitigation','Straggler controller'],
-  ['Distributed Data Processing::Speculative execution::Duplicate attempt','Competing attempt'],
-  ['Distributed Data Processing::Speculative execution::Race','Competing attempts'],
-  ['Distributed Data Processing::Speculative execution::Winner commit','Winning attempt record'],
+  ['Distributed Data Processing::Speculative execution::Duplicate attempt','Speculative worker'],
+  ['Distributed Data Processing::Speculative execution::Race','Attempt arbiter'],
+  ['Distributed Data Processing::Speculative execution::Winner commit','Attempt commit ledger'],
   ['Distributed Data Processing::Checkpointing::Checkpoint boundary','Checkpoint manifest'],
   ['Distributed Data Processing::Checkpointing::Worker failure','Lost worker state'],
   ['Distributed Data Processing::Checkpointing::Restart','Restart coordinator'],
   ['Search & Retrieval::Forward index::Document update','Forward-entry tombstone'],
   ['Search & Retrieval::Sharded search::Global merge','Ranking merger'],
   ['Search & Retrieval::Scatter-gather search::Scatter','Scatter requests'],
-  ['Search & Retrieval::Scatter-gather search::Gather','Shard result bundle'],
+  ['Search & Retrieval::Scatter-gather search::Gather','Coordinator merge buffer'],
   ['Search & Retrieval::Scatter-gather search::Merge','Ranking merger'],
-  ['Search & Retrieval::Query fan-out::Result reduction','Result merger'],
+  ['Search & Retrieval::Query fan-out::Result reduction','Fan-in coordinator'],
   ['Search & Retrieval::Incremental indexing::Segment merge','Segment merger'],
   ['Search & Retrieval::Search index replication::Replica repair','Replica repair worker'],
   ['Distributed Algorithms::Consistent hashing::Key point','Hash position'],
   ['Distributed Algorithms::Gossip::Merge','Version resolver'],
-  ['Distributed Algorithms::Distributed consensus::Proposal','Client proposal'],
+  ['Distributed Algorithms::Distributed consensus::Proposal','Proposal gateway'],
   ['Distributed Algorithms::Distributed consensus::Quorum replication','Acceptor quorum'],
   ['Distributed Algorithms::Distributed consensus::Commit','Commit index'],
-  ['Distributed Algorithms::Distributed snapshots::Global snapshot','Snapshot record'],
+  ['Distributed Algorithms::Distributed snapshots::Global snapshot','Snapshot store'],
   ['Distributed Algorithms::Distributed sorting::Range boundaries','Range map'],
   ['Distributed Algorithms::Distributed sorting::Shuffle','Range transfer stream'],
   ['Distributed Algorithms::Distributed sorting::Local sort','Sort worker'],
   ['Distributed Algorithms::Distributed sorting::Ordered output','Sorted output partitions'],
   ['Distributed Algorithms::Distributed aggregation::Duplicate guard','Attempt ledger']
+  ,['Rate Limiting & Traffic Management::Concurrency limiting::Request','Admission gateway']
+  ,['Rate Limiting & Traffic Management::Concurrency limiting::In-flight operation','Worker pool']
+  ,['Distributed Scheduling::Idempotent jobs::Duplicate attempt','Duplicate filter']
+  ,['Database Distributed-System Concepts::Distributed SQL::Result merger','SQL merge coordinator']
+  ,['Database Distributed-System Concepts::Distributed transactions::Decision record','Transaction coordinator log']
+  ,['Database Distributed-System Concepts::Global indexes::Targeted index lookup','Global index gateway']
+  ,['Database Distributed-System Concepts::Local indexes::Result merger','Shard result coordinator']
+  ,['Streaming & Real-Time Processing::Event-time processing::Event timestamp','Event-time extractor']
+  ,['Streaming & Real-Time Processing::Deduplication::Seen-state lookup','Deduplication index']
+  ,['Streaming & Real-Time Processing::Windowed aggregation::Timestamped record','Window input partition']
+  ,['Streaming & Real-Time Processing::Windowed aggregation::Initial result','Window output topic']
+  ,['Streaming & Real-Time Processing::CEP / Complex Event Processing::Match record','Match event topic']
+  ,['Distributed Data Processing::Distributed aggregation::Global result','Aggregate output store']
+  ,['Distributed Data Processing::Skew handling::Result merger','Partial-result merger']
+  ,['Distributed Data Processing::Speculative execution::Winning attempt record','Attempt commit ledger']
+  ,['Search & Retrieval::Scatter-gather search::Shard result bundle','Coordinator merge buffer']
+  ,['Search & Retrieval::Query fan-out::Result merger','Fan-in coordinator']
+  ,['Distributed Algorithms::Distributed snapshots::Snapshot record','Snapshot store']
 ]);
 
 const fixSystemDesignOntologyLabel2 = (conceptKey,label) =>
@@ -632,32 +667,70 @@ window.applySystemDesignDiagrams2 = () => {
         default: return 'advance computation';
       }
     };
-    const makeLinks = (kind,components) => {
-      if (kind === 'structure') {
-        return components.slice(1).map((component,index)=>[
-          components[Math.floor(index / 2)][0],component[0],
-          linkLabel(components[Math.floor(index / 2)],component)
-        ]);
+    let genericTopologyOrdinal = 0;
+    const makeLinks = (kind,components,conceptKey) => {
+      const count = components.length;
+      const key = conceptKey.toLowerCase();
+      const family =
+        /quorum|consensus|aggregation|join|scatter|fan-out|sharded search|distributed sql/.test(key) ? 'fan-in' :
+        /replica|replication|failover|standby|leader/.test(key) ? 'replication' :
+        /gossip|consistent hashing|distributed snapshots/.test(key) ? 'peer' :
+        /queue|scheduler|scheduling|worker|cron|workflow|work stealing/.test(key) ? 'work-pool' :
+        /rate limit|limiting|thrott|load shedding|admission|fair queuing|quota/.test(key) ? 'control-loop' :
+        /stream|window|watermark|checkpoint|backpressure|replay|event-time|late events/.test(key) ? 'stream-loop' :
+        /index|storage|tree|table|sstable|memtable|bloom|write-ahead|columnar|row-oriented/.test(key) ? 'layered' :
+        kind === 'comparison' ? 'comparison' :
+        kind === 'timeline' ? 'timeline' :
+        kind === 'structure' ? 'structure' :
+        'service';
+      const edgeSets = {
+        'fan-in':[[0,1],[0,2],[1,count-1],[2,count-1],[count>4?3:1,count-1]],
+        replication:[[0,1],[1,2],[1,3],[2,count-1],[3,count-1],[count-1,1]],
+        peer:Array.from({length:count},(_,index)=>[index,(index+1)%count]).concat(count>4?[[0,2],[2,4]]:[]),
+        'work-pool':[[0,1],[1,2],[1,3],[2,count-1],[3,count-1],[count-1,1]],
+        'control-loop':[[0,1],[1,2],[1,3],[2,count-1],[3,count-1],[count-1,1]],
+        'stream-loop':[[0,1],[1,2],[2,3],[2,count-1],[3,count-1],[count-1,1]],
+        layered:[[0,1],[0,2],[1,3],[2,3],[3,count-1]],
+        comparison:Array.from({length:count-1},(_,index)=>[0,index+1]),
+        timeline:Array.from({length:count-1},(_,index)=>[index,index+1]).concat(count>4?[[1,3],[count-1,2]]:[]),
+        structure:Array.from({length:count-1},(_,index)=>[Math.floor(index/2),index+1]),
+        service:[[0,1],[0,2],[1,3],[2,3],[3,count-1],[count-1,1]]
+      };
+      const pairs = edgeSets[family]
+        .filter(([from,to])=>from>=0&&to>=0&&from<count&&to<count&&from!==to);
+      const variant = genericTopologyOrdinal++ % 16;
+      const optional = [
+        [count-1,0],[0,count-1],[1,count-1],[count-1,1],[2,0],[count-2,1]
+      ];
+      for (let bit = 0; bit < optional.length && pairs.length < 9; bit++) {
+        if ((variant & (1 << (bit % 4))) === 0) continue;
+        const candidate = optional[bit];
+        if (candidate[0] < count && candidate[1] < count &&
+            candidate[0] !== candidate[1] &&
+            !pairs.some(([from,to])=>from===candidate[0]&&to===candidate[1])) {
+          pairs.push(candidate);
+        }
       }
-      if (kind === 'comparison') {
-        return components.slice(1).map(component=>[
-          components[0][0],component[0],linkLabel(components[0],component)
-        ]);
-      }
-      return components.slice(1).map((component,index)=>[
-        components[index][0],component[0],linkLabel(components[index],component)
+      return pairs.map(([fromIndex,toIndex])=>[
+        components[fromIndex][0],
+        components[toIndex][0],
+        linkLabel(components[fromIndex],components[toIndex])
       ]);
     };
-    const makeFrames = (concept,components,links,focusIds) => concept.visual.steps.map((step,index)=>{
-      const focusIndex = Math.min(index,(focusIds || components.map(component=>component[0])).length - 1);
-      const focusId = (focusIds || components.map(component=>component[0]))[focusIndex];
-      const states = {};
-      for (let prior = 0; prior < focusIndex; prior++) {
-        states[(focusIds || components.map(component=>component[0]))[prior]] = 'done';
-      }
-      states[focusId] = riskWords.test(step[2]) ? 'risk' : 'active';
-      return [index === 0 ? -1 : Math.min(index - 1,links.length - 1),states];
-    });
+    const makeFrames = (concept,components,links) => {
+      const completed = new Set();
+      return concept.visual.steps.map((step,index)=>{
+        const activeLinkIndex = Math.min(index,links.length-1);
+        const [fromId,toId] = links[activeLinkIndex];
+        const states = {};
+        for (const id of completed) states[id] = 'done';
+        states[fromId] = 'active';
+        states[toId] = 'active';
+        completed.add(fromId);
+        completed.add(toId);
+        return [activeLinkIndex,states];
+      });
+    };
     const overrides = new Map([
       ['Resilience Patterns::Active-passive',{
         kind:'architecture',
@@ -709,7 +782,7 @@ window.applySystemDesignDiagrams2 = () => {
           ['limiter','Distributed token limiter','Atomically checks and consumes allowance','control'],
           ['tokens','Token store','Refills to burst capacity at the steady rate','database'],
           ['service','Orders service','Receives only admitted requests','service'],
-          ['reject','Throttle response','Returns retry guidance when tokens are insufficient','queue']
+          ['reject','Throttle gateway','Returns retry guidance when tokens are insufficient','gateway']
         ],
         links:[
           ['client','ingress','API request'],
@@ -721,6 +794,49 @@ window.applySystemDesignDiagrams2 = () => {
           ['reject','client','429 with retry-after']
         ],
         focus:['tokens','limiter','ingress','service','reject']
+      }],
+      ['Rate Limiting & Traffic Management::Per-user limits',{
+        kind:'architecture',
+        components:[
+          ['client','Signed-in application','Sends API calls for one authenticated user','client'],
+          ['gateway','Identity-aware gateway','Validates identity and derives the stable user key','gateway'],
+          ['policy','Entitlement service','Selects rate and burst from the user product tier','service'],
+          ['bucket','Per-user allowance store','Shares token state across devices and sessions','database'],
+          ['limiter','User rate limiter','Atomically consumes allowance for the operation cost','control'],
+          ['api','Protected API','Receives only calls within the user allowance','service']
+        ],
+        links:[
+          ['client','gateway','authenticated API call'],
+          ['gateway','policy','resolve user policy'],
+          ['policy','limiter','apply tier limits'],
+          ['gateway','limiter','check user allowance'],
+          ['limiter','bucket','consume user tokens'],
+          ['bucket','limiter','return token balance'],
+          ['limiter','api','admit within limit'],
+          ['limiter','gateway','return retry guidance']
+        ],
+        focus:['client','gateway','policy','limiter','bucket','api']
+      }],
+      ['Resilience Patterns::Fault injection',{
+        kind:'architecture',
+        components:[
+          ['clients','Service clients','Send production traffic through the experiment boundary','client'],
+          ['proxy','Fault proxy','Injects only the configured latency, error, loss, or exhaustion','gateway'],
+          ['target','Target service instances','Serve the labeled request slice under test','service'],
+          ['monitor','Safety monitor','Watches availability, latency, errors, and saturation','control'],
+          ['controller','Experiment controller','Starts and aborts the bounded experiment','control'],
+          ['policy','Experiment policy store','Holds scope, fault parameters, duration, and abort thresholds','database']
+        ],
+        links:[
+          ['clients','proxy','production request'],
+          ['proxy','target','forward or inject fault'],
+          ['target','monitor','health and dependency telemetry'],
+          ['controller','policy','persist bounded experiment'],
+          ['policy','proxy','activate fault rule'],
+          ['monitor','controller','trip abort threshold'],
+          ['controller','proxy','remove fault rule']
+        ],
+        focus:['clients','proxy','target','monitor','controller']
       }],
       ['Storage Systems::LSM trees',{
         kind:'structure',
@@ -744,6 +860,71 @@ window.applySystemDesignDiagrams2 = () => {
           ['reader','levels','probe Bloom filters and indexes']
         ],
         focus:['writer','wal','mem','l0','compact']
+      }],
+      ['Storage Systems::Block storage',{
+        kind:'architecture',
+        components:[
+          ['app','Application','Reads and mutates durable application data','client'],
+          ['fs','Filesystem or database','Translates records and files into logical block operations','service'],
+          ['host','Host block layer','Orders writes, caches blocks, and enforces flush barriers','cache'],
+          ['controller','Storage controller','Maps logical blocks to physical replicated placement','control'],
+          ['replicas','Storage replica set','Persists block copies across independent media or nodes','replica'],
+          ['metadata','Volume metadata service','Stores volume geometry, placement, and generation metadata','database']
+        ],
+        links:[
+          ['app','fs','read or write data'],
+          ['fs','host','issue logical block I/O'],
+          ['host','controller','submit ordered block operation'],
+          ['metadata','controller','resolve block placement'],
+          ['controller','replicas','write physical replicas'],
+          ['replicas','controller','durable quorum acknowledgement'],
+          ['controller','host','complete block operation']
+        ],
+        focus:['app','fs','host','controller','replicas']
+      }],
+      ['Storage Systems::Secondary indexes',{
+        kind:'structure',
+        components:[
+          ['rows','Base table rows','Rows remain authoritative under primary keys PK-17 and PK-42','database'],
+          ['index','Email secondary index','Maps normalized email values to primary keys','index'],
+          ['alice','alice@example key','Alternate-key entry points to PK-17','index'],
+          ['candidate','Candidate primary keys','Lookup returns PK-17 before touching the base table','queue'],
+          ['fetch','Base-row fetcher','Reads authoritative rows by candidate primary key','service'],
+          ['verify','Predicate verifier','Rechecks the email against the current base row','control']
+        ],
+        links:[
+          ['rows','index','maintain alternate-key map'],
+          ['index','alice','store email posting'],
+          ['alice','candidate','return PK-17'],
+          ['candidate','fetch','fetch candidate row'],
+          ['fetch','rows','read by primary key'],
+          ['rows','verify','supply current row'],
+          ['verify','index','repair stale entry']
+        ],
+        focus:['rows','index','alice','candidate','fetch','verify']
+      }],
+      ['Database Distributed-System Concepts::Secondary indexes',{
+        kind:'structure',
+        components:[
+          ['shardA','Base-table shard A','Owns customer rows PK-1 through PK-5000','database'],
+          ['shardB','Base-table shard B','Owns customer rows PK-5001 through PK-9999','database'],
+          ['index','City secondary index','Maps city values to cross-shard primary keys','index'],
+          ['seattle','Seattle posting list','Contains PK-81, PK-6200, and index versions','index'],
+          ['candidates','Candidate primary keys','Partitions candidates by owning base shard','queue'],
+          ['verifier','Base-row verifier','Fetches current rows and rechecks city predicates','service']
+        ],
+        links:[
+          ['shardA','index','publish index mutation'],
+          ['shardB','index','publish index mutation'],
+          ['index','seattle','append primary key'],
+          ['seattle','candidates','return candidate keys'],
+          ['candidates','shardA','fetch local candidates'],
+          ['candidates','shardB','fetch remote candidates'],
+          ['shardA','verifier','verify current row'],
+          ['shardB','verifier','verify current row'],
+          ['verifier','index','repair stale posting']
+        ],
+        focus:['shardA','shardB','index','seattle','candidates','verifier']
       }],
       ['Streaming & Real-Time Processing::Watermarks',{
         kind:'timeline',
@@ -859,13 +1040,13 @@ window.applySystemDesignDiagrams2 = () => {
           : (() => {
               const kind = conceptKind(concept);
               const components = makeComponents(kind,concept.visual.nodes);
-              return {kind,components,links:makeLinks(kind,components)};
+              return {kind,components,links:makeLinks(kind,components,key)};
             })();
         concept.diagram = {
           kind:base.kind,
           components:base.components,
           links:base.links,
-          frames:makeFrames(concept,base.components,base.links,base.focus)
+          frames:makeFrames(concept,base.components,base.links)
         };
       }
     }
@@ -1971,238 +2152,3 @@ window.applySystemDesignDiagrams2 = () => {
 
 window.applySystemDesignDiagrams2();
 delete window.applySystemDesignDiagrams2;
-
-{
-  const chapters = window.SYSTEM_DESIGN_CHAPTERS.slice(-9);
-  const profiles = {
-    'Resilience Patterns':[
-      ['users','Service clients','Send production traffic and observe availability','client'],
-      ['traffic','Traffic manager','Routes only to the currently safe serving path','gateway']
-    ],
-    'Rate Limiting & Traffic Management':[
-      ['callers','API callers','Generate traffic under user and tenant identities','client'],
-      ['edge','Policy gateway','Classifies requests and applies admission policy','gateway']
-    ],
-    'Distributed Scheduling':[
-      ['submitters','Job submitters','Create durable scheduled or immediate work','client'],
-      ['registry','Job registry','Stores definitions, ownership epochs, and progress','database']
-    ],
-    'Storage Systems':[
-      ['application','Application requests','Read and mutate durable application data','client'],
-      ['metadata','Storage metadata','Tracks versions, locations, and durable manifests','control']
-    ],
-    'Database Distributed-System Concepts':[
-      ['dbclients','Database clients','Issue versioned reads and transactional writes','client'],
-      ['router','Shard router','Uses current placement and consistency metadata','gateway']
-    ],
-    'Streaming & Real-Time Processing':[
-      ['producers','Event producers','Publish timestamped, uniquely identified events','client'],
-      ['eventlog','Partitioned event log','Retains ordered offsets for replay and recovery','queue']
-    ],
-    'Distributed Data Processing':[
-      ['coordinator','Job coordinator','Builds the execution graph and tracks attempts','control'],
-      ['dataset','Distributed dataset','Provides immutable partitioned input blocks','storage']
-    ],
-    'Search & Retrieval':[
-      ['searchers','Search clients','Send text, vector, filter, and ranking requests','client'],
-      ['queryrouter','Query coordinator','Plans shard fan-out under one deadline','gateway']
-    ],
-    'Distributed Algorithms':[
-      ['caller','Algorithm caller','Supplies graph, membership, or partitioned data','client'],
-      ['workers','Partition workers','Own vertices, replicas, or data partitions','worker']
-    ]
-  };
-  const strongDiagrams = new Set([
-    'Resilience Patterns::Active-passive',
-    'Resilience Patterns::Automatic failover',
-    'Rate Limiting & Traffic Management::Token bucket',
-    'Storage Systems::LSM trees',
-    'Streaming & Real-Time Processing::Watermarks',
-    'Distributed Data Processing::MapReduce',
-    'Search & Retrieval::HNSW',
-    'Distributed Algorithms::Topological sort'
-  ]);
-  const graphAlgorithms = new Map([
-    ['BFS / DFS',['Traversal frontier','Visited vertices','Traversal forest']],
-    ['Dijkstra',['Distance heap','Settled vertices','Shortest-path tree']],
-    ['Bellman-Ford',['Relaxation workers','Distance table','Cycle detector']],
-    ['Minimum spanning tree',['Edge candidates','Disjoint components','Spanning tree']],
-    ['Kruskal',['Sorted edge queue','Union-Find forest','Kruskal tree']],
-    ['Prim',['Cut-edge heap','Growing tree','Prim tree']],
-    ['Topological sort',['Ready queue','In-degree table','Dependency order']],
-    ['Union-Find',['Parent forest','Rank metadata','Connectivity answers']]
-  ]);
-  const layout = [
-    [14,24],[14,72],[38,16],[66,16],[86,44],[66,84],[38,84],[52,50]
-  ];
-  const allowedTypes = new Set([
-    'client','gateway','service','database','replica','cache','queue','worker',
-    'control','storage','index','node','clock','bitset'
-  ]);
-  const inferType = (label,detail) => {
-    const value = `${label} ${detail}`.toLowerCase();
-    if (/\b(bit|bloom)\b/.test(value)) return 'bitset';
-    if (/\b(index|heap|tree|forest|table|postings|graph|vertex|component|distance)\b/.test(value)) return 'index';
-    if (/\b(replica|standby|follower|leader|primary|region)\b/.test(value)) return 'replica';
-    if (/\b(queue|log|shuffle|frontier|stream|bucket)\b/.test(value)) return 'queue';
-    if (/\b(file|block|object|snapshot|backup|segment|sstable|wal|volume|chunk|dataset)\b/.test(value)) return 'storage';
-    if (/\b(database|record|memtable|state|registry|manifest|accumulator)\b/.test(value)) return 'database';
-    if (/\b(cache)\b/.test(value)) return 'cache';
-    if (/\b(worker|mapper|reducer|operator|task|combiner)\b/.test(value)) return 'worker';
-    if (/\b(clock|timer|time|watermark|deadline|window)\b/.test(value)) return 'clock';
-    if (/\b(router|gateway|load balancer|traffic manager|coordinator)\b/.test(value)) return 'gateway';
-    if (/\b(client|user|caller|request|query|producer|submitter)\b/.test(value)) return 'client';
-    if (/\b(controller|monitor|detector|policy|quorum|election|scheduler|limiter|allocator|metadata)\b/.test(value)) return 'control';
-    if (/\b(service|sink|processor|engine|pipeline)\b/.test(value)) return 'service';
-    return 'node';
-  };
-  const actionFor = component => {
-    const value = `${component[1]} ${component[2]}`.toLowerCase();
-    if (/\b(health|heartbeat|probe)\b/.test(value)) return 'health probe';
-    if (/\b(replica|standby|follower)\b/.test(value)) return 'replicate state';
-    if (/\b(failover|promot|leader)\b/.test(value)) return 'publish owner epoch';
-    if (/\b(token|bucket|limiter)\b/.test(value)) return 'check allowance';
-    if (/\b(lease|ownership|claim)\b/.test(value)) return 'renew fenced lease';
-    if (/\b(queue|frontier|ready)\b/.test(value)) return 'enqueue work';
-    if (/\b(wal|write-ahead)\b/.test(value)) return 'append WAL';
-    if (/\b(memtable)\b/.test(value)) return 'update memtable';
-    if (/\b(sstable|flush)\b/.test(value)) return 'flush SSTable';
-    if (/\b(compact|merge)\b/.test(value)) return 'merge durable runs';
-    if (/\b(index|postings|dictionary)\b/.test(value)) return 'query index';
-    if (/\b(watermark)\b/.test(value)) return 'advance watermark';
-    if (/\b(window|session)\b/.test(value)) return 'update window state';
-    if (/\b(checkpoint)\b/.test(value)) return 'commit checkpoint';
-    if (/\b(shuffle)\b/.test(value)) return 'shuffle by key';
-    if (/\b(mapper|map task)\b/.test(value)) return 'dispatch map task';
-    if (/\b(reducer|reduce task)\b/.test(value)) return 'dispatch reduce task';
-    if (/\b(join)\b/.test(value)) return 'join matching keys';
-    if (/\b(aggregate|summary|combiner)\b/.test(value)) return 'merge partial aggregate';
-    if (/\b(sort|ordered)\b/.test(value)) return 'sort partition';
-    if (/\b(distance|relax)\b/.test(value)) return 'relax graph edge';
-    if (/\b(union|component|forest)\b/.test(value)) return 'merge graph components';
-    if (/\b(rank|score|top k|top-k)\b/.test(value)) return 'rank candidates';
-    if (/\b(vector|nearest|hnsw|centroid)\b/.test(value)) return 'search vector neighbors';
-    if (/\b(result|sink|answer|order)\b/.test(value)) return 'emit verified result';
-    if (/\b(storage|file|block|object|snapshot)\b/.test(value)) return 'persist durable data';
-    if (/\b(control|policy|metadata)\b/.test(value)) return 'publish control decision';
-    return 'exchange protocol message';
-  };
-  const uniqueLabel = (label,used) => {
-    if (!used.has(label)) {
-      used.add(label);
-      return label;
-    }
-    let suffix = 2;
-    while (used.has(`${label} ${suffix}`)) suffix++;
-    const next = `${label} ${suffix}`;
-    used.add(next);
-    return next;
-  };
-  const normalizeStrong = (conceptKey,diagram) => {
-    diagram.components = diagram.components.map((component,index)=>{
-      const [x,y] = layout[index];
-      return [
-        component[0],
-        fixSystemDesignOntologyLabel2(conceptKey,component[1]),
-        component[2],
-        component[3],
-        x,y
-      ];
-    });
-    return diagram;
-  };
-  const buildGraphDiagram = (conceptKey,concept,parts) => {
-    const labels = ['Vertex A','Vertex B','Vertex C',...parts];
-    const components = labels.map((label,index)=>{
-      const [x,y] = layout[index];
-      const detail = index < 3
-        ? `Graph vertex participating in ${concept.name}`
-        : concept.visual.nodes[Math.min(index - 3,concept.visual.nodes.length - 1)][1];
-      const fixedLabel = fixSystemDesignOntologyLabel2(conceptKey,label);
-      return [`g${index}`,fixedLabel,detail,inferType(fixedLabel,detail),x,y];
-    });
-    const links = [
-      ['g0','g1','weighted edge A-B'],
-      ['g0','g2','weighted edge A-C'],
-      ['g1','g2','graph edge B-C'],
-      ['g3','g0',actionFor(components[0])],
-      ['g3','g1',actionFor(components[1])],
-      ['g0','g4',actionFor(components[4])],
-      ['g1','g4',actionFor(components[4])],
-      ['g4','g5',actionFor(components[5])]
-    ];
-    return {kind:'structure',components,links};
-  };
-  const buildArchitecture = (chapter,concept) => {
-    const profile = profiles[chapter.title];
-    const used = new Set();
-    const visualNodes = concept.visual.nodes.slice(0,6);
-    const raw = [
-      ...profile,
-      ...visualNodes.map(([label,detail],index)=>[
-        `m${index}`,label,detail,inferType(label,detail)
-      ])
-    ].slice(0,8);
-    const components = raw.map((component,index)=>{
-      const [x,y] = layout[index];
-      return [
-        component[0],
-        uniqueLabel(fixSystemDesignOntologyLabel2(`${chapter.title}::${concept.name}`,component[1]),used),
-        component[2],
-        allowedTypes.has(component[3]) ? component[3] : 'node',
-        x,y
-      ];
-    });
-    const ids = components.map(component=>component[0]);
-    const links = [
-      [ids[0],ids[2],actionFor(components[2])],
-      [ids[0],ids[3],actionFor(components[3])],
-      [ids[1],ids[2],actionFor(components[2])],
-      [ids[1],ids[3],actionFor(components[3])],
-      [ids[2],ids[4],actionFor(components[4])],
-      [ids[3],ids[4],actionFor(components[4])],
-      [ids[4],ids[5],actionFor(components[5])],
-      [ids[5],ids[1],actionFor(components[1])]
-    ];
-    if (ids[6]) links.push([ids[4],ids[6],actionFor(components[6])]);
-    if (ids[7]) links.push([ids[6] || ids[5],ids[7],actionFor(components[7])]);
-    return {
-      kind:chapter.title === 'Storage Systems' || chapter.title === 'Search & Retrieval'
-        ? 'structure'
-        : chapter.title === 'Distributed Algorithms'
-          ? 'topology'
-          : 'architecture',
-      components,
-      links:links.slice(0,10)
-    };
-  };
-  const buildFrames = (concept,diagram) => {
-    const priorDone = new Set();
-    return concept.visual.steps.map((step,index)=>{
-      const activeLinkIndex = index % diagram.links.length;
-      const [fromId,toId] = diagram.links[activeLinkIndex];
-      const states = {};
-      for (const id of priorDone) states[id] = 'done';
-      states[fromId] = 'active';
-      states[toId] = 'active';
-      priorDone.add(fromId);
-      priorDone.add(toId);
-      return [activeLinkIndex,states];
-    });
-  };
-  for (const chapter of chapters) {
-    for (const concept of chapter.groups.flatMap(group=>group.concepts)) {
-      const key = `${chapter.title}::${concept.name}`;
-      let diagram;
-      if (strongDiagrams.has(key)) {
-        diagram = normalizeStrong(key,concept.diagram);
-      } else if (chapter.title === 'Distributed Algorithms' && graphAlgorithms.has(concept.name)) {
-        diagram = buildGraphDiagram(key,concept,graphAlgorithms.get(concept.name));
-      } else {
-        diagram = buildArchitecture(chapter,concept);
-      }
-      diagram.frames = buildFrames(concept,diagram);
-      concept.diagram = diagram;
-    }
-  }
-}

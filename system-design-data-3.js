@@ -1579,7 +1579,7 @@ const SYSTEM_DESIGN_COMPONENT_PATCHES_3 = {
     Suspicion:['Suspicion Score','timeout/score','control']
   },
   'distributed-identity-security::Revocation':{
-    'Security signal':['Revocation Request','logout or compromise request','client']
+    'Security signal':['Revocation Administrator','initiates logout or compromise response','client']
   },
   'distributed-identity-security::Workload identity':{
     'Peer authorization':['Peer Authorization Policy','workload permissions','control']
@@ -1703,3 +1703,517 @@ const SYSTEM_DESIGN_APPLY_COMPONENT_PATCHES_3 = () => {
 };
 
 SYSTEM_DESIGN_APPLY_COMPONENT_PATCHES_3();
+
+const SYSTEM_DESIGN_TEACHING_GROUPS_3 = {
+  'api-service-architecture/Edge and routing':{family:'fanout',role:'gateway',components:[
+    ['client','Client fleet','public API callers','client'],
+    ['edge','Edge proxy','TLS and request boundary','gateway'],
+    ['serviceA','Service instance A','healthy serving target','service'],
+    ['serviceB','Service instance B','alternate serving target','service'],
+    ['registry','Service registry','routes and endpoint health','control'],
+    ['concept','Routing controller','traffic selection policy','control']
+  ]},
+  'api-service-architecture/Service networking':{family:'controlData',role:'network policy',components:[
+    ['caller','Calling workload','east-west traffic source','service'],
+    ['proxyA','Source network proxy','outbound policy point','gateway'],
+    ['proxyB','Destination network proxy','inbound policy point','gateway'],
+    ['callee','Destination workload','protected service endpoint','service'],
+    ['control','Mesh control plane','routes identity and policy','control'],
+    ['concept','Network policy controller','concept-specific network behavior','control']
+  ]},
+  'api-service-architecture/Progressive delivery':{family:'splitCompare',role:'rollout policy',components:[
+    ['users','User cohorts','stable traffic population','client'],
+    ['router','Release traffic router','cohort assignment','gateway'],
+    ['baseline','Baseline service','current production version','service'],
+    ['candidate','Candidate service','new deployment version','service'],
+    ['metrics','Guardrail metrics store','business and reliability signals','database'],
+    ['concept','Rollout controller','exposure and rollback policy','control']
+  ]},
+  'observability-distributed-debugging/Telemetry signals':{family:'pipeline',role:'telemetry processor',components:[
+    ['workload','Instrumented services','production operations','service'],
+    ['agent','Telemetry agents','local batching and context','worker'],
+    ['collector','Telemetry collector','receive and transform signals','service'],
+    ['store','Signal backend','indexed telemetry storage','storage'],
+    ['query','Query and alert service','operational analysis','service'],
+    ['concept','Signal processor','concept-specific signal handling','control']
+  ]},
+  'observability-distributed-debugging/Sampling and measurement':{family:'feedback',role:'measurement policy',components:[
+    ['traffic','Service clients','measured user operations','client'],
+    ['instrumentation','Instrumentation SDK','records observations','service'],
+    ['processor','Telemetry processor','aggregation and sampling','worker'],
+    ['store','Metrics and trace store','windowed measurements','database'],
+    ['alerts','SLO alert evaluator','budget and threshold checks','control'],
+    ['concept','Measurement controller','concept-specific measurement policy','control']
+  ]},
+  'observability-distributed-debugging/Distributed diagnosis':{family:'pipeline',role:'diagnostic analyzer',components:[
+    ['fleet','Service fleet','distributed runtime targets','service'],
+    ['agents','Diagnostic agents','profiles traces and metadata','worker'],
+    ['collector','Diagnostic collector','cross-node correlation','service'],
+    ['store','Diagnostic data store','profiles and dependency records','storage'],
+    ['console','Investigation console','operator analysis surface','client'],
+    ['concept','Diagnostic analyzer','concept-specific detection logic','control']
+  ]},
+  'distributed-system-migration-patterns/Coexistence patterns':{family:'splitCompare',role:'migration adapter',components:[
+    ['clients','Production clients','live requests during migration','client'],
+    ['router','Migration router','authority-aware routing','gateway'],
+    ['legacy','Legacy system','current implementation','service'],
+    ['target','Replacement system','candidate implementation','service'],
+    ['compare','Comparison and repair store','differences and replay','database'],
+    ['concept','Migration adapter','concept-specific coexistence policy','control']
+  ]},
+  'distributed-system-migration-patterns/Data movement':{family:'pipeline',role:'transfer worker',components:[
+    ['source','Source database','authoritative source records','database'],
+    ['log','Change and snapshot log','ordered migration input','queue'],
+    ['workers','Migration workers','checkpointed transfer','worker'],
+    ['target','Target database','migrated records','database'],
+    ['reconcile','Reconciliation store','checksums and differences','storage'],
+    ['concept','Transfer controller','concept-specific movement policy','control']
+  ]},
+  'distributed-system-migration-patterns/Compatibility and rollout':{family:'controlData',role:'rollout controller',components:[
+    ['oldClient','Old-version clients','legacy contract consumers','client'],
+    ['newClient','New-version clients','new contract consumers','client'],
+    ['compat','Compatibility gateway','schema and protocol adapter','gateway'],
+    ['service','Migrating service','mixed-version implementation','service'],
+    ['schema','Schema registry','compatibility metadata','storage'],
+    ['concept','Rollout controller','concept-specific version policy','control']
+  ]},
+  'distributed-system-migration-patterns/Authority transition':{family:'splitCompare',role:'cutover controller',components:[
+    ['traffic','Production clients','live authority requests','client'],
+    ['router','Authority router','old or new owner','gateway'],
+    ['old','Old authority','rollback-capable system','service'],
+    ['new','New authority','cutover target system','service'],
+    ['journal','Cutover journal','writes and checkpoints','storage'],
+    ['concept','Cutover controller','concept-specific transition gates','control']
+  ]},
+  'consistency-conflict-patterns/Conflict selection':{family:'replica',role:'conflict resolver',components:[
+    ['client','Data client','concurrent mutations','client'],
+    ['replicaA','Replica A','versioned value A','replica'],
+    ['replicaB','Replica B','versioned value B','replica'],
+    ['resolver','Conflict resolver','domain merge execution','service'],
+    ['metadata','Version metadata store','causal and ordering data','storage'],
+    ['concept','Resolution policy','concept-specific winner rules','control']
+  ]},
+  'consistency-conflict-patterns/Replica repair':{family:'replica',role:'repair coordinator',components:[
+    ['reader','Read and repair client','detects divergence','client'],
+    ['replicaA','Replica A','newer or source range','replica'],
+    ['replicaB','Replica B','stale or divergent range','replica'],
+    ['repair','Repair workers','range synchronization','worker'],
+    ['metadata','Repair metadata store','hashes versions and epochs','storage'],
+    ['concept','Repair coordinator','concept-specific repair policy','control']
+  ]},
+  'consistency-conflict-patterns/Consistency contracts':{family:'replica',role:'consistency coordinator',components:[
+    ['client','Session client','consistency-bound operation','client'],
+    ['replicaA','Replica A','regional data copy','replica'],
+    ['replicaB','Replica B','independent data copy','replica'],
+    ['coordinator','Replica coordinator','read and write ordering','service'],
+    ['progress','Session progress store','versions and causal context','storage'],
+    ['concept','Consistency policy','concept-specific visibility contract','control']
+  ]},
+  'distributed-deduplication-idempotency/Request identity':{family:'dedup',role:'dedup guard',components:[
+    ['caller','API caller','stable operation identity','client'],
+    ['api','Command API','request boundary','service'],
+    ['dedup','Deduplication store','keys fingerprints and results','database'],
+    ['domain','Domain database','business state','database'],
+    ['effects','Side-effect dispatcher','external effect delivery','worker'],
+    ['concept','Identity guard','concept-specific duplicate policy','control']
+  ]},
+  'distributed-deduplication-idempotency/Delivery semantics':{family:'dedup',role:'idempotent consumer',components:[
+    ['producer','Event producer','stable event identity','service'],
+    ['broker','Message broker','at-least-once delivery','queue'],
+    ['consumer','Message consumer','effect handler','worker'],
+    ['inbox','Consumer inbox','processed event IDs','database'],
+    ['domain','Domain database','committed business effect','database'],
+    ['concept','Delivery guard','concept-specific commit boundary','control']
+  ]},
+  'distributed-deduplication-idempotency/Distributed state':{family:'dedup',role:'cache coordinator',components:[
+    ['clients','Request fleet','concurrent duplicate attempts','client'],
+    ['router','Key router','dedup shard selection','gateway'],
+    ['cacheA','Dedup cache shard A','recent operation keys','cache'],
+    ['cacheB','Dedup cache shard B','replicated key state','cache'],
+    ['ledger','Durable dedup ledger','authoritative outcomes','database'],
+    ['concept','Cache coordinator','concept-specific retention policy','control']
+  ]},
+  'time-based-distributed-patterns/Retention and partitioning':{family:'scheduler',role:'retention policy',components:[
+    ['writer','Data writer','timestamped records','client'],
+    ['store','Partitioned data store','time-ranged records','database'],
+    ['index','Time partition index','range ownership','index'],
+    ['reaper','Cleanup workers','expiry and compaction','worker'],
+    ['clock','Trusted clock service','time boundary source','clock'],
+    ['concept','Retention controller','concept-specific expiry policy','control']
+  ]},
+  'time-based-distributed-patterns/Windows and stream time':{family:'stream',role:'window operator',components:[
+    ['producer','Event producers','source timestamps','service'],
+    ['log','Partitioned event log','ordered event streams','queue'],
+    ['operator','Window processors','event-time aggregation','worker'],
+    ['state','Window state store','partial aggregates','storage'],
+    ['sink','Result sink','emitted window updates','database'],
+    ['concept','Time coordinator','concept-specific time policy','control']
+  ]},
+  'time-based-distributed-patterns/Coordination and scheduling':{family:'scheduler',role:'scheduler',components:[
+    ['submitter','Job submitter','schedule or ownership request','client'],
+    ['control','Scheduler control plane','due work and membership','control'],
+    ['timers','Durable timer store','deadlines and lease epochs','database'],
+    ['workers','Worker fleet','claimed scheduled work','worker'],
+    ['resource','Fenced resource','protected side effects','service'],
+    ['concept','Timing controller','concept-specific clock policy','control']
+  ]},
+  'advanced-senior-staff-level-concepts/Topology and placement':{family:'fanout',role:'placement policy',components:[
+    ['clients','Global clients','partitioned requests','client'],
+    ['router','Placement router','key and membership routing','gateway'],
+    ['nodeA','Node or shard A','owned key ranges','replica'],
+    ['nodeB','Node or shard B','independent ranges','replica'],
+    ['membership','Membership store','nodes tokens and epochs','storage'],
+    ['concept','Placement controller','concept-specific ownership policy','control']
+  ]},
+  'advanced-senior-staff-level-concepts/Convergence and ordering':{family:'replica',role:'coordination protocol',components:[
+    ['client','Distributed client','ordered operation request','client'],
+    ['nodeA','Protocol node A','proposal or replica state','replica'],
+    ['nodeB','Protocol node B','independent protocol state','replica'],
+    ['coordinator','Protocol coordinator','rounds ordering and merge','service'],
+    ['log','Coordination log','terms ballots and versions','storage'],
+    ['concept','Protocol policy','concept-specific safety rules','control']
+  ]},
+  'advanced-senior-staff-level-concepts/Transactions and state models':{family:'workflow',role:'workflow coordinator',components:[
+    ['client','Command client','stable workflow request','client'],
+    ['coordinator','Workflow coordinator','durable progress','service'],
+    ['participantA','Participant service A','local transaction','service'],
+    ['participantB','Participant service B','local transaction','service'],
+    ['log','Workflow log','events offsets and outcomes','storage'],
+    ['concept','Recovery controller','concept-specific recovery policy','control']
+  ]},
+  'advanced-senior-staff-level-concepts/Overload and latency':{family:'feedback',role:'admission policy',components:[
+    ['traffic','Caller fleet','sends bursty production workload','client'],
+    ['admission','Admission gateway','rate and concurrency limits','gateway'],
+    ['workers','Worker pool','bounded in-flight work','worker'],
+    ['dependency','Downstream dependency','finite service capacity','service'],
+    ['signals','Capacity telemetry','latency errors saturation','storage'],
+    ['concept','Capacity controller','concept-specific overload policy','control']
+  ]},
+  'advanced-senior-staff-level-concepts/Streaming and snapshots':{family:'stream',role:'stream operator',components:[
+    ['producer','Stream producers','partitioned records','service'],
+    ['log','Durable stream log','ordered offsets','queue'],
+    ['operators','Stateful operators','distributed processing','worker'],
+    ['state','State backend','operator snapshots','storage'],
+    ['sink','Materialized sink','committed output','database'],
+    ['concept','Checkpoint coordinator','concept-specific progress policy','control']
+  ]},
+  'advanced-senior-staff-level-concepts/Global resilience and architecture':{family:'controlData',role:'resilience controller',components:[
+    ['clients','Global clients','regional requests','client'],
+    ['router','Global traffic manager','region and cell selection','gateway'],
+    ['regionA','Region or cell A','active serving stack','replica'],
+    ['regionB','Region or cell B','isolated serving stack','replica'],
+    ['control','Operations control plane','health failover and rollout','control'],
+    ['concept','Resilience controller','concept-specific global policy','control']
+  ]}
+};
+
+const SYSTEM_DESIGN_SEMANTIC_LAYOUTS_3 = [
+  [[14,50],[34,18],[66,18],[86,50],[66,82],[34,82]],
+  [[14,22],[50,16],[86,24],[82,76],[50,84],[18,74]],
+  [[50,16],[18,40],[82,40],[18,80],[82,80],[50,54]],
+  [[14,50],[38,20],[72,18],[86,56],[66,84],[32,80]],
+  [[18,18],[62,16],[86,48],[72,82],[30,84],[14,54]],
+  [[14,28],[44,16],[82,24],[86,70],[50,84],[20,72]],
+  [[14,54],[30,18],[70,18],[86,54],[68,84],[32,82]],
+  [[22,16],[68,16],[86,50],[68,84],[22,84],[14,50]]
+];
+
+const SYSTEM_DESIGN_SEMANTIC_LINKS_3 = {
+  fanout:[
+    [0,1,'route by membership'],
+    [1,2,'send to selected owner'],
+    [1,3,'fail over or fan out'],
+    [4,1,'publish healthy membership'],
+    [5,1,'apply placement policy'],
+    [2,4,'report health and ownership'],
+    [3,4,'report health and ownership']
+  ],
+  controlData:[
+    [0,1,'enter data plane'],
+    [1,2,'route protected traffic'],
+    [2,3,'invoke destination service'],
+    [4,1,'publish route configuration'],
+    [4,2,'publish identity policy'],
+    [5,4,'apply control policy'],
+    [3,0,'return service response']
+  ],
+  splitCompare:[
+    [0,1,'enter controlled router'],
+    [1,2,'send baseline traffic'],
+    [1,3,'send candidate traffic'],
+    [2,4,'record baseline signals'],
+    [3,4,'record candidate signals'],
+    [4,5,'evaluate differences'],
+    [5,1,'advance or roll back']
+  ],
+  pipeline:[
+    [0,1,'emit source data'],
+    [1,2,'batch and forward'],
+    [2,3,'persist transformed data'],
+    [3,4,'query stored evidence'],
+    [5,2,'apply processing policy'],
+    [4,5,'report analysis feedback'],
+    [2,4,'stream urgent findings']
+  ],
+  feedback:[
+    [0,1,'record measured operation'],
+    [1,2,'emit observations'],
+    [2,3,'aggregate measurements'],
+    [3,4,'evaluate service objective'],
+    [4,5,'report threshold pressure'],
+    [5,2,'adjust processing policy'],
+    [5,1,'adjust admission policy']
+  ],
+  replica:[
+    [0,1,'send versioned operation'],
+    [0,2,'contact peer replica'],
+    [1,3,'return replica version'],
+    [2,3,'return replica version'],
+    [4,3,'supply ordering metadata'],
+    [3,5,'apply resolution policy'],
+    [5,1,'repair selected version'],
+    [5,2,'repair selected version']
+  ],
+  dedup:[
+    [0,1,'submit stable identity'],
+    [1,2,'claim duplicate key'],
+    [2,5,'check duplicate policy'],
+    [5,3,'commit business effect'],
+    [3,4,'dispatch external effect'],
+    [4,2,'record completion'],
+    [2,0,'replay stored outcome']
+  ],
+  scheduler:[
+    [0,1,'submit timed work'],
+    [1,2,'persist time boundary'],
+    [2,5,'evaluate due ownership'],
+    [5,3,'dispatch due work'],
+    [3,4,'execute fenced effect'],
+    [4,2,'record completion epoch'],
+    [5,1,'publish next deadline']
+  ],
+  stream:[
+    [0,1,'append timestamped records'],
+    [1,2,'deliver partition records'],
+    [2,3,'update keyed state'],
+    [3,5,'checkpoint progress'],
+    [5,2,'restore processing state'],
+    [2,4,'emit materialized update'],
+    [4,5,'acknowledge committed output']
+  ],
+  workflow:[
+    [0,1,'start durable workflow'],
+    [1,2,'invoke local transaction'],
+    [2,4,'record participant outcome'],
+    [1,3,'invoke next participant'],
+    [3,4,'record participant outcome'],
+    [4,5,'select recovery action'],
+    [5,2,'compensate or replay']
+  ]
+};
+
+const SYSTEM_DESIGN_SEMANTIC_ROUTES_3 = {
+  fanout:[0,1,3,4],
+  controlData:[0,1,3,5],
+  splitCompare:[0,1,4,6],
+  pipeline:[0,1,2,4],
+  feedback:[0,1,3,5],
+  replica:[0,2,4,6],
+  dedup:[0,1,3,6],
+  scheduler:[0,1,3,5],
+  stream:[0,1,2,5],
+  workflow:[0,1,3,5]
+};
+
+const SYSTEM_DESIGN_CONCEPT_HASH_3 = value => {
+  let hash = 0;
+  for (const character of value) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return hash;
+};
+
+const SYSTEM_DESIGN_SEMANTIC_DIAGRAM_3 = (concept,definition) => {
+  const components = definition.components.map(component=>[...component]);
+  components[5][1] = `${concept.name} ${definition.role}`;
+  const variant = SYSTEM_DESIGN_CONCEPT_HASH_3(concept.name) % SYSTEM_DESIGN_SEMANTIC_LAYOUTS_3.length;
+  const layout = SYSTEM_DESIGN_SEMANTIC_LAYOUTS_3[variant];
+  components.forEach((component,index)=>{
+    component.push(layout[index][0],layout[index][1]);
+  });
+  const links = SYSTEM_DESIGN_SEMANTIC_LINKS_3[definition.family].map(([from,to,label])=>[
+    components[from][0],
+    components[to][0],
+    label
+  ]);
+  if (variant % 2 === 1) {
+    const feedback = [links[links.length-1][1],links[0][0],'report protocol feedback'];
+    if (!links.some(link=>link[0]===feedback[0]&&link[1]===feedback[1])) links.push(feedback);
+  }
+  const route = SYSTEM_DESIGN_SEMANTIC_ROUTES_3[definition.family];
+  const completed = new Set();
+  const frames = concept.visual.steps.map((step,index)=>{
+    const linkIndex = route[Math.min(index,route.length-1)];
+    const [from,to] = links[linkIndex];
+    const status = {};
+    for (const id of completed) status[id] = 'done';
+    status[from] = 'active';
+    status[to] = 'active';
+    completed.add(from);
+    completed.add(to);
+    return [linkIndex,status];
+  });
+  return {kind:concept.diagram.kind,components,links,frames};
+};
+
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  if (chapter.id === 'distributed-identity-security' || chapter.id === 'realtime-connections') continue;
+  for (const group of chapter.groups) {
+    const definition = SYSTEM_DESIGN_TEACHING_GROUPS_3[`${chapter.id}/${group.title}`];
+    if (!definition) continue;
+    for (const concept of group.concepts) {
+      concept.diagram = SYSTEM_DESIGN_SEMANTIC_DIAGRAM_3(concept,definition);
+    }
+  }
+}
+
+const SYSTEM_DESIGN_DISTRIBUTED_ALGORITHM_OVERRIDES_3 = {
+  'Conflict-free replicated data types':['topology',[
+    ['appA','Application A','local CRDT operations','client',14,22],
+    ['replicaA','CRDT replica A','mergeable local state','replica',38,22],
+    ['deltaA','Delta log A','unsent CRDT deltas','storage',38,80],
+    ['replicaB','CRDT replica B','independent local state','replica',86,22],
+    ['deltaB','Delta log B','unsent CRDT deltas','storage',62,80],
+    ['appB','Application B','converged local reads','client',86,80]
+  ],[
+    ['appA','replicaA','apply local CRDT operation'],
+    ['replicaA','deltaA','append mergeable delta'],
+    ['deltaA','replicaB','exchange unseen deltas'],
+    ['replicaB','deltaB','append local delta'],
+    ['deltaB','replicaA','exchange unseen deltas'],
+    ['replicaA','replicaB','anti-entropy state merge'],
+    ['replicaB','appB','serve converged value']
+  ],[0,2,4,6]],
+  'Application-level conflict resolution':['architecture',[
+    ['writerA','Writer A','concurrent domain update','client',14,22],
+    ['writerB','Writer B','concurrent domain update','client',14,80],
+    ['replicaA','Replica A','version A','replica',38,22],
+    ['replicaB','Replica B','version B','replica',38,80],
+    ['resolver','Domain conflict resolver','business merge logic','service',66,50],
+    ['policy','Domain policy store','merge and escalation rules','storage',66,18],
+    ['store','Resolved version store','write-back to replicas','database',86,72]
+  ],[
+    ['writerA','replicaA','write version A'],
+    ['writerB','replicaB','write version B'],
+    ['replicaA','resolver','submit concurrent version A'],
+    ['replicaB','resolver','submit concurrent version B'],
+    ['policy','resolver','load domain merge policy'],
+    ['resolver','store','commit resolved version'],
+    ['store','replicaA','write back resolution'],
+    ['store','replicaB','write back resolution']
+  ],[0,1,4,5]],
+  'Read repair':['topology',[
+    ['client','Read client','consistency-aware read','client',14,50],
+    ['coordinator','Read coordinator','quorum response collector','service',38,50],
+    ['replicaA','Replica A','version 12','replica',62,18],
+    ['replicaB','Replica B','version 12','replica',86,50],
+    ['replicaC','Replica C','stale version 10','replica',62,82],
+    ['repair','Async repair queue','stale replica updates','queue',38,82]
+  ],[
+    ['client','coordinator','request quorum read'],
+    ['coordinator','replicaA','read version from A'],
+    ['coordinator','replicaB','read version from B'],
+    ['coordinator','replicaC','read version from C'],
+    ['replicaA','coordinator','return newest version'],
+    ['coordinator','client','return selected value'],
+    ['coordinator','repair','enqueue stale replica repair'],
+    ['repair','replicaC','write version 12 asynchronously']
+  ],[0,1,4,7]],
+  'Causal consistency':['topology',[
+    ['session','Client session','causal dependency context','client',14,50],
+    ['router','Causal read router','dependency-aware routing','gateway',38,50],
+    ['replicaA','Replica A','progress includes dependency','replica',66,18],
+    ['replicaB','Replica B','progress behind dependency','replica',66,82],
+    ['log','Replication log','ordered causal updates','queue',38,18],
+    ['progress','Replica progress index','applied dependency versions','index',86,50]
+  ],[
+    ['session','router','send dependency token'],
+    ['router','progress','check replica progress'],
+    ['progress','router','identify caught-up replica'],
+    ['router','replicaA','route causal read'],
+    ['log','replicaB','deliver missing dependency'],
+    ['replicaB','progress','advance applied progress'],
+    ['replicaA','session','return causally valid value']
+  ],[0,1,3,6]],
+  'Strong consistency':['topology',[
+    ['client','Strong-consistency client','linearizable operation','client',14,50],
+    ['leader','Leader log','orders writes and reads','replica',38,50],
+    ['followerA','Follower A','replicated log','replica',66,18],
+    ['followerB','Follower B','replicated log','replica',66,82],
+    ['commit','Quorum commit index','majority-confirmed position','storage',86,50],
+    ['machine','Replicated state machine','applied committed state','service',38,82]
+  ],[
+    ['client','leader','submit write'],
+    ['leader','followerA','replicate ordered entry'],
+    ['leader','followerB','replicate ordered entry'],
+    ['followerA','commit','acknowledge majority entry'],
+    ['commit','leader','advance commit index'],
+    ['leader','machine','apply committed entry'],
+    ['machine','client','serve read after barrier']
+  ],[0,1,3,6]],
+  'Consensus':['architecture',[
+    ['proposer','Consensus proposer','candidate command','client',14,50],
+    ['acceptorA','Acceptor A','durable vote','replica',42,18],
+    ['acceptorB','Acceptor B','durable vote','replica',68,18],
+    ['acceptorC','Acceptor C','durable vote','replica',86,50],
+    ['learner','Consensus learner','chosen command observer','service',68,82],
+    ['machine','Replicated state machine','deterministic application','service',32,82]
+  ],[
+    ['proposer','acceptorA','propose command'],
+    ['proposer','acceptorB','propose command'],
+    ['proposer','acceptorC','propose command'],
+    ['acceptorA','learner','report accepted vote'],
+    ['acceptorB','learner','complete acceptor quorum'],
+    ['learner','machine','apply chosen command']
+  ],[0,1,4,5]],
+  'Paxos':['sequence',[
+    ['proposer','Paxos proposer','ballot coordinator','client',14,50],
+    ['acceptorA','Acceptor A','promised ballot state','replica',42,18],
+    ['acceptorB','Acceptor B','promised ballot state','replica',68,18],
+    ['acceptorC','Acceptor C','promised ballot state','replica',86,50],
+    ['learner','Paxos learner','chosen value observer','service',68,82],
+    ['log','Chosen value log','durable learned value','storage',32,82]
+  ],[
+    ['proposer','acceptorA','Prepare ballot n'],
+    ['proposer','acceptorB','Prepare ballot n'],
+    ['acceptorA','proposer','Promise with accepted value'],
+    ['acceptorB','proposer','Promise completes quorum'],
+    ['proposer','acceptorC','Accept value at ballot n'],
+    ['acceptorA','learner','Accepted notification'],
+    ['acceptorB','learner','Accepted quorum reached'],
+    ['learner','log','persist chosen value']
+  ],[0,2,4,7]],
+  'Raft':['topology',[
+    ['client','Raft client','state-machine command','client',14,50],
+    ['leader','Leader log','current-term authority','replica',38,50],
+    ['followerA','Follower log A','AppendEntries target','replica',66,18],
+    ['followerB','Follower log B','AppendEntries target','replica',66,82],
+    ['commit','Majority commit index','quorum-confirmed offset','storage',86,50],
+    ['machine','Raft state machine','applies committed entries','service',38,82]
+  ],[
+    ['client','leader','append client command'],
+    ['leader','followerA','AppendEntries with log entry'],
+    ['leader','followerB','AppendEntries with log entry'],
+    ['followerA','leader','ack replicated entry'],
+    ['followerB','commit','majority advances commit'],
+    ['commit','leader','publish committed index'],
+    ['leader','machine','apply committed command'],
+    ['machine','client','return command result']
+  ],[0,1,4,7]]
+};
+
+for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+  for (const concept of chapter.groups.flatMap(group=>group.concepts)) {
+    const spec = SYSTEM_DESIGN_DISTRIBUTED_ALGORITHM_OVERRIDES_3[concept.name];
+    if (!spec) continue;
+    concept.diagram = SYSTEM_DESIGN_AUTHORED_DIAGRAM_3(spec,concept.visual.steps.length);
+  }
+}

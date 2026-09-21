@@ -352,10 +352,10 @@
         ['viewers', 'Viewer phones', 'Tap heart and fire reactions during a live playoff stream', 'client', 10, 22],
         ['gatewayEast', 'East websocket gateway', 'Accepts reactions from viewers connected to the east region', 'service', 28, 18],
         ['gatewayWest', 'West websocket gateway', 'Accepts reactions from viewers connected to the west region', 'service', 28, 54],
-        ['crdtState', 'CRDT room state', 'Merges reaction adds and removals without a single synchronous writer', 'control', 54, 18],
+        ['crdtState', 'CRDT merge service', 'Merges reaction adds and removals without a single synchronous writer', 'service', 54, 18],
         ['sessionStore', 'Room state store', 'Authoritative persisted watch-party state snapshot', 'database', 78, 22],
         ['fanout', 'Reaction fanout stream', 'Broadcasts converged room totals back to viewers', 'queue', 80, 56],
-        ['moderator', 'Moderator console', 'Removes abusive reactions and blocked users from the room state', 'client', 50, 82]
+        ['moderator', 'Moderator console', 'Admin control for removing abusive reactions and blocked users from the room state', 'client', 50, 82]
       ],
       flows: [
         ['viewers', 'gatewayEast', 'tap fire emoji in room finals-2026', 'Viewers in the east region keep sending reactions every few seconds during the game.'],

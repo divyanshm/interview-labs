@@ -130,7 +130,7 @@ const contexts={
   'probabilistic-data-structures::Count-Min Sketch':{
     scenario:'A public API edge estimates request frequency for each source tuple so it can apply soft throttling before a burst becomes an incident.',
     components:[
-      ['caller','Internet traffic','Mixed customer and abusive API calls hitting the public edge','client',8,18],
+      ['caller','Public API clients','Mixed customer and abusive API callers hitting the public edge','client',8,18],
       ['edge','Edge WAF','Boundary tier that classifies and gates incoming requests','gateway',30,18],
       ['mechanism','Per-source frequency sketch','Black-box rate estimator keyed by source IP and user agent','control',54,18],
       ['store','Access log stream','Authoritative durable stream of classified edge requests','storage',84,18],
@@ -152,7 +152,7 @@ const contexts={
   'probabilistic-data-structures::Heavy hitters':{
     scenario:'A CDN identifies the top abusive source IPs in each POP and pushes mitigation before one tenant saturates shared ingress.',
     components:[
-      ['caller','Edge traffic','Normal and malicious requests entering a POP','client',8,18],
+      ['caller','CDN clients','Normal and malicious callers sending requests into a POP','client',8,18],
       ['edge','POP ingress gateway','Boundary service that accepts and routes CDN traffic','gateway',30,18],
       ['mechanism','Hot-source analysis service','Black-box heavy-hitter service keyed by source IP','control',54,18],
       ['store','POP request log','Authoritative request stream for each point of presence','storage',84,18],

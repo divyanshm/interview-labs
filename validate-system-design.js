@@ -54,15 +54,28 @@ const allowedFamilies = new Set([
 ]);
 const genericEntity = /^(service [a-z]|component|processor|state transition)$/i;
 const abstractEntity = /^(failover|failure|recovery|retry|retries|rebalance|rebalancing|replication|commit|abort|election|decision|detection|validation|cutover|migration|merge|rebuild|rollback|compensation|admission|rejection|refresh|invalidation|handoff|repair|resolution|conflict|shuffle|compaction|checkpoint|timeout|cancellation|fallback|degradation|mitigation)$/i;
+const transientArchitectureNode = /\b(request|response|timestamp|outcome|attempt|ack|acknowledgement|signal|plan|result|record|phase|cursor|event|command|mutation|operation|effect|estimate|deadline|traffic|failure|success|commit|retry|replay|proposal|message|batch|input|output)$/i;
 const genericConnection = /\b(invoke service operation|route request|exchange node metadata|apply control decision|persist durable metadata|return response)\b/i;
 const errors = [];
 const layoutSignatures = new Set();
+const graphTopologySignatures = new Map();
 let stepCount = 0;
 let storyboardCount = 0;
 let productionContextCount = 0;
 
 function fail(key, message) {
   errors.push(`${key}: ${message}`);
+}
+
+function isTransientArchitectureNode(label, type) {
+  const value = String(label).trim();
+  if (!transientArchitectureNode.test(value)) return false;
+  const durableTypes = new Set(['database', 'storage', 'index', 'cache', 'queue']);
+  if (durableTypes.has(type) && /\b(record|state|checkpoint|offset|log|table|index|queue|store|ledger|journal)\b/i.test(value)) {
+    return false;
+  }
+  if (type === 'clock' && /\b(timestamp|deadline|window|interval|boundary)\b/i.test(value)) return false;
+  return true;
 }
 
 for (const [key, lesson] of Object.entries(lessons)) {
@@ -170,6 +183,7 @@ for (const key of mechanismKeys) {
     architectureLabels.push(String(label).trim().toLowerCase());
     if (!label || !role || genericEntity.test(String(label).trim())) fail(key, `uses a generic production component "${label}"`);
     if (abstractEntity.test(String(label).trim())) fail(key, `uses action/event "${label}" as a production component`);
+    if (isTransientArchitectureNode(label, component[3])) fail(key, `uses transient artifact "${label}" as a production component`);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 5 || x > 95 || y < 5 || y > 95) {
       fail(key, `production component "${id}" has invalid coordinates`);
     }
@@ -216,15 +230,42 @@ for (const { key, concept } of concepts) {
   } else {
     for (const component of diagram.components) {
       if (abstractEntity.test(String(component[1]).trim())) fail(key, `uses action/event "${component[1]}" as a storyboard component`);
+      if (['architecture', 'topology', 'sequence'].includes(diagram.kind) && isTransientArchitectureNode(component[1], component[3])) {
+        fail(key, `uses transient artifact "${component[1]}" as a storyboard component`);
+      }
     }
   }
   if (!Array.isArray(diagram.links) || diagram.links.length < 3) {
     fail(key, 'storyboard must contain at least three meaningful interactions');
   }
+  if (['architecture', 'topology', 'sequence'].includes(diagram.kind) &&
+      Array.isArray(diagram.components) &&
+      Array.isArray(diagram.links)) {
+    const componentIndexes = new Map(diagram.components.map((component, index) => [component[0], index]));
+    const edgeSignature = diagram.links
+      .map(link => `${componentIndexes.get(link[0])}>${componentIndexes.get(link[1])}`)
+      .sort()
+      .join(',');
+    const signature = `${diagram.kind}:${diagram.components.length}:${edgeSignature}`;
+    const matchingConcepts = graphTopologySignatures.get(signature) || new Set();
+    matchingConcepts.add(key);
+    graphTopologySignatures.set(signature, matchingConcepts);
+  }
   const renderedFrames = Math.max(5, diagram.frames?.length || 0);
   if (renderedFrames < 5) fail(key, 'storyboard must expose at least five teaching frames');
   if (!concept.visual?.steps?.every(step => step[2] && step[2].length >= 20)) {
     fail(key, 'storyboard has vague or missing step narration');
+  }
+
+}
+
+for (const matchingConceptSet of graphTopologySignatures.values()) {
+  const matchingConcepts = [...matchingConceptSet];
+  if (matchingConcepts.length > 6) {
+    errors.push(
+      `Repeated graph template is used by ${matchingConcepts.length} concepts: ` +
+      matchingConcepts.slice(0, 8).join(', ')
+    );
   }
 }
 
