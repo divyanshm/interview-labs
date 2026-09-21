@@ -288,6 +288,206 @@ window.SYSTEM_DESIGN_CHAPTERS = [...(window.SYSTEM_DESIGN_CHAPTERS || []),
   }
 ];
 
+const systemDesignOntologyLabelFixes2 = new Map([
+  ['Resilience Patterns::Active-active::Replication','Replication streams'],
+  ['Resilience Patterns::Warm standby::Failure alarm','Health alarm'],
+  ['Resilience Patterns::Warm standby::Traffic switch','Traffic director'],
+  ['Resilience Patterns::Hot standby::Promotion gate','Promotion verifier'],
+  ['Resilience Patterns::Cold standby::Validation gate','Integrity verifier'],
+  ['Resilience Patterns::Failure detection::Recovery action','Ownership controller'],
+  ['Resilience Patterns::Disaster recovery::Data recovery','Replica snapshot set'],
+  ['Resilience Patterns::Disaster recovery::Business validation','Journey probe suite'],
+  ['Resilience Patterns::RPO::Disaster point','Disaster timestamp'],
+  ['Resilience Patterns::RPO::Latest recovery point','Durable recovery point'],
+  ['Resilience Patterns::RPO::Data-loss interval','RPO measurement clock'],
+  ['Resilience Patterns::RTO::Failure start','Outage start timestamp'],
+  ['Resilience Patterns::RTO::Detection and declaration','Incident declaration record'],
+  ['Resilience Patterns::RTO::Restore sequence','Recovery workflow'],
+  ['Resilience Patterns::RTO::Validation','Readiness probe suite'],
+  ['Resilience Patterns::RTO::Service restored','RTO stopwatch'],
+  ['Resilience Patterns::Backup/restore::Restore test','Restore verifier'],
+  ['Resilience Patterns::Point-in-time recovery::Target time','Recovery timestamp'],
+  ['Resilience Patterns::Chaos engineering::System response','Service telemetry'],
+  ['Resilience Patterns::Chaos engineering::Learning loop','Findings backlog'],
+  ['Resilience Patterns::Fault injection::Injection point','Fault proxy'],
+  ['Resilience Patterns::Fault injection::Target path','Target request slice'],
+  ['Rate Limiting & Traffic Management::Token bucket::Admission','Protected service'],
+  ['Rate Limiting & Traffic Management::Token bucket::Rejection','Throttle response'],
+  ['Rate Limiting & Traffic Management::Leaky bucket::Overflow','Throttle response'],
+  ['Rate Limiting & Traffic Management::Fixed window::Limit check','Quota rule'],
+  ['Rate Limiting & Traffic Management::Fixed window::Window boundary','Window rollover clock'],
+  ['Rate Limiting & Traffic Management::Fixed window::Boundary burst','Boundary request burst'],
+  ['Rate Limiting & Traffic Management::Sliding window::Window start','Rolling cutoff clock'],
+  ['Rate Limiting & Traffic Management::Sliding window::Exact count','Rolling count state'],
+  ['Rate Limiting & Traffic Management::Sliding window::Admission','Rate gate'],
+  ['Rate Limiting & Traffic Management::Sliding window counter::Admission','Rate gate'],
+  ['Rate Limiting & Traffic Management::Distributed rate limiting::Admission result','Shared limiter response'],
+  ['Rate Limiting & Traffic Management::Global rate limiting::Rebalancer','Budget reallocator'],
+  ['Rate Limiting & Traffic Management::Per-user limits::Decision','User rate gate'],
+  ['Rate Limiting & Traffic Management::Per-tenant limits::Decision','Tenant rate gate'],
+  ['Rate Limiting & Traffic Management::Per-IP limits::Threshold','IP quota rule'],
+  ['Rate Limiting & Traffic Management::Per-IP limits::Mitigation','Challenge service'],
+  ['Rate Limiting & Traffic Management::Hierarchical rate limiting::Admission','Hierarchical rate gate'],
+  ['Rate Limiting & Traffic Management::Adaptive rate limiting::Recovery ramp','Capacity ramp controller'],
+  ['Rate Limiting & Traffic Management::Concurrency limiting::Release','Completion signal'],
+  ['Rate Limiting & Traffic Management::Concurrency limiting::Full pool','Wait queue'],
+  ['Rate Limiting & Traffic Management::Load shedding::Critical path','Reserved worker pool'],
+  ['Rate Limiting & Traffic Management::Load shedding::Recovery','Readmission controller'],
+  ['Rate Limiting & Traffic Management::Fair queuing::Isolation','Flow backlog state'],
+  ['Distributed Scheduling::Distributed job scheduler::Recovery loop','Expiry scanner'],
+  ['Distributed Scheduling::Leader-based scheduling::Leader election','Election controller'],
+  ['Distributed Scheduling::Leader-based scheduling::Failover','Term fence'],
+  ['Distributed Scheduling::Work stealing::Steal operation','Steal RPC'],
+  ['Distributed Scheduling::Work stealing::Local execution','Balanced work deque'],
+  ['Distributed Scheduling::Work stealing::Locality check','Pinning policy'],
+  ['Distributed Scheduling::Task queues::Acknowledgment','Completion ack'],
+  ['Distributed Scheduling::Task queues::Redelivery','Visibility timeout'],
+  ['Distributed Scheduling::Priority scheduling::Aging','Starvation guard'],
+  ['Distributed Scheduling::Delayed execution::Clock advance','Scheduler clock'],
+  ['Distributed Scheduling::Retry scheduling::Failed attempt','Failure record'],
+  ['Distributed Scheduling::Retry scheduling::Next attempt','Retry task'],
+  ['Distributed Scheduling::Retry scheduling::Terminal path','Dead-letter queue'],
+  ['Distributed Scheduling::Lease-based workers::Lease renewal','Lease heartbeat'],
+  ['Distributed Scheduling::Lease-based workers::Lease expiry','Expired lease record'],
+  ['Distributed Scheduling::Lease-based workers::Protected effect','Fenced write API'],
+  ['Distributed Scheduling::Heartbeat-based ownership::Missed deadline','Expiry deadline'],
+  ['Distributed Scheduling::Heartbeat-based ownership::Reassignment','Replacement worker'],
+  ['Distributed Scheduling::Sharded schedulers::Rebalance','Shard handoff state'],
+  ['Distributed Scheduling::Exactly-once job execution::Atomic claim','Claim record'],
+  ['Distributed Scheduling::Exactly-once job execution::Job effect','Protected write API'],
+  ['Distributed Scheduling::Exactly-once job execution::Single outcome','Outcome record'],
+  ['Distributed Scheduling::Idempotent jobs::Business operation','Protected write API'],
+  ['Distributed Scheduling::Idempotent jobs::Duplicate attempt','Duplicate request'],
+  ['Distributed Scheduling::Cron/distributed cron::Due instant','Scheduled occurrence'],
+  ['Distributed Scheduling::Workflow engines::Decision loop','Workflow controller'],
+  ['Storage Systems::LSM trees::Compaction','Compaction worker'],
+  ['Storage Systems::LSM trees::Read path','Read coordinator'],
+  ['Storage Systems::B-trees::Page update','Dirty leaf page'],
+  ['Storage Systems::B-trees::Page split','Split page pair'],
+  ['Storage Systems::Write-ahead logs::Durable append','Durable log position'],
+  ['Storage Systems::Write-ahead logs::Crash recovery','WAL replay worker'],
+  ['Storage Systems::Memtables::Read path','Read coordinator'],
+  ['Storage Systems::Memtables::Flush','Flush worker'],
+  ['Storage Systems::Bloom filters::Membership test','Hash probe set'],
+  ['Storage Systems::Indexing::Key extraction','Key extractor'],
+  ['Storage Systems::Indexing::Maintenance','Index maintenance worker'],
+  ['Storage Systems::Secondary indexes::Index lookup','Candidate key lookup'],
+  ['Storage Systems::Secondary indexes::Base fetch','Base-record fetch'],
+  ['Storage Systems::Inverted indexes::Query intersection','Postings merger'],
+  ['Storage Systems::Sparse indexes::Index search','Boundary-key lookup'],
+  ['Storage Systems::Sparse indexes::Block read','Candidate data block'],
+  ['Storage Systems::Sparse indexes::Local scan','Block scanner'],
+  ['Storage Systems::Covering indexes::Index seek','Covering index cursor'],
+  ['Storage Systems::Covering indexes::Index-only result','Projected rowset'],
+  ['Storage Systems::Covering indexes::Write maintenance','Index maintenance worker'],
+  ['Storage Systems::Partition indexes::Rebalance','Partition handoff map'],
+  ['Storage Systems::Row-oriented storage::Primary lookup','Page locator'],
+  ['Storage Systems::Row-oriented storage::Row read','Row response'],
+  ['Storage Systems::Row-oriented storage::Row update','Dirty row page'],
+  ['Storage Systems::Log-structured storage::Read','Read coordinator'],
+  ['Storage Systems::Log-structured storage::Garbage collection','Segment cleaner'],
+  ['Storage Systems::Object storage::Manifest commit','Manifest pointer'],
+  ['Storage Systems::Block storage::Durability acknowledgment','Replica ack quorum'],
+  ['Storage Systems::Distributed filesystems::Client path','File path'],
+  ['Storage Systems::Distributed filesystems::Repair loop','Repair worker'],
+  ['Database Distributed-System Concepts::Primary/replica::Promotion','Promotion controller'],
+  ['Database Distributed-System Concepts::Leaderless databases::Repair','Read-repair worker'],
+  ['Database Distributed-System Concepts::Distributed transactions::Prepare phase','Prepared state'],
+  ['Database Distributed-System Concepts::Distributed transactions::Resolution','Resolution worker'],
+  ['Database Distributed-System Concepts::Sharding::Rebalancer','Shard transfer controller'],
+  ['Database Distributed-System Concepts::Replication::Repair','Repair worker'],
+  ['Database Distributed-System Concepts::Consistent hashing::Owner walk','Owner cursor'],
+  ['Database Distributed-System Concepts::Consistent hashing::Membership change','Membership registry'],
+  ['Database Distributed-System Concepts::Consistent hashing::Limited movement','Ownership delta set'],
+  ['Database Distributed-System Concepts::Quorum::Intersection','Overlap guarantee'],
+  ['Database Distributed-System Concepts::Quorum::Reconciliation','Version resolver'],
+  ['Database Distributed-System Concepts::Read/write consistency::Write path','Write coordinator'],
+  ['Database Distributed-System Concepts::Read/write consistency::Read path','Read coordinator'],
+  ['Database Distributed-System Concepts::Hot partitions::Mitigation','Skew mitigation plan'],
+  ['Database Distributed-System Concepts::Hot partitions::Merge path','Fan-in query service'],
+  ['Database Distributed-System Concepts::Secondary indexes::Validation','Base-record verifier'],
+  ['Database Distributed-System Concepts::Global indexes::Index update','Index update relay'],
+  ['Database Distributed-System Concepts::Global indexes::Direct lookup','Targeted index lookup'],
+  ['Database Distributed-System Concepts::Global indexes::Base fetch','Base-partition fetch'],
+  ['Database Distributed-System Concepts::Local indexes::Atomic update','Shard-local transaction'],
+  ['Database Distributed-System Concepts::Local indexes::Merge','Result merger'],
+  ['Database Distributed-System Concepts::Online schema migration::Expand phase','Expanded schema'],
+  ['Database Distributed-System Concepts::Online schema migration::Backfill','Backfill worker'],
+  ['Database Distributed-System Concepts::Online schema migration::Contract phase','Schema cleanup worker'],
+  ['Database Distributed-System Concepts::Online reindexing::Change catch-up','Change relay'],
+  ['Database Distributed-System Concepts::Online reindexing::Validation','Index verifier'],
+  ['Database Distributed-System Concepts::Online reindexing::Atomic switch','Index selector'],
+  ['Database Distributed-System Concepts::Backfills::Source scan','Backfill cursor'],
+  ['Database Distributed-System Concepts::Backfills::Transformation','Transform worker'],
+  ['Database Distributed-System Concepts::Backfills::Conditional write','Guarded upsert'],
+  ['Database Distributed-System Concepts::Backfills::Throttle','Backfill throttle'],
+  ['Database Distributed-System Concepts::Backfills::Verification','Coverage report'],
+  ['Database Distributed-System Concepts::Dual writes::Primary commit','Primary store'],
+  ['Database Distributed-System Concepts::Dual writes::Secondary write','Secondary relay'],
+  ['Database Distributed-System Concepts::Dual writes::Partial failure','Divergence ledger'],
+  ['Database Distributed-System Concepts::Dual writes::Reconciliation','Reconciliation worker'],
+  ['Database Distributed-System Concepts::Read-after-write consistency::Replication','Replica progress'],
+  ['Database Distributed-System Concepts::Read-after-write consistency::Fresh result','Read response'],
+  ['Streaming & Real-Time Processing::Windowing::Trigger','Window trigger'],
+  ['Streaming & Real-Time Processing::Windowing::Cleanup','State cleanup worker'],
+  ['Streaming & Real-Time Processing::Tumbling windows::Window close','Window close watermark'],
+  ['Streaming & Real-Time Processing::Sliding windows::Window emissions','Window result stream'],
+  ['Streaming & Real-Time Processing::Session windows::Late bridge','Session merger'],
+  ['Streaming & Real-Time Processing::Session windows::Session close','Session close watermark'],
+  ['Streaming & Real-Time Processing::Event time vs processing time::Time choice','Time-mode selector'],
+  ['Streaming & Real-Time Processing::Event time vs processing time::Result behavior','Output contract'],
+  ['Streaming & Real-Time Processing::Late events::Correction','Correction stream'],
+  ['Streaming & Real-Time Processing::Late events::Final cleanup','State cleanup worker'],
+  ['Streaming & Real-Time Processing::Out-of-order events::Ordered effect','Reordered output'],
+  ['Streaming & Real-Time Processing::Stateful stream processing::Recovery','Replacement operator'],
+  ['Streaming & Real-Time Processing::Checkpointing::Checkpoint commit','Committed checkpoint'],
+  ['Streaming & Real-Time Processing::Exactly-once processing::Checkpoint commit','Committed checkpoint'],
+  ['Streaming & Real-Time Processing::Exactly-once processing::Replay','Replay processor'],
+  ['Streaming & Real-Time Processing::Backpressure::Demand signal','Flow-control credits'],
+  ['Streaming & Real-Time Processing::Backpressure::Source retention','Source backlog'],
+  ['Streaming & Real-Time Processing::Backpressure::Recovery','Credit ramp controller'],
+  ['Streaming & Real-Time Processing::Replay::Replay start','Replay cursor'],
+  ['Streaming & Real-Time Processing::Replay::Catch-up','Live-head sync'],
+  ['Streaming & Real-Time Processing::Stream aggregation::Trigger','Aggregate trigger'],
+  ['Streaming & Real-Time Processing::Windowed aggregation::Late update','Correction stream'],
+  ['Streaming & Real-Time Processing::CEP / Complex Event Processing::Completed match','Match record'],
+  ['Distributed Data Processing::Shuffle::Merge','Merge reader'],
+  ['Distributed Data Processing::Partitioning::Boundary operation','Cross-partition transfer'],
+  ['Distributed Data Processing::Partitioning::Repartition','Repartition plan'],
+  ['Distributed Data Processing::Map-side aggregation::Shuffle output','Partial aggregate blocks'],
+  ['Distributed Data Processing::Hash joins::Skew path','Skew handling plan'],
+  ['Distributed Data Processing::Skew handling::Final merge','Result merger'],
+  ['Distributed Data Processing::Stragglers::Mitigation','Straggler controller'],
+  ['Distributed Data Processing::Speculative execution::Duplicate attempt','Competing attempt'],
+  ['Distributed Data Processing::Speculative execution::Race','Competing attempts'],
+  ['Distributed Data Processing::Speculative execution::Winner commit','Winning attempt record'],
+  ['Distributed Data Processing::Checkpointing::Checkpoint boundary','Checkpoint manifest'],
+  ['Distributed Data Processing::Checkpointing::Worker failure','Lost worker state'],
+  ['Distributed Data Processing::Checkpointing::Restart','Restart coordinator'],
+  ['Search & Retrieval::Forward index::Document update','Forward-entry tombstone'],
+  ['Search & Retrieval::Sharded search::Global merge','Ranking merger'],
+  ['Search & Retrieval::Scatter-gather search::Scatter','Scatter requests'],
+  ['Search & Retrieval::Scatter-gather search::Gather','Shard result bundle'],
+  ['Search & Retrieval::Scatter-gather search::Merge','Ranking merger'],
+  ['Search & Retrieval::Query fan-out::Result reduction','Result merger'],
+  ['Search & Retrieval::Incremental indexing::Segment merge','Segment merger'],
+  ['Search & Retrieval::Search index replication::Replica repair','Replica repair worker'],
+  ['Distributed Algorithms::Consistent hashing::Key point','Hash position'],
+  ['Distributed Algorithms::Gossip::Merge','Version resolver'],
+  ['Distributed Algorithms::Distributed consensus::Proposal','Client proposal'],
+  ['Distributed Algorithms::Distributed consensus::Quorum replication','Acceptor quorum'],
+  ['Distributed Algorithms::Distributed consensus::Commit','Commit index'],
+  ['Distributed Algorithms::Distributed snapshots::Global snapshot','Snapshot record'],
+  ['Distributed Algorithms::Distributed sorting::Range boundaries','Range map'],
+  ['Distributed Algorithms::Distributed sorting::Shuffle','Range transfer stream'],
+  ['Distributed Algorithms::Distributed sorting::Local sort','Sort worker'],
+  ['Distributed Algorithms::Distributed sorting::Ordered output','Sorted output partitions'],
+  ['Distributed Algorithms::Distributed aggregation::Duplicate guard','Attempt ledger']
+]);
+
+const fixSystemDesignOntologyLabel2 = (conceptKey,label) =>
+  systemDesignOntologyLabelFixes2.get(`${conceptKey}::${label}`) || label;
+
 window.applySystemDesignDiagrams2 = () => {
     const chapters = window.SYSTEM_DESIGN_CHAPTERS.slice(-9);
     const kindGroups = {
@@ -633,14 +833,18 @@ window.applySystemDesignDiagrams2 = () => {
         focus:['indegree','ready','compile','generate','package']
       }]
     ]);
-    const materializeOverride = override => {
+    const materializeOverride = (conceptKey,override) => {
       const layout = override.kind === 'topology'
         ? topologyPositions(override.components.length)
         : positions[override.kind];
       return {
         kind:override.kind,
         components:override.components.map((component,index)=>[
-          ...component,...layout[index]
+          component[0],
+          fixSystemDesignOntologyLabel2(conceptKey,component[1]),
+          component[2],
+          component[3],
+          ...layout[index]
         ]),
         links:override.links.map(link=>[...link]),
         focus:override.focus
@@ -651,7 +855,7 @@ window.applySystemDesignDiagrams2 = () => {
         const key = `${chapter.title}::${concept.name}`;
         const override = overrides.get(key);
         const base = override
-          ? materializeOverride(override)
+          ? materializeOverride(key,override)
           : (() => {
               const kind = conceptKind(concept);
               const components = makeComponents(kind,concept.visual.nodes);
@@ -1330,7 +1534,7 @@ window.applySystemDesignDiagrams2 = () => {
       ['Key partitioner','Related events route to one logical keyed operator.'],
       ['Operator state','The operator reads and updates durable logical state per event.'],
       ['State backend','Memory and local storage hold working state efficiently.'],
-      ['Checkpoint','A consistent snapshot captures state and input offsets.'],
+      ['Checkpoint manifest','A consistent snapshot captures state and input offsets.'],
       ['Recovery','A replacement operator restores state and resumes from captured offsets.']
     ]],
     ['Streaming & Real-Time Processing::Checkpointing',[
@@ -1435,7 +1639,7 @@ window.applySystemDesignDiagrams2 = () => {
       ['Mapper output','A mapper emits many intermediate values for repeated keys.'],
       ['Local combiner','A merge-safe function reduces values before transfer.'],
       ['Combined pairs','Smaller partial states retain enough information for final reduction.'],
-      ['Shuffle','Only combined key-state pairs cross the network.'],
+      ['Partition exchange stream','Only combined key-state pairs cross the network.'],
       ['Reducer','The reducer merges every partial state into the correct final result.']
     ]],
     ['Distributed Data Processing::Map-side aggregation',[
@@ -1568,7 +1772,7 @@ window.applySystemDesignDiagrams2 = () => {
       ['Query features','Terms, filters, language, tenant, or vector metadata are extracted.'],
       ['Routing index','Metadata identifies shards that may contain matching documents.'],
       ['Shard selection','Only eligible shards receive the query.'],
-      ['Fallback','Uncertain routing can broaden search to preserve recall.'],
+      ['Fallback shard set','Uncertain routing can broaden search to preserve recall.'],
       ['Feedback','Observed misses and distribution changes update routing metadata.']
     ]],
     ['Search & Retrieval::Search index replication',[
@@ -1747,8 +1951,8 @@ window.applySystemDesignDiagrams2 = () => {
       ['Final aggregate','The root merge emits the global result.']
     ]],
   ]);
-  const makeVisual = stages => ({
-    nodes:stages.map(([label,state])=>[label,state]),
+  const makeVisual = (conceptKey,stages) => ({
+    nodes:stages.map(([label,state])=>[fixSystemDesignOntologyLabel2(conceptKey,label),state]),
     steps:stages.map(([,text],activeIndex)=>[
       activeIndex,
       Array.from({length:activeIndex},(_,completedIndex)=>completedIndex),
@@ -1760,7 +1964,7 @@ window.applySystemDesignDiagrams2 = () => {
       const key = `${chapter.title}::${concept.name}`;
       const stages = visualSpecs.get(key);
       if (!stages) throw new Error(`Missing visual specification: ${key}`);
-      concept.visual = makeVisual(stages);
+      concept.visual = makeVisual(key,stages);
     }
   }
 }
@@ -1894,21 +2098,28 @@ delete window.applySystemDesignDiagrams2;
     used.add(next);
     return next;
   };
-  const normalizeStrong = diagram => {
+  const normalizeStrong = (conceptKey,diagram) => {
     diagram.components = diagram.components.map((component,index)=>{
       const [x,y] = layout[index];
-      return [component[0],component[1],component[2],component[3],x,y];
+      return [
+        component[0],
+        fixSystemDesignOntologyLabel2(conceptKey,component[1]),
+        component[2],
+        component[3],
+        x,y
+      ];
     });
     return diagram;
   };
-  const buildGraphDiagram = (concept,parts) => {
+  const buildGraphDiagram = (conceptKey,concept,parts) => {
     const labels = ['Vertex A','Vertex B','Vertex C',...parts];
     const components = labels.map((label,index)=>{
       const [x,y] = layout[index];
       const detail = index < 3
         ? `Graph vertex participating in ${concept.name}`
         : concept.visual.nodes[Math.min(index - 3,concept.visual.nodes.length - 1)][1];
-      return [`g${index}`,label,detail,inferType(label,detail),x,y];
+      const fixedLabel = fixSystemDesignOntologyLabel2(conceptKey,label);
+      return [`g${index}`,fixedLabel,detail,inferType(fixedLabel,detail),x,y];
     });
     const links = [
       ['g0','g1','weighted edge A-B'],
@@ -1936,7 +2147,7 @@ delete window.applySystemDesignDiagrams2;
       const [x,y] = layout[index];
       return [
         component[0],
-        uniqueLabel(component[1],used),
+        uniqueLabel(fixSystemDesignOntologyLabel2(`${chapter.title}::${concept.name}`,component[1]),used),
         component[2],
         allowedTypes.has(component[3]) ? component[3] : 'node',
         x,y
@@ -1984,9 +2195,9 @@ delete window.applySystemDesignDiagrams2;
       const key = `${chapter.title}::${concept.name}`;
       let diagram;
       if (strongDiagrams.has(key)) {
-        diagram = normalizeStrong(concept.diagram);
+        diagram = normalizeStrong(key,concept.diagram);
       } else if (chapter.title === 'Distributed Algorithms' && graphAlgorithms.has(concept.name)) {
-        diagram = buildGraphDiagram(concept,graphAlgorithms.get(concept.name));
+        diagram = buildGraphDiagram(key,concept,graphAlgorithms.get(concept.name));
       } else {
         diagram = buildArchitecture(chapter,concept);
       }

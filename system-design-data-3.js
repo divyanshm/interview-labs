@@ -429,7 +429,7 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Heartbeats',[['Member','periodic heartbeat'],['Monitor','arrival history'],['Suspicion','timeout/score'],['Membership','retain or evict']],['Healthy member emits heartbeats with identity and progress.','Monitor records arrival intervals rather than assuming perfect clocks.','Late arrivals increase suspicion under a chosen threshold.','Membership retains, probes, or evicts the member while accepting false suspicion risk.']],
     ['Delayed queues',[['Producer','message + due T'],['Delay index','ordered by T'],['Visibility','hidden before T'],['Worker','claim after T']],['Producer enqueues an idempotent message with not-before time T.','Queue indexes it durably by due time.','Consumers cannot claim it before T.','After T, one worker obtains visibility, executes, and acknowledges or retries.']],
     ['Scheduled execution',[['Schedule','job + due time'],['Scheduler','durable trigger'],['Worker lease','attempt ID'],['Job result','complete/reschedule']],['A durable schedule records job identity, due time, and recurrence rules.','Scheduler detects due work and creates a stable attempt.','Worker claims a lease and executes idempotently.','Result commits completion, retry, or next occurrence before releasing ownership.']],
-    ['Clock skew',[['Node A clock','T'],['Node B clock','T + delta'],['Protocol','time comparison'],['Mitigation','bounds + logical order']],['Independent clocks drift despite synchronization.','The same instant appears as different timestamps on two nodes.','Protocol that assumes exact order can expire leases or choose winners incorrectly.','Design uses uncertainty bounds, monotonic duration, or logical ordering instead.']],
+    ['Clock skew',[['Node A clock','T'],['Node B clock','T + delta'],['Protocol','time comparison'],['Time-safety policy','bounds + logical order']],['Independent clocks drift despite synchronization.','The same instant appears as different timestamps on two nodes.','Protocol that assumes exact order can expire leases or choose winners incorrectly.','The time-safety policy uses uncertainty bounds, monotonic duration, or logical ordering instead.']],
     ['Logical clocks',[['Process A','counter 1'],['Message','carry counter'],['Process B','max + 1'],['Order','happened-before']],['A process increments its counter for a local event.','Sent message carries the current logical value.','Receiver advances beyond both local and received values.','Increasing timestamps preserve causal precedence without claiming wall time.']]
   ],
   'advanced-senior-staff-level-concepts':[
@@ -449,7 +449,7 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Fencing tokens',[['Lock service','issue token 41'],['Old holder','paused with 41'],['New holder','token 42'],['Resource','reject 41']],['First holder obtains monotonically increasing token 41.','It pauses long enough for ownership to expire.','New holder obtains token 42 and begins protected work.','Resource remembers 42 and rejects delayed writes carrying stale token 41.']],
     ['Leases',[['Coordinator','lease epoch 7'],['Holder','renew before expiry'],['Pause/partition','renewal lost'],['Successor','epoch 8 fenced']],['Coordinator grants bounded ownership with epoch 7.','Healthy holder renews while using epoch 7 on every write.','Pause or partition prevents renewal, so authority expires.','Successor receives epoch 8 and resources reject any returning epoch 7 work.']],
     ['Idempotency',[['Command','stable intent ID'],['State machine','current state'],['First execution','transition'],['Retry','same final state']],['Caller labels one logical intent consistently across attempts.','Handler checks current state and prior completion evidence.','First execution performs the allowed state transition.','Repeated execution returns the same outcome without another semantic effect.']],
-    ['Exactly-once semantics',[['Input log','record E'],['Transaction','state + output'],['Checkpoint','offset E'],['Replay','already committed']],['Processor reads record E without yet advancing durable progress.','One transaction writes state and any participating output.','The same commit records that E is consumed.','After failure, replay sees committed progress and does not duplicate that bounded effect.']],
+    ['Exactly-once semantics',[['Input log','record E'],['Transaction','state + output'],['Checkpoint record','offset E'],['Replay guard','already committed']],['Processor reads record E without yet advancing durable progress.','One transaction writes state and any participating output.','The same commit records that E is consumed.','After failure, the replay guard sees committed progress and prevents a duplicate bounded effect.']],
     ['Transactional outbox',[['Business command','domain mutation'],['Database transaction','state + outbox'],['Relay','publish event E'],['Consumer','dedupe E']],['Service begins one local transaction for the business command.','Domain rows and outbox event E commit atomically.','Relay repeatedly publishes unmarked outbox rows until acknowledged.','Consumers deduplicate E, after which the outbox can be marked delivered.']],
     ['Sagas',[['Coordinator','saga state'],['Service A','local commit'],['Service B','failure'],['Compensation A','semantic undo']],['Coordinator durably records the saga and next command.','Service A commits its idempotent local transaction.','Service B cannot complete, and the failure is recorded.','Coordinator invokes A compensation and records the final saga outcome.']],
     ['Event sourcing',[['Command','validated intent'],['Event store','append fact'],['Projection','fold events'],['Read model','current view']],['Command handler loads prior events and checks domain invariants.','A new immutable fact appends with expected stream version.','Projectors consume events in order and update derived state.','Reads use the projection, which can be rebuilt by replay.']],
@@ -461,7 +461,7 @@ const SYSTEM_DESIGN_VISUAL_SPECS_3 = {
     ['Cache stampede prevention',[['Hot key','near expiry'],['Requests','concurrent miss'],['Single-flight owner','one refresh'],['Cache','versioned refill']],['A hot entry approaches expiry with many concurrent readers.','Jitter or early refresh avoids synchronized hard expiration.','Single-flight elects one loader while peers wait or use bounded stale data.','Loader writes a versioned result so an older refill cannot overwrite newer data.']],
     ['Hot-key mitigation',[['Hot key','skewed demand'],['Detector','rate + saturation'],['Mitigation','replicate/salt/coalesce'],['Backend','balanced load']],['Telemetry identifies one key dominating a shard or dependency.','System classifies whether reads, writes, or fan-out cause the heat.','Chosen mitigation spreads reads, batches work, or splits associative state.','Routing and merge logic preserve correctness while load becomes bounded.']],
     ['Approximate data structures',[['Large stream','many items'],['Hash functions','compact update'],['Sketch/filter','bounded memory'],['Estimate','error bound']],['Each item is transformed by deterministic hash functions.','Compact counters or bits update instead of storing every item.','Queries infer membership, count, or frequency from the structure.','Caller interprets the result with known false-positive or error bounds.']],
-    ['Stream processing',[['Partitioned log','ordered records'],['Operators','transform + state'],['Checkpoint','state + offsets'],['Sink','materialized results']],['Sources append records to ordered partitions.','Parallel operators transform records and update keyed state.','Checkpoint captures recoverable state aligned with source progress.','Sink receives idempotent or transactional updates and processing resumes after failure.']],
+    ['Stream processing',[['Partitioned log','ordered records'],['Operators','transform + state'],['Checkpoint record','state + offsets'],['Sink','materialized results']],['Sources append records to ordered partitions.','Parallel operators transform records and update keyed state.','The checkpoint record captures recoverable state aligned with source progress.','Sink receives idempotent or transactional updates and processing resumes after failure.']],
     ['Watermarks',[['Input partitions','event-time progress'],['Coordinator','minimum estimate'],['Window state','await completeness'],['Window results','emit + revise']],['Each partition reports progress despite out-of-order arrival.','Coordinator derives a global or keyed watermark with idle handling.','Windows retain state until the watermark passes their boundary.','Results emit, while permitted late events update or retract them.']],
     ['Distributed snapshots',[['Processes','local state'],['Marker','snapshot boundary'],['Channels','in-flight messages'],['Global snapshot','consistent cut']],['Initiator records local state and sends marker messages.','A process records state when it sees its first marker.','It records messages on other channels until their markers arrive.','Combined process and channel records form a consistent global cut.']],
     ['Multi-region active-active',[['Region A','local reads/writes'],['Region B','local reads/writes'],['Replication','cross-region async'],['Resolver','converged global state']],['Users route to a nearby healthy region.','Both regions accept writes under explicitly mergeable invariants.','Updates replicate across the high-latency inter-region link.','Concurrent versions resolve deterministically and regional failure shifts traffic.']],
@@ -1451,3 +1451,255 @@ for (const concept of realtimeChapter.groups.flatMap(group=>group.concepts)) {
     return [linkIndex,states];
   });
 }
+
+const SYSTEM_DESIGN_COMPONENT_PATCHES_3 = {
+  'api-service-architecture::Traffic shadowing':{
+    'Primary path':['Primary Service Path','authoritative production path','service'],
+    'Shadow path':['Shadow Validation Service','non-authoritative comparison path','service']
+  },
+  'api-service-architecture::Blue-green deployments':{
+    Blue:['Blue Environment','current live deployment','service'],
+    Green:['Green Environment','staged deployment environment','service'],
+    Validation:['Validation Probe','smoke + readiness checks','worker'],
+    'Traffic switch':['Traffic Switch Router','routes live traffic to the active environment','gateway']
+  },
+  'api-service-architecture::A/B routing':{
+    Assignment:['Cohort Assignment Store','stable cohort hash','database'],
+    'Variant A':['Control Variant Service','control experience','service'],
+    'Variant B':['Treatment Variant Service','treatment experience','service']
+  },
+  'api-service-architecture::Feature flags':{
+    'Code deploy':['Flagged Application','deployed code with dormant flag path','service'],
+    Evaluator:['Flag Evaluation Service','evaluates context against flag rules','control'],
+    Behavior:['Selected Serving Path','old or new behavior selection','service']
+  },
+  'api-service-architecture::Request routing':{
+    Policy:['Routing Policy','version + locality','control']
+  },
+  'observability-distributed-debugging::Correlation IDs':{
+    Search:['Correlation Index','join events','index']
+  },
+  'observability-distributed-debugging::Tail-based sampling':{
+    Export:['Selected Trace Export','whole selected trace','storage']
+  },
+  'observability-distributed-debugging::Anomaly detection':{
+    Detector:['Anomaly Detector','deviation score','control'],
+    Alert:['Incident Alert','context + threshold','storage']
+  },
+  'observability-distributed-debugging::Metrics':{
+    'Dashboard/alert':['Metrics Dashboard','trend','storage']
+  },
+  'distributed-system-migration-patterns::Online migration':{
+    'Background move':['Background Migration Worker','bounded batches','worker'],
+    'Authority switch':['Authority Router','no downtime','gateway']
+  },
+  'distributed-system-migration-patterns::Incremental rollout':{
+    Candidate:['Candidate Release','disabled candidate version','service']
+  },
+  'distributed-system-migration-patterns::Cutover strategies':{
+    'Traffic switch':['Cutover Router','new authority route','gateway']
+  },
+  'distributed-system-migration-patterns::Rollback strategies':{
+    'New path':['Replacement Service Path','degraded candidate path','service'],
+    Reconciliation:['Reconciliation Worker','capture new writes','worker']
+  },
+  'consistency-conflict-patterns::Version numbers':{
+    Update:['Conditional Update Request','if version = 7','client']
+  },
+  'consistency-conflict-patterns::Vector clocks':{
+    Exchange:['Vector Comparison Service','compare vectors','control'],
+    Conflict:['Concurrent Version Set','concurrent siblings','storage']
+  },
+  'consistency-conflict-patterns::Conflict-free replicated data types':{
+    Merge:['CRDT Merge Service','join/commute','control']
+  },
+  'consistency-conflict-patterns::Anti-entropy':{
+    'Difference walk':['Difference Scanner','narrow keys','worker']
+  },
+  'consistency-conflict-patterns::Read repair':{
+    'Repair write':['Repair Mutation','update B','storage']
+  },
+  'consistency-conflict-patterns::Quorum reconciliation':{
+    Resolver:['Quorum Resolution Service','dominance/merge','control'],
+    Repair:['Repair Writer','write chosen version','worker']
+  },
+  'consistency-conflict-patterns::Eventual consistency':{
+    Replication:['Async Replicator','asynchronous','service'],
+    'Anti-entropy':['Anti-entropy Repair','converged replicas after repair','worker']
+  },
+  'distributed-deduplication-idempotency::Idempotency keys':{
+    'Business effect':['Committed Effect Record','commit once','storage'],
+    Retry:['Retried Request','replay stored result','client']
+  },
+  'distributed-deduplication-idempotency::Request fingerprints':{
+    Duplicate:['Duplicate Request Record','match or reject','storage']
+  },
+  'distributed-deduplication-idempotency::Deduplication tables':{
+    Replay:['Replay Attempt','constraint hit','client']
+  },
+  'distributed-deduplication-idempotency::Sequence numbers':{
+    'Duplicate/gap':['Sequence Validator','reject or recover','control']
+  },
+  'distributed-deduplication-idempotency::Exactly-once illusion':{
+    'External effect':['External Side-effect Target','may repeat','service']
+  },
+  'distributed-deduplication-idempotency::At-least-once + idempotency':{
+    Delivery:['Delivery Attempt','message E','queue'],
+    Acknowledgment:['Acknowledgment Record','may be lost','storage'],
+    Redelivery:['Redelivery Attempt','safe no-op','queue']
+  },
+  'distributed-deduplication-idempotency::Transactional deduplication':{
+    Commit:['Committed Transaction Record','one outcome','storage']
+  },
+  'distributed-deduplication-idempotency::Distributed dedup caches':{
+    'TTL/replay':['Replay Cache Entry','cache hit or expiry','cache']
+  },
+  'time-based-distributed-patterns::TTL':{
+    Cleanup:['Cleanup Worker','physical delete','worker']
+  },
+  'time-based-distributed-patterns::Expiration':{
+    'Clock check':['Expiry Check Service','now vs T','control']
+  },
+  'time-based-distributed-patterns::Sliding windows':{
+    Slide:['Slide Interval','advance by S','clock']
+  },
+  'time-based-distributed-patterns::Tumbling windows':{
+    Boundary:['Window Boundary','fixed interval','clock'],
+    'Window emission':['Window Emitter','close + emit','worker']
+  },
+  'time-based-distributed-patterns::Processing time':{
+    Replay:['Replayed Event','different placement','queue']
+  },
+  'time-based-distributed-patterns::Leases':{
+    Holder:['Lease Holder','renew','service'],
+    'Protected resource':['Fenced Resource','check E','service'],
+    'Expiry/failover':['Successor Lease Grant','new epoch','storage']
+  },
+  'time-based-distributed-patterns::Heartbeats':{
+    Suspicion:['Suspicion Score','timeout/score','control']
+  },
+  'distributed-identity-security::Revocation':{
+    'Security signal':['Revocation Request','logout or compromise request','client']
+  },
+  'distributed-identity-security::Workload identity':{
+    'Peer authorization':['Peer Authorization Policy','workload permissions','control']
+  },
+  'distributed-identity-security::Trust boundaries':{
+    'Public boundary':['Edge Gateway','TLS + input validation','gateway'],
+    'Trusted service zone':['Internal Service Tier','normalized request handling','service'],
+    'Sensitive data zone':['Sensitive Data Store','restricted records','database'],
+    'Egress boundary':['Egress Gateway','destination control','gateway'],
+    'Boundary audit':['Boundary Audit Log','crossing evidence','storage']
+  },
+  'distributed-identity-security::Confused deputy':{
+    'Token exchange':['Delegation Token Service','issue narrow target token','control'],
+    'Security audit':['Delegation Audit Log','bound intent evidence','storage']
+  },
+  'distributed-identity-security::Credential rotation':{
+    'Revocation control':['Credential Retirement Controller','disable v1','control']
+  },
+  'advanced-senior-staff-level-concepts::Cell-based architecture':{
+    'Global layer':['Global Routing Layer','thin routing','gateway']
+  },
+  'advanced-senior-staff-level-concepts::Gossip protocols':{
+    'Gossip exchange':['Membership Gossip Channel','merge versions','queue'],
+    Cluster:['Cluster Membership View','eventual convergence','storage']
+  },
+  'advanced-senior-staff-level-concepts::Merkle trees':{
+    Repair:['Repair Worker','sync divergent range','worker']
+  },
+  'advanced-senior-staff-level-concepts::CRDTs':{
+    'Network heal':['Replica Sync Service','exchange after reconnection','service'],
+    'Merge law':['Converged CRDT State','converged value','storage']
+  },
+  'advanced-senior-staff-level-concepts::Vector clocks':{
+    Comparator:['Vector Clock Comparator','component order','control'],
+    Merge:['Resolved Version Vector','descends from both writers','storage']
+  },
+  'advanced-senior-staff-level-concepts::Hybrid logical clocks':{
+    'Message receive':['Receive-side Clock Service','merge p,c','control']
+  },
+  'advanced-senior-staff-level-concepts::Leases':{
+    'Pause/partition':['Lease Expiry Record','renewal lost','storage']
+  },
+  'advanced-senior-staff-level-concepts::Idempotency':{
+    'First execution':['Initial Execution Record','first transition','storage'],
+    Retry:['Retried Command','same final state','client']
+  },
+  'advanced-senior-staff-level-concepts::Exactly-once semantics':{
+    Replay:['Replay Guard Record','already committed','storage']
+  },
+  'advanced-senior-staff-level-concepts::Sagas':{
+    'Compensation A':['Compensation Worker A','semantic undo','worker']
+  },
+  'advanced-senior-staff-level-concepts::Event sourcing':{
+    Projection:['Projection Worker','fold events','worker']
+  },
+  'advanced-senior-staff-level-concepts::CQRS':{
+    'Event/projection':['Projection Stream','asynchronous update','queue']
+  },
+  'advanced-senior-staff-level-concepts::Backpressure':{
+    Feedback:['Backpressure Signal','slow/reject','control']
+  },
+  'advanced-senior-staff-level-concepts::Hot-key mitigation':{
+    Detector:['Hot-key Detector','rate + saturation','control'],
+    Mitigation:['Mitigation Controller','replicate/salt/coalesce','control']
+  },
+  'advanced-senior-staff-level-concepts::Adaptive throttling':{
+    Traffic:['Admission Result','admit or reject','storage']
+  },
+  'advanced-senior-staff-level-concepts::Multi-region active-active':{
+    Replication:['Cross-region Replicator','cross-region async','service'],
+    Resolver:['Global Conflict Resolver','converged global state','control']
+  },
+  'advanced-senior-staff-level-concepts::Conflict resolution':{
+    Resolver:['Conflict Resolver','domain rule','control'],
+    'Merged version':['Resolved Version Record','descends from both','storage']
+  },
+  'advanced-senior-staff-level-concepts::Disaster recovery':{
+    'Recovery environment':['Recovery Service Stack','restore dependencies','service'],
+    Traffic:['Recovery Traffic Router','resume by RTO','gateway']
+  },
+  'advanced-senior-staff-level-concepts::Blast-radius management':{
+    Boundary:['Isolation Boundary','cell/ring/quota','replica'],
+    Guardrail:['Blast-Radius Guardrail','detect impact','control'],
+    Containment:['Containment Controller','pause + isolate','control']
+  },
+  'advanced-senior-staff-level-concepts::Cell isolation':{
+    'Cell boundary':['Cell Boundary Router','local data + compute','gateway']
+  },
+  'advanced-senior-staff-level-concepts::Control plane consistency':{
+    Distribution:['Config Distribution Service','versioned rollout','service']
+  },
+  'advanced-senior-staff-level-concepts::Data plane scalability':{
+    Traffic:['Partitioned Request','partition key','client'],
+    'Hotspot control':['Hotspot Controller','split/replicate','control']
+  }
+};
+
+const SYSTEM_DESIGN_APPLY_COMPONENT_PATCHES_3 = () => {
+  for (const chapter of window.SYSTEM_DESIGN_CHAPTERS) {
+    for (const group of chapter.groups) {
+      for (const concept of group.concepts) {
+        const patchSet = SYSTEM_DESIGN_COMPONENT_PATCHES_3[`${chapter.id}::${concept.name}`];
+        if (!patchSet) continue;
+        if (concept.visual?.nodes) {
+          concept.visual.nodes = concept.visual.nodes.map(([label,detail])=>{
+            const patch = patchSet[label];
+            return patch ? [patch[0], patch[1] || detail] : [label,detail];
+          });
+        }
+        if (!concept.diagram?.components) continue;
+        for (const component of concept.diagram.components) {
+          const patch = patchSet[component[1]];
+          if (!patch) continue;
+          component[1] = patch[0];
+          if (patch[1]) component[2] = patch[1];
+          if (patch[2]) component[3] = patch[2];
+        }
+      }
+    }
+  }
+};
+
+SYSTEM_DESIGN_APPLY_COMPONENT_PATCHES_3();

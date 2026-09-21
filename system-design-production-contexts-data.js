@@ -113,7 +113,7 @@ const contexts={
       ['edge','Audit ingest API','Boundary service for feature-management audit events','service',30,18],
       ['mechanism','Preview adoption estimator','Black-box distinct-counter service keyed by preview flag, region, and day','control',54,18],
       ['store','Audit event log','Authoritative stream of raw preview-flag activity','storage',84,18],
-      ['rollup','Adoption merge worker','Combines regional partials into launch-review metrics','worker',18,74],
+      ['rollup','Preview metrics aggregator','Worker that combines regional partials into launch-review metrics','worker',18,74],
       ['warehouse','Feature analytics warehouse','Authoritative store for published preview adoption reports','database',54,74],
       ['control','Launch control plane','Triggers recompute before go or no-go reviews','control',86,74]
     ],
@@ -154,11 +154,11 @@ const contexts={
     components:[
       ['caller','Edge traffic','Normal and malicious requests entering a POP','client',8,18],
       ['edge','POP ingress gateway','Boundary service that accepts and routes CDN traffic','gateway',30,18],
-      ['mechanism','Abusive source detector','Black-box heavy-hitter detector keyed by source IP','control',54,18],
+      ['mechanism','Hot-source analysis service','Black-box heavy-hitter service keyed by source IP','control',54,18],
       ['store','POP request log','Authoritative request stream for each point of presence','storage',84,18],
       ['controller','Mitigation controller','Translates hot-source signals into mitigation actions','service',18,74],
       ['acl','ACL distribution store','Authoritative block and challenge policies for the POP fleet','database',54,74],
-      ['checkpoint','Detector checkpoint store','Stores detector state for POP failover recovery','storage',86,74]
+      ['checkpoint','Source analysis checkpoint store','Stores hot-source service state for POP failover recovery','storage',86,74]
     ],
     flows:[
       ['caller','edge','enter POP ingress','Customer and attacker traffic arrives at the same shared POP boundary.'],
@@ -202,7 +202,7 @@ const contexts={
       ['mechanism','Duplicate-candidate service','Black-box similarity gate that returns likely duplicate listings','control',54,18],
       ['store','Listing catalog','Authoritative listing text, images, and moderation state','database',84,18],
       ['moderation','Moderation queue','Workflow queue for suspicious duplicate clusters','queue',18,74],
-      ['reindex','Similarity rebuild worker','Refreshes duplicate candidates from accepted catalog records','worker',54,74],
+      ['reindex','Similarity index maintainer','Worker that refreshes duplicate-candidate state from accepted catalog records','worker',54,74],
       ['control','Catalog policy control plane','Changes normalization rules and starts full rebuilds','control',86,74]
     ],
     flows:[
@@ -223,7 +223,7 @@ const contexts={
       ['mechanism','Campaign clustering service','Black-box similarity gate that groups near-identical email bodies and headers','control',54,18],
       ['store','Message evidence store','Authoritative store of normalized message evidence and verdicts','database',84,18],
       ['cases','Analyst case queue','Workflow queue for campaign-level investigations','queue',18,74],
-      ['reindex','Campaign rebuild worker','Refreshes campaign clusters from stored evidence','worker',54,74],
+      ['reindex','Campaign cluster maintainer','Worker that refreshes campaign-cluster state from stored evidence','worker',54,74],
       ['control','SOC control plane','Changes tokenization policy and orders rebuilds','control',86,74]
     ],
     flows:[
@@ -244,7 +244,7 @@ const contexts={
       ['mechanism','Visual neighbor index','Black-box similarity gate that returns candidate near-duplicate assets','control',54,18],
       ['store','Media catalog','Authoritative media metadata, moderation state, and storage pointers','database',84,18],
       ['review','Review queue','Workflow queue for probable re-uploads','queue',18,74],
-      ['embedder','Embedding rebuild worker','Regenerates asset similarity state from the media catalog','worker',54,74],
+      ['embedder','Embedding index maintainer','Worker that regenerates asset-similarity state from the media catalog','worker',54,74],
       ['control','Safety control plane','Rolls out embedding-model upgrades and backfills','control',86,74]
     ],
     flows:[
@@ -306,11 +306,11 @@ const contexts={
     components:[
       ['caller','Travel portal','Employees and coordinators submitting hotel bookings','client',8,18],
       ['edge','Booking orchestration API','Boundary service that validates policy and starts the booking workflow','service',30,18],
-      ['mechanism','Booking commit coordinator','Black-box atomic commit service for the booking workflow','control',54,18],
+      ['mechanism','Booking transaction coordinator','Black-box atomic transaction service for the booking workflow','control',54,18],
       ['rooms','Hotel inventory database','Authoritative room hold and allocation records','database',84,18],
       ['pay','Corporate payment ledger','Authoritative authorization and capture records','database',18,74],
-      ['journal','Transaction decision log','Durable record of the global booking decision','storage',54,74],
-      ['recovery','Booking recovery worker','Replays unresolved booking decisions until every participant acknowledges','worker',86,74]
+      ['journal','Booking transaction journal','Durable workflow record of the global booking outcome','storage',54,74],
+      ['recovery','Booking outcome reconciler','Worker that replays unresolved booking outcomes until every participant acknowledges','worker',86,74]
     ],
     flows:[
       ['caller','edge','submit hotel booking','An employee asks the travel portal to reserve a room and pay for it.'],
@@ -328,11 +328,11 @@ const contexts={
     components:[
       ['caller','Sales portal','Carrier agents activating prepaid plans for subscribers','client',8,18],
       ['edge','Plan activation API','Boundary service that validates the requested plan and account','service',30,18],
-      ['mechanism','Activation commit coordinator','Black-box commit service for subscriber activation workflows','control',54,18],
+      ['mechanism','Activation transaction coordinator','Black-box transaction service for subscriber activation workflows','control',54,18],
       ['billing','Billing account store','Authoritative account balance and tariff state','database',84,18],
       ['quota','Quota entitlement store','Authoritative data, voice, and SMS entitlements','database',18,74],
       ['journal','Activation journal','Durable record of each activation workflow state','storage',54,74],
-      ['recovery','Activation recovery agent','Finishes or unwinds incomplete activations after timeouts','worker',86,74]
+      ['recovery','Activation outcome reconciler','Agent that finishes or unwinds incomplete activations after timeouts','worker',86,74]
     ],
     flows:[
       ['caller','edge','submit plan activation','A carrier agent asks the platform to activate a prepaid plan for a subscriber.'],
@@ -375,7 +375,7 @@ const contexts={
       ['store','Commerce SQL cluster','Authoritative carts, promotions, stock holds, and orders','database',84,18],
       ['allocator','Stock allocator','Concurrent worker creating and releasing stock holds for other checkouts','worker',18,74],
       ['journal','Order attempt journal','Durable record of checkout attempts and outcomes','storage',54,74],
-      ['recovery','Checkout retry worker','Retries abandoned or conflicted attempts from the durable journal','worker',86,74]
+      ['recovery','Checkout attempt reconciler','Worker that retries abandoned or conflicted attempts from the durable journal','worker',86,74]
     ],
     flows:[
       ['caller','edge','submit checkout','A customer confirms checkout for the current cart.'],
@@ -397,7 +397,7 @@ const contexts={
       ['store','Seller ledger database','Authoritative balances, payout rows, and dispute adjustments','database',84,18],
       ['writer','Dispute adjustment worker','Posts late dispute changes while payout close is running','worker',18,74],
       ['journal','Payout run journal','Durable record of batch ownership, progress, and final outcome','storage',54,74],
-      ['recovery','Payout recovery worker','Resumes or reruns failed payout batches from the durable journal','worker',86,74]
+      ['recovery','Payout batch reconciler','Worker that resumes or reruns failed payout batches from the durable journal','worker',86,74]
     ],
     flows:[
       ['caller','edge','start payout close','The finance scheduler asks the service to close a daily payout run.'],

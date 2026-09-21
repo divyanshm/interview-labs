@@ -5,7 +5,7 @@ const contexts={
     components:[
       ['editors','Editors','global designers submitting offline thread edits from web and iPad clients','client',8,22],
       ['api','Comment Sync API','service boundary that authenticates file members and terminates sync sessions','service',24,48],
-      ['mechanism','Vector clocks','black-box conflict detector that classifies ancestry or concurrency per thread','mechanism',48,48],
+      ['mechanism','Vector Clock Service','control-plane service that applies vector clocks to classify ancestry or concurrency per thread','control',48,48],
       ['store','Comment Event Store','durable authority in DynamoDB global tables for thread mutations and merged versions','database',76,48],
       ['fanout','Thread Fanout','serves merged comment threads back to browsers and mobile clients worldwide','service',90,20],
       ['repair','Conflict Review Worker','repair path that replays concurrent branches needing product-specific resolution','worker',50,82],
@@ -26,7 +26,7 @@ const contexts={
     components:[
       ['users','Chat Clients','global mobile and desktop clients generating reactions and read state changes','client',10,18],
       ['gateway','Chat Sync Gateway','service boundary that authenticates devices and batches delta sync requests','service',24,44],
-      ['mechanism','Conflict-free replicated data types','black-box convergence layer that merges reaction and read-state deltas without coordination','mechanism',49,44],
+      ['mechanism','CRDT Merge Service','control-plane service that merges reaction and read-state deltas without coordination','control',49,44],
       ['store','Conversation State Store','durable authority in multi-region ScyllaDB for chat state and delivered deltas','database',78,44],
       ['notify','Push Fanout','delivers merged state to online devices and push queues in every region','service',90,16],
       ['repair','Delta Backfill Worker','repair path that resends missed deltas after device outages or regional failover','worker',54,80],
@@ -47,7 +47,7 @@ const contexts={
     components:[
       ['erp','Warehouse Feed','global ERP systems sending SKU quantity changes from multiple fulfillment regions','client',8,26],
       ['api','Inventory Write API','service boundary that validates SKU mutations before they reach the inventory domain','service',24,52],
-      ['mechanism','Merkle trees','black-box anti-entropy planner that pinpoints divergent inventory ranges between replicas','mechanism',50,52],
+      ['mechanism','Inventory Digest Service','control-plane service that compares inventory digests and pinpoints divergent replica ranges','control',50,52],
       ['store','Inventory Authority','durable authority in Cassandra for per-SKU available-to-sell counts','database',78,52],
       ['readers','Order Router','uses repaired inventory state to place customer checkouts against healthy stock','service',90,24],
       ['repair','Anti-entropy Orchestrator','repair path that schedules digest scans and range repair jobs between regions','worker',50,84],
@@ -68,7 +68,7 @@ const contexts={
     components:[
       ['apps','OAuth Apps','global integrations driving bursty API traffic from many tenants and regions','client',10,22],
       ['edge','API Edge Gateway','service boundary that terminates auth and decides whether requests enter the core API fleet','service',26,46],
-      ['mechanism','Sliding windows','black-box limiter that evaluates the exact trailing minute for each app and route','mechanism',50,46],
+      ['mechanism','Sliding Window Limiter','control-plane service that evaluates the exact trailing minute for each app and route','control',50,46],
       ['store','Quota State Store','durable quota ledger in Redis Enterprise with persistence and cross-AZ replication','database',78,46],
       ['core','REST API Fleet','serves admitted traffic only after quota evaluation completes at the edge','service',92,22],
       ['control','Abuse Policy Controller','control path that changes tenant limits and emergency suppression rules during incidents','control',48,80],
@@ -89,7 +89,7 @@ const contexts={
     components:[
       ['logs','Query Audit Stream','global warehouse execution logs arriving continuously from customer workloads','client',8,18],
       ['metering','Metering Ingest API','service boundary that validates usage events before they enter billing pipelines','service',24,42],
-      ['mechanism','Tumbling windows','black-box hourly bucketizer that closes usage exactly on finance boundaries','mechanism',50,42],
+      ['mechanism','Hourly Window Aggregator','control-plane service that closes usage into hourly finance buckets on exact billing boundaries','control',50,42],
       ['store','Usage Lakehouse','durable authority in Delta tables for raw events and finalized hourly buckets','database',78,42],
       ['billing','Invoice Generator','turns closed hourly buckets into downstream billing statements and credits','service',92,18],
       ['control','Backfill Controller','control path that reruns affected hours after schema fixes or delayed source recovery','control',50,78],
@@ -110,7 +110,7 @@ const contexts={
     components:[
       ['riders','Courier Apps','global rider phones emitting pickup, handoff, and completion events on unreliable mobile links','client',8,24],
       ['ingest','Trip Event Gateway','service boundary that authenticates event producers and normalizes telemetry envelopes','service',24,50],
-      ['mechanism','Watermarks','black-box completeness estimator for event-time progress across many partitions','mechanism',50,50],
+      ['mechanism','Delivery Watermark Service','control-plane service that estimates event-time completeness across many delivery partitions','control',50,50],
       ['store','Delivery Fact Store','durable authority in Kafka plus Iceberg tables for trip facts and corrected aggregates','database',78,50],
       ['analytics','Payout and SLA Analytics','computes courier pay, ETA adherence, and marketplace dashboards from stable windows','service',92,22],
       ['repair','Late-event Reprocessor','repair path that reopens windows when phones upload delayed events after reconnect','worker',50,84],
@@ -129,16 +129,16 @@ const contexts={
   'time-based-distributed-patterns::Leases':{
     scenario:'GitHub Actions assigns queued jobs to self-hosted runners with expiring ownership so stale dispatchers cannot double-start work.',
     components:[
-      ['queue','Queued Workflows','global workflow jobs waiting for eligible self-hosted runner capacity','client',10,28],
+      ['queue','Workflow Job Queue','durable queue of workflow jobs waiting for eligible self-hosted runner capacity','queue',10,28],
       ['dispatcher','Runner Assignment API','service boundary that matches jobs to runners and returns dispatch payloads','service',26,54],
-      ['mechanism','Leases','black-box ownership service that grants and renews runner assignment intervals','mechanism',50,54],
+      ['mechanism','Runner Lease Coordinator','control-plane service that grants and renews runner assignment intervals','control',50,54],
       ['store','Assignment Ledger','durable authority in PostgreSQL for lease owner, generation, and expiry metadata','database',78,54],
       ['runners','Runner Agents','execute admitted workflow jobs only while their assignment remains valid','service',92,28],
       ['control','Lease Janitor','control path that expires dead owners and requeues stranded workflow jobs','control',50,86],
       ['obs','Dispatch Reliability Board','observability path for expired leases, duplicate starts, and renewal latency','observability',88,84]
     ],
     flows:[
-      ['queue','dispatcher','request runner placement','Queued workflows ask the dispatch boundary for an eligible runner before work can start.'],
+      ['queue','dispatcher','pull ready job','The dispatch boundary pulls the next eligible workflow job from the durable queue before work can start.'],
       ['dispatcher','mechanism','grant job ownership','The boundary requests a lease for one job and one runner before returning the assignment.'],
       ['mechanism','store','persist owner and expiry','The lease service records the owner, generation, and expiry in the authoritative ledger.'],
       ['mechanism','runners','deliver valid assignment','Runner agents start work only after receiving an active lease-backed assignment token.'],
@@ -152,7 +152,7 @@ const contexts={
     components:[
       ['requests','Image Requests','global browsers requesting product imagery from many edge regions','client',8,20],
       ['edge','Cache Placement API','service boundary that maps content keys onto the current edge membership view','service',24,46],
-      ['mechanism','Consistent hashing','black-box placement function that keeps most object ownership stable during membership churn','mechanism',50,46],
+      ['mechanism','Cache Ring Service','control-plane service that uses consistent hashing to keep object ownership stable during membership churn','control',50,46],
       ['store','Membership Registry','durable authority in etcd for cache node health, weights, and ring epochs','database',78,46],
       ['nodes','Edge Cache Nodes','store and serve the image objects for the owners chosen by the placement function','service',92,20],
       ['control','Rebalance Controller','control path that drains unhealthy nodes and publishes new ring epochs safely','control',50,80],
@@ -173,7 +173,7 @@ const contexts={
     components:[
       ['events','Tenant Notifications','global chat and meeting events waiting for push fanout to devices','client',10,24],
       ['dispatcher','Fanout Dispatcher','service boundary that accepts tenant-scoped work and selects a worker owner','service',26,18],
-      ['mechanism','Rendezvous hashing','black-box scorer that ranks workers per tenant and picks the highest stable owner','mechanism',50,34],
+      ['mechanism','Worker Placement Scorer','control-plane service that uses rendezvous hashing to rank workers per tenant and pick the stable owner','control',50,34],
       ['store','Worker Registry','durable authority in Cosmos DB for worker membership, weights, and drain intent','database',78,18],
       ['workers','Fanout Workers','send pushes, webhooks, and retries for the tenants they currently own','service',82,58],
       ['control','Drain Controller','control path that removes workers gracefully before deployment or fault isolation','control',46,82],
@@ -194,7 +194,7 @@ const contexts={
     components:[
       ['catalog','Catalog Mutations','global merchandising systems updating price and availability records','client',8,24],
       ['gateway','Catalog Gateway','service boundary that validates writes and exposes region repair controls','service',24,50],
-      ['mechanism','Merkle trees','black-box divergence detector that narrows anti-entropy work to mismatched ranges','mechanism',50,50],
+      ['mechanism','Catalog Digest Service','control-plane service that compares replica digests and narrows anti-entropy work to mismatched ranges','control',50,50],
       ['store','Catalog Authority','durable authority in multi-region Cosmos DB containers for the product catalog','database',78,50],
       ['replicas','Regional Replicas','serve local read traffic and receive targeted repair streams from the authority','service',92,22],
       ['control','Repair Coordinator','control path that schedules range scans, throttles copy work, and retries failures','control',50,84],
@@ -215,7 +215,7 @@ const contexts={
     components:[
       ['authors','Whiteboard Clients','global tablets and browsers producing strokes, notes, and cursor annotations offline or online','client',8,18],
       ['gateway','Collaboration Gateway','service boundary that authenticates rooms and batches collaborative deltas','service',24,44],
-      ['mechanism','CRDTs','black-box convergence engine that merges whiteboard state without central lockstep coordination','mechanism',50,44],
+      ['mechanism','Board Convergence Service','control-plane service that uses CRDT rules to merge whiteboard state without central lockstep coordination','control',50,44],
       ['store','Board State Store','durable authority in Azure Cosmos DB for board state snapshots and durable deltas','database',78,44],
       ['render','Realtime Render Service','pushes merged board state to viewers and presenters around the world','service',92,18],
       ['repair','Session Backfill Worker','repair path that resends missed deltas after reconnect or classroom network outage','worker',52,80],
@@ -236,10 +236,10 @@ const contexts={
     components:[
       ['authors','Annotation Editors','global authors editing comments and highlights from browsers, tablets, and desktop clients','client',8,26],
       ['edge','Annotation Sync Edge','service boundary that accepts document deltas and enforces membership and size policies','service',24,52],
-      ['mechanism','Vector clocks','black-box lineage tracker that distinguishes ordered updates from concurrent branches','mechanism',50,52],
+      ['mechanism','Annotation Lineage Service','control-plane service that uses vector clocks to distinguish ordered updates from concurrent branches','control',50,52],
       ['store','Annotation History','durable authority in Spanner for annotation events, versions, and merge outcomes','database',78,52],
       ['review','Merge Presenter','shows the winning annotation state or presents concurrent branches to human reviewers','service',92,26],
-      ['repair','Support Resolution Queue','repair path for high-value documents where automatic resolution is not acceptable','worker',50,84],
+      ['repair','Support Merge Worker','support-side worker that replays high-value annotation branches when automatic resolution is not acceptable','worker',50,84],
       ['obs','Lineage Diagnostics','observability path for concurrent branch rate and unresolved merge backlog','observability',88,82]
     ],
     flows:[
@@ -247,7 +247,7 @@ const contexts={
       ['edge','mechanism','classify version lineage','The sync edge asks the vector clock service whether the update is in-order or concurrent.'],
       ['mechanism','store','record lineage decision','The lineage decision and accepted event are persisted in the authoritative annotation history.'],
       ['store','review','render merged annotation','Review UIs load the current annotation projection or a concurrent merge choice from durable history.'],
-      ['store','repair','enqueue unresolved document','Documents with unacceptable automatic outcomes are escalated into a repair queue.'],
+      ['store','repair','schedule support replay','Documents with unacceptable automatic outcomes are escalated to a support worker for replay.'],
       ['repair','mechanism','replay candidate branches','Support and policy tools rerun competing branches through the same lineage service with new inputs.'],
       ['mechanism','obs','export branch metrics','Diagnostics report concurrency hotspots, reviewer load, and time to merge acceptance.']
     ]
@@ -257,7 +257,7 @@ const contexts={
     components:[
       ['auths','Card Authorization Services','global payment services issuing debit and credit mutations for merchant traffic','client',8,18],
       ['api','Ledger Write API','service boundary that validates idempotency keys and ledger invariants before commit','service',24,42],
-      ['mechanism','Hybrid logical clocks','black-box timestamp service that preserves causality while staying close to wall-clock order','mechanism',50,42],
+      ['mechanism','Commit Timestamp Service','control-plane service that uses hybrid logical clocks to preserve causality while staying close to wall-clock order','control',50,42],
       ['store','Ledger Authority','durable authority in CockroachDB for account journals, balances, and commit timestamps','database',78,42],
       ['readers','Balance Readers','serves account projections and audit exports from stable committed ledger history','service',92,18],
       ['control','Reconciliation Controller','control path that quarantines skewed regions and replays suspect ranges for audit','control',50,78],
@@ -278,10 +278,10 @@ const contexts={
     components:[
       ['operators','Budget Operators','global campaign managers changing budget caps and pacing controls','client',8,24],
       ['api','Budget Config API','service boundary that validates config writes and exposes them to the control plane','service',24,50],
-      ['mechanism','Paxos','black-box agreement service that chooses one budget config value per rollout slot','mechanism',50,50],
+      ['mechanism','Budget Consensus Service','control-plane service that uses Paxos rounds to choose one budget config value per rollout slot','control',50,50],
       ['store','Decision Ledger','durable authority in Spanner for chosen config values and rollout epochs','database',78,50],
       ['serving','Bid Serving Fleet','uses only chosen budget values when pacing live auction decisions','service',92,24],
-      ['control','Quorum Operations','control path that drains replicas, repairs failed zones, and orchestrates proposer changes','control',50,84],
+      ['control','Consensus Operations Controller','control-plane service that drains replicas, repairs failed zones, and orchestrates proposer changes','control',50,84],
       ['obs','Consensus SLO Board','observability path for quorum health, proposal retries, and rollout latency','observability',88,82]
     ],
     flows:[
@@ -299,7 +299,7 @@ const contexts={
     components:[
       ['clients','Cluster Clients','kubectl users and control-plane components issuing object changes from many regions','client',8,18],
       ['apiserver','Kubernetes API Server','service boundary that authenticates callers and validates object schemas','service',24,44],
-      ['mechanism','Raft','black-box consensus module that elects one leader and orders control-plane mutations','mechanism',50,44],
+      ['mechanism','Cluster Log Service','control-plane service that uses Raft to elect one leader and order control-plane mutations','control',50,44],
       ['store','etcd State Store','durable authority for cluster objects, revisions, and watch history','database',78,44],
       ['watchers','Schedulers and Controllers','consume committed object watches and drive pods, services, and repair loops','service',92,18],
       ['control','Cluster Recovery Controller','control path that replaces failed voters, restores snapshots, and gates failover','control',50,80],
@@ -320,7 +320,7 @@ const contexts={
     components:[
       ['planner','Payout Batch Planner','global finance workflows creating settlement batches that need exclusive export ownership','client',8,26],
       ['api','Export Control API','service boundary that starts export jobs and hands workers their current ownership token','service',24,52],
-      ['mechanism','Fencing tokens','black-box ownership guard that issues monotonically increasing write generations','mechanism',50,52],
+      ['mechanism','Ownership Token Service','control-plane service that issues monotonically increasing write generations for fenced ownership','control',50,52],
       ['store','Ownership Ledger','durable authority in PostgreSQL for export owner, generation, and final artifact pointers','database',78,52],
       ['writer','Settlement File Writer','produces bank-bound files only when carrying the newest accepted generation','service',92,26],
       ['control','Failover Controller','control path that promotes a new owner after worker death and retires stale generations','control',50,84],
@@ -341,7 +341,7 @@ const contexts={
     components:[
       ['changes','Connector Change Stream','connector configs and source offsets arriving from many enterprise integrations','client',8,22],
       ['coordinator','Connect Coordinator API','service boundary that assigns tasks and accepts worker heartbeats','service',24,48],
-      ['mechanism','Leases','black-box ownership service that grants time-bounded task authority to worker pods','mechanism',50,48],
+      ['mechanism','Task Lease Coordinator','control-plane service that grants time-bounded task authority to worker pods','control',50,48],
       ['store','Metadata Authority','durable authority in the internal config topic and metadata store for owner and expiry','database',78,48],
       ['workers','Connect Workers','run connector tasks only while their current lease remains valid','service',92,22],
       ['control','Rebalance Manager','control path that revokes, reassigns, and drains ownership during deploys or failures','control',50,82],
@@ -362,7 +362,7 @@ const contexts={
     components:[
       ['sdk','Ad SDK Events','global mobile apps and browsers sending impression and conversion events with clock skew and delay','client',8,24],
       ['gateway','Event Ingest Gateway','service boundary that validates advertiser identity and normalizes raw event envelopes','service',24,50],
-      ['mechanism','Watermarks','black-box completeness estimator for event-time billing windows across many shards','mechanism',50,50],
+      ['mechanism','Billing Watermark Service','control-plane service that estimates event-time completeness for billing windows across many shards','control',50,50],
       ['store','Revenue Event Lake','durable authority in Kafka and Delta Lake for raw events plus finalized billing facts','database',78,50],
       ['billing','Billing Aggregator','creates advertiser invoices and pacing signals from windows judged sufficiently complete','service',92,22],
       ['repair','Late Arrival Backfill','repair path that corrects invoices and pacing data when late events reopen a closed window','worker',50,84],
@@ -383,7 +383,7 @@ const contexts={
     components:[
       ['events','Authorization Event Stream','global card auth events feeding realtime fraud features and models','client',8,20],
       ['gateway','Feature Pipeline Gateway','service boundary that validates schemas and injects jobs into the streaming topology','service',24,46],
-      ['mechanism','Distributed snapshots','black-box checkpoint coordinator that captures a consistent cut across pipeline operators','mechanism',50,46],
+      ['mechanism','Checkpoint Coordinator','control-plane service that captures a consistent cut across pipeline operators and offsets','control',50,46],
       ['store','Checkpoint Store','durable authority in object storage for checkpoint manifests, offsets, and operator state files','database',78,46],
       ['serving','Fraud Feature Service','serves committed features to online scoring only after checkpoint-safe processing','service',92,20],
       ['control','Restore Controller','control path that triggers savepoints, rollback, and region recovery after pipeline faults','control',50,80],

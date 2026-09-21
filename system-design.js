@@ -172,6 +172,17 @@ let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conc
 const conceptZoomLevels=[.6,.75,.9,1,1.15,1.3,1.5];
 const authoredLessons=window.SYSTEM_DESIGN_LESSONS||{};
 const productionContexts=window.SYSTEM_DESIGN_PRODUCTION_CONTEXTS||{};
+const jitterProductionModel={
+  kind:'production-jitter',
+  nodes:[['Clients','retrying callers'],['Dependency','protected service']],
+  steps:[
+    [0,[],'A dependency failure reaches many clients at nearly the same time.',{phase:'failure',spread:0,peak:8}],
+    [0,[],'Identical backoff schedules align every first retry at the same instant.',{phase:'synchronized',spread:0,peak:8}],
+    [0,[],'Full jitter gives each client an independent delay between zero and the current backoff cap.',{phase:'range',spread:18,peak:6}],
+    [0,[],'Client retries spread across the permitted window instead of forming one vertical wave.',{phase:'scattered',spread:62,peak:3}],
+    [1,[0],'The dependency receives a smoother arrival rate and can recover without another retry spike.',{phase:'smoothed',spread:100,peak:2}]
+  ]
+};
 const lessonLayouts={
   sequence:[[10,20],[36,20],[64,20],[90,20],[23,72],[50,72],[77,72],[50,46],[90,72]],
   workflow:[[10,18],[38,18],[66,18],[90,18],[22,72],[50,72],[78,72],[50,45],[90,72]],
@@ -275,6 +286,7 @@ function modelFromProductionContext(entry,context){
   };
 }
 function makeConceptModel(entry){
+  if(entry.chapter.id==='reliability-fault-tolerance'&&entry.concept.name==='Jitter')return jitterProductionModel;
   const context=productionContexts[`${entry.chapter.id}::${entry.concept.name}`];
   if(context)return modelFromProductionContext(entry,context);
   const lesson=lessonFor(entry);
@@ -366,6 +378,32 @@ function renderStoryboard(model,step){
     <div class="storyboard-canvas">${renderArchitecture(scene,step,model.steps.length)}</div>
     <div class="storyboard-components">${stages}</div>
     <div class="storyboard-tension"><small>Design pressure / cost</small>${esc(model.tradeoff)}</div>
+  </div>`;
+}
+function renderJitterProduction(step){
+  const state=step[3],clients=8;
+  const fixed=Array.from({length:clients},(_,index)=>({x:28,y:14+index*9}));
+  const jittered=[12,24,31,43,55,63,78,91].map((x,index)=>({x,y:14+index*9}));
+  const positions=state.phase==='failure'?fixed.map(point=>({...point,x:7})):state.phase==='synchronized'?fixed:jittered;
+  const bars=state.phase==='failure'?[1,0,0,0,0,0,0,0,0,0]
+    :state.phase==='synchronized'?[0,0,8,0,0,0,0,0,0,0]
+    :state.phase==='range'?[0,1,3,2,1,1,0,0,0,0]
+    :state.phase==='scattered'?[1,1,2,1,1,2,0,0,0,0]
+    :[1,1,1,1,1,1,1,1,0,0];
+  return `<div class="jitter-visual">
+    <section class="jitter-experiment">
+      <header><span><small>Retry policy</small><b>${state.phase==='synchronized'?'Fixed backoff: every client waits 1.0 s':'Full jitter: random(0, backoff cap)'}</b></span><span class="jitter-cap"><small>Allowed retry window</small><b>0–1.0 s</b></span></header>
+      <div class="jitter-timeline">
+        <div class="jitter-axis"><span>failure</span><span>250 ms</span><span>500 ms</span><span>750 ms</span><span>1 s</span></div>
+        ${positions.map((point,index)=>`<i class="jitter-client ${state.phase}" style="left:${point.x}%;top:${point.y}%"><b>C${index+1}</b></i>`).join('')}
+        <div class="jitter-window" style="width:${state.spread}%"></div>
+      </div>
+    </section>
+    <section class="jitter-load">
+      <header><span><small>What the dependency sees</small><b>${state.peak} concurrent retries at peak</b></span><em class="${state.peak<=3?'healthy':'hot'}">${state.peak<=3?'recovering safely':'overload risk'}</em></header>
+      <div class="jitter-bars">${bars.map((height,index)=>`<i style="height:${Math.max(5,height/8*100)}%"><small>${index*100}ms</small></i>`).join('')}</div>
+      <p>${state.phase==='synchronized'?'The retry policy recreates the original traffic spike. Backoff without randomness delays the herd but does not break it apart.':state.phase==='smoothed'?'Random timing converts one dangerous peak into a bounded stream of requests. Jitter protects recovery capacity; it does not increase the retry budget.':'Watch the vertical client wave spread horizontally as independent delays are chosen.'}</p>
+    </section>
   </div>`;
 }
 function radialScene(nodes,step,ring=false){
@@ -516,6 +554,7 @@ function renderConceptScene(model,step){
   if(kind==='lesson'){ $('#conceptFlow').className=`concept-flow kind-lesson family-${model.lesson.family}`;return renderTeachingLesson(model) }
   if(kind==='storyboard'){ $('#conceptFlow').className=`concept-flow kind-storyboard storyboard-${model.diagram.kind}`;return renderStoryboard(model,step) }
   if(kind==='production'){ $('#conceptFlow').className='concept-flow kind-storyboard kind-production';return renderStoryboard(model,step) }
+  if(kind==='production-jitter'){ $('#conceptFlow').className='concept-flow kind-production-jitter';return renderJitterProduction(step) }
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
   if(kind==='mechanism-bloom-filter'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderBloomFilterMechanism(step) }
   if(kind==='mechanism-count-min-sketch'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderCountMinSketchMechanism(step) }
@@ -536,8 +575,8 @@ function renderConceptScene(model,step){
 }
 function drawConcept(){
   const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
-  $('#conceptPanel').classList.toggle('lesson-mode',['lesson','storyboard','production'].includes(presentation.kind));
-  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='production'?'Production architecture · workload, authority, and operations':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
+  $('#conceptPanel').classList.toggle('lesson-mode',['lesson','storyboard','production','production-jitter'].includes(presentation.kind));
+  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='production-jitter'?'Production behavior · retry timing and downstream load':presentation.kind==='production'?'Production architecture · workload, authority, and operations':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
   $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;
   $('#conceptFlow').innerHTML=`<div class="concept-zoom-layer" style="--concept-zoom:${conceptZoom}">${renderConceptScene(presentation,step)}</div>`;
   $('#conceptZoomReset').textContent=`${Math.round(conceptZoom*100)}%`;

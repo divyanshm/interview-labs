@@ -9,7 +9,7 @@
         ['flagApi', 'Flag admin API', 'Owns checkout flag mutations and validation', 'service', 30, 22],
         ['casGuard', 'Compare-and-swap guard', 'Checks the expected etcd revision before a write is accepted', 'control', 53, 16],
         ['configRow', 'Checkout flag row', 'Authoritative ramp state and revision for the checkout flag', 'database', 76, 22],
-        ['edgeFanout', 'Gateway config fanout', 'Pushes the accepted flag snapshot to API gateways', 'queue', 76, 54],
+        ['edgeFanout', 'Gateway config update stream', 'Carries the accepted flag snapshot to API gateways after the write commits', 'queue', 76, 54],
         ['driftMonitor', 'Rollout drift monitor', 'Shows operators when their write lost a race to automation', 'worker', 36, 72]
       ],
       flows: [
@@ -89,7 +89,7 @@
       components: [
         ['console', 'DNS rollout console', 'Lets an SRE publish a new signed zone for customer vanity domains', 'client', 10, 22],
         ['zoneApi', 'Zone control API', 'Validates the new zone package and owns rollout state', 'service', 30, 22],
-        ['paxos', 'Paxos config quorum', 'Chooses one committed zone package for each zone serial', 'control', 54, 16],
+        ['paxos', 'Paxos config cluster', 'Runs the quorum protocol that chooses one committed zone package for each zone serial', 'control', 54, 16],
         ['zoneStore', 'Zone package store', 'Authoritative signed records and SOA serial for the zone', 'database', 78, 22],
         ['nameServers', 'Authoritative name servers', 'Serve the committed zone package to resolvers worldwide', 'service', 80, 54],
         ['rollback', 'Rollback controller', 'Submits the previous signed package if monitoring spots a bad publish', 'worker', 42, 80]
@@ -111,7 +111,7 @@
         ['quorum', 'Quorum policy store', 'Persists the chosen challenge policy only after quorum acceptance', 'control', 54, 14],
         ['ledger', 'Decision ledger', 'Authoritative history of risk policy versions and reasons', 'database', 76, 20],
         ['gateways', 'Regional auth gateways', 'Evaluate the chosen policy on every sign-in request', 'service', 80, 54],
-        ['rollback', 'Rollback automation', 'Clears the emergency mode once attack traffic returns to baseline', 'worker', 42, 80]
+        ['rollback', 'Rollback controller', 'Drives the emergency-policy rollback once attack traffic returns to baseline', 'worker', 42, 80]
       ],
       flows: [
         ['desk', 'policyApi', 'enable challenge-all mode for consumer login', 'The abuse desk initiates an emergency sign-in policy change while attack traffic is still rising.'],
@@ -148,7 +148,7 @@
         ['chatApi', 'Bridge chat API', 'Owns room writes and dependency metadata for the incident room', 'service', 30, 18],
         ['roomLog', 'Room event log', 'Authoritative record of room messages, edits, and reactions', 'database', 54, 18],
         ['causalBuffer', 'Causal delivery buffer', 'Waits until every referenced message is already visible in the room', 'control', 56, 50],
-        ['fanout', 'Subscriber fanout', 'Broadcasts room events to web and mobile clients after release', 'queue', 80, 28],
+        ['fanout', 'Room delivery stream', 'Carries released room events to web and mobile clients after dependency checks', 'queue', 80, 28],
         ['clients', 'War-room clients', 'Render the live incident thread to responders on different devices', 'client', 84, 62],
         ['reconnect', 'Reconnect resync job', 'Replays unresolved room events after a region reconnect', 'worker', 32, 80]
       ],
@@ -156,7 +156,7 @@
         ['laptop', 'chatApi', 'reply to message 812 with dependency metadata', 'The responder sends a reply that explicitly references the earlier message about a failing token issuer.'],
         ['chatApi', 'roomLog', 'append message and dependency set', 'The chat API stores both the new payload and the list of messages that must already be visible first.'],
         ['roomLog', 'causalBuffer', 'load current room frontier', 'The delivery buffer reads what the room has already exposed so it can evaluate whether the reply is ready.'],
-        ['causalBuffer', 'fanout', 'release reply when parent is visible', 'Only after message 812 is in the visible frontier does the buffer hand the reply to the subscriber fanout path.'],
+        ['causalBuffer', 'fanout', 'release reply when parent is visible', 'Only after message 812 is in the visible frontier does the buffer hand the reply to the room delivery stream.'],
         ['fanout', 'clients', 'deliver reply after prerequisite messages', 'Web and mobile responders see the parent message first, then the answer, even if packets arrived out of order.'],
         ['reconnect', 'roomLog', 'replay unresolved room events after WAN recovery', 'When the chat region reconnects, the resync job rechecks held events against the authoritative room log before releasing them.']
       ]
@@ -206,11 +206,11 @@
         ['paymentWorker', 'Payment worker', 'Emits card-authorization events for checkout orders', 'worker', 10, 18],
         ['fraudWorker', 'Fraud scorer', 'Approves or holds the same order independently of payment', 'worker', 10, 50],
         ['timelineApi', 'Order timeline API', 'Owns the activity feed shown for each order', 'service', 32, 32],
-        ['lamport', 'Lamport stamp', 'Assigns the next logical sequence number per order aggregate', 'control', 54, 16],
+        ['lamport', 'Lamport clock service', 'Assigns the next logical sequence number per order aggregate', 'control', 54, 16],
         ['events', 'Order events topic', 'Carries stamped order events to all timeline projectors', 'queue', 56, 50],
         ['timelineStore', 'Timeline store', 'Authoritative ordered history for each order', 'database', 80, 30],
         ['support', 'Support console', 'Reads the reconstructed order timeline during escalations', 'client', 82, 72],
-        ['replay', 'Replay projector', 'Rebuilds one order timeline after a projector failover', 'worker', 34, 80]
+        ['replay', 'Timeline replay projector', 'Rebuilds one order timeline after a projector failover', 'worker', 34, 80]
       ],
       flows: [
         ['paymentWorker', 'timelineApi', 'auth-approved event for order 8472', 'The payment worker reports card approval before the warehouse has published any shipping milestones.'],
@@ -230,7 +230,7 @@
         ['sequencer', 'Total-order sequencer', 'Assigns one position to every reservation and release command', 'control', 52, 14],
         ['ledger', 'SKU ledger', 'Authoritative ordered inventory history for SKU 441', 'database', 76, 18],
         ['allocator', 'Fulfillment allocator', 'Turns accepted ledger entries into pickable stock allocations', 'worker', 80, 52],
-        ['replay', 'Disaster-recovery replay', 'Rebuilds the SKU ledger by replaying the ordered command stream', 'worker', 40, 80]
+        ['replay', 'Disaster-recovery replay worker', 'Rebuilds the SKU ledger by replaying the ordered command stream', 'worker', 40, 80]
       ],
       flows: [
         ['checkouts', 'reserveApi', 'reserve 1 unit of SKU 441', 'Dozens of checkout pods race to reserve the same console while stock is nearly exhausted.'],

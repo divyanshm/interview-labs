@@ -25,7 +25,7 @@ const contexts = {
       ['impressionLake','Immutable impression lake','source of truth','storage'],
       ['executorPool','Spark executor pool','worker boundary','cluster'],
       ['campaignMapReduce','Campaign billing MapReduce','black-box mechanism','compute'],
-      ['invoiceWarehouse','Invoice fact warehouse','committed output','storage'],
+      ['invoiceWarehouse','Invoice fact warehouse','warehouse store','storage'],
       ['batchOps','Batch ops console','operational control','control']
     ]),
     flows: [
@@ -44,7 +44,7 @@ const contexts = {
       ['riskScheduler','Risk analytics scheduler','job caller','client'],
       ['checkoutLake','Checkout event lake','source of truth','storage'],
       ['shuffleSupervisor','Repartition supervisor','coordinating service','service'],
-      ['shopperShuffle','Shopper-key shuffle fabric','black-box mechanism','compute'],
+      ['shopperShuffle','Shopper partition exchange service','black-box mechanism','compute'],
       ['mapWriters','Map writer fleet','worker boundary','cluster'],
       ['featureTable','Fraud session feature table','downstream result store','storage'],
       ['netOps','Network and skew controller','operational control','control']
@@ -110,7 +110,7 @@ const contexts = {
       ['taxBroadcastJoin','Tax-rule broadcast join','black-box mechanism','compute'],
       ['orderProcessors','Order processor pool','worker boundary','cluster'],
       ['taxedOrders','Tax-enriched orders table','final result store','storage'],
-      ['rolloutControl','Join rollout controller','operational control','control']
+      ['rolloutControl','Tax join ops console','operational control','control']
     ]),
     flows: [
       ['pricingManager','taxBatchCoordinator','publish tax enrichment run','Pricing opens the nightly order enrichment window.'],
@@ -149,7 +149,7 @@ const contexts = {
       ['treasuryScheduler','Treasury close scheduler','job caller','client'],
       ['reconOrchestrator','Reconciliation orchestrator','coordinating service','service'],
       ['ledgerArchive','Payout ledger and bank archive','source of truth','storage'],
-      ['transferSortMerge','Transfer sort-merge join','black-box mechanism','compute'],
+      ['transferSortMerge','Ordered transfer join service','black-box mechanism','compute'],
       ['rangeReaders','Sorted partition readers','worker boundary','cluster'],
       ['reconJournal','Reconciliation journal','final result store','storage'],
       ['exceptionDesk','Exception desk','operational control','control']
@@ -173,7 +173,7 @@ const contexts = {
       ['checkpointManager','Stage checkpoint manager','black-box mechanism','compute'],
       ['transformExecutors','Transform executor pool','worker boundary','cluster'],
       ['featureParquet','Feature parquet output set','final result store','storage'],
-      ['recoveryConsole','Recovery console','operational control','control']
+      ['recoveryConsole','Batch resume console','operational control','control']
     ]),
     flows: [
       ['featureScheduler','featureController','start model refresh batch','The scheduler opens the long-running batch that builds the next feature snapshot.'],
@@ -464,8 +464,8 @@ const contexts = {
       ['releaseManager','Release manager','job caller','client'],
       ['deployOrchestrator','Deployment orchestrator','coordinating service','service'],
       ['dependencyRegistry','Service dependency registry','source of truth','storage'],
-      ['topoPlanner','Topological rollout planner','black-box mechanism','compute'],
-      ['rolloutFleet','Rollout worker fleet','worker boundary','cluster'],
+      ['topoPlanner','Deployment-order planner','black-box mechanism','compute'],
+      ['rolloutFleet','Deployment worker fleet','worker boundary','cluster'],
       ['timelineStore','Release timeline store','result surface','service'],
       ['rollbackControl','Rollback controller','operational control','control']
     ]),
@@ -528,9 +528,9 @@ const contexts = {
       ['schedulerSupervisor','Scheduler supervisor','coordinating service','service'],
       ['leaseRegistry','Lease registry','source of truth','storage'],
       ['schedulerReplicas','Invoice scheduler replicas','worker boundary','cluster'],
-      ['electionModule','Leader election module','black-box mechanism','compute'],
+      ['electionModule','Scheduler lease arbiter','black-box mechanism','compute'],
       ['activeLedger','Active-job ledger','result surface','service'],
-      ['failoverControl','Failover controller','operational control','control']
+      ['failoverControl','Lease stability console','operational control','control']
     ]),
     flows: [
       ['billingOperator','schedulerSupervisor','arm month-end settlement schedule','Operations enable the month-end workflow that exactly one scheduler may own.'],

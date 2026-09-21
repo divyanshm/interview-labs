@@ -9,7 +9,7 @@ const contexts={
       ['leakyBucket','Leaky Bucket Gate','smooths admitted override traffic into the writer lane','mechanism',52,40],
       ['writerTopic','Fare Override Kafka','authoritative sink consumed by pricing materializers','stream',82,28],
       ['checkpointStore','Limiter Checkpoint Blob','stores shard ownership and restart checkpoints','storage',52,76],
-      ['shedTopic','Overload Incident Topic','captures shed batches for replay and on-call review','sink',82,76]
+      ['shedTopic','Shed Batch Topic','stores shed batches consumed by overflow analysis tooling and on-call dashboards','sink',82,76]
     ],
     flows:[
       ['opsClient','pricingApi','POST /v1/fare-overrides batch FO-771','City ops pushes a burst of 600 overrides ahead of a stadium event.'],
@@ -30,7 +30,7 @@ const contexts={
       ['fixedWindow','Fixed Window Gate','admits or rejects each reset request for the active window','mechanism',52,40],
       ['mailQueue','Reset Mail Queue','authoritative sink for reset jobs delivered to the mailer','stream',82,24],
       ['windowSnapshot','Quota Snapshot Blob','stores active limiter shard checkpoints for rollouts','storage',52,76],
-      ['abuseCases','Abuse Case Stream','captures rejected requests for automated investigation','sink',82,76]
+      ['abuseCases','Abuse Evidence Stream','stores rejected reset evidence for automated investigation','sink',82,76]
     ],
     flows:[
       ['browser','resetApi','POST /selfservice/reset for account 882114','A user asks for a reset link while attackers are probing the same network range.'],
@@ -46,12 +46,12 @@ const contexts={
     scenario:'A courier-tracking platform in westus2 lets partner fleets burst reconnect-driven GPS updates into the dispatch pipeline while keeping each fleet on a steady ingest budget.',
     components:[
       ['fleetSender','Courier Telemetry Gateway','pushes batched GPS updates after drivers regain network coverage','client',8,28],
-      ['trackingApi','Courier Tracking API','owns partner telemetry admission for the dispatch platform','api',28,28],
+      ['trackingApi','Courier Tracking API','owns partner telemetry intake for the dispatch platform','api',28,28],
       ['quotaPlane','Partner Quota Control Plane','publishes burst and refill contracts for each fleet integration','control',52,10],
       ['tokenBucket','Token Bucket Gate','admits short bursts while enforcing the steady ingest rate per fleet','mechanism',52,40],
       ['dispatchTopic','Dispatch Telemetry Kafka','authoritative sink for admitted driver location updates','stream',82,24],
       ['stateStore','Limiter Lease Table','stores shard leases and restart checkpoints for limiter partitions','storage',52,76],
-      ['throttleEvents','Throttle Event Topic','captures excess bursts for replay tooling and partner support','sink',82,76]
+      ['throttleEvents','Throttle Event Topic','stores excess bursts consumed by quota analytics and partner support workflows','sink',82,76]
     ],
     flows:[
       ['fleetSender','trackingApi','POST /v1/driver-locations batch GPS-4402','A partner fleet reconnects after tunnel loss and sends a burst of queued location updates.'],
@@ -70,8 +70,8 @@ const contexts={
       ['loginApi','Retail Login API','owns credential verification entry for consumer banking','api',28,30],
       ['fraudPolicy','Fraud Policy Service','publishes exact-window caps per account risk tier','control',52,10],
       ['slidingWindow','Sliding Window Gate','tracks the exact trailing attempt budget for each account and IP','mechanism',52,42],
-      ['authCore','Credential Verification Core','authoritative login execution path after admission','service',82,24],
-      ['checkpointStore','Limiter State Blob','stores limiter shard checkpoints for failover and replay','storage',52,78],
+      ['authCore','Credential Verification Core','authoritative login execution path for requests allowed by the limiter','service',82,24],
+      ['checkpointStore','Limiter State Blob','stores limiter shard checkpoints consumed by replacement login limiter pods','storage',52,78],
       ['socAlerts','SOC Alert Topic','captures repeated blocks for analyst triage','sink',82,78]
     ],
     flows:[
@@ -88,12 +88,12 @@ const contexts={
     scenario:'A partner sync API accepts CRM contact upserts from thousands of tenant daemons and uses an approximate sliding-window counter to cap each app at 20,000 requests per 15 minutes across the edge fleet.',
     components:[
       ['partnerDaemon','Partner CRM Daemon','pushes contact upsert batches from tenant systems','client',8,28],
-      ['syncApi','Partner Sync API','owns inbound upsert admission at the public edge','api',28,28],
+      ['syncApi','Partner Sync API','owns inbound upsert intake at the public edge','api',28,28],
       ['quotaControl','Tenant Quota Control Plane','publishes app-level rolling quota plans','control',52,10],
       ['windowCounter','Sliding Window Counter Service','approximates rolling usage for each partner app key','mechanism',52,40],
       ['upsertQueue','CRM Upsert Queue','authoritative sink for admitted upsert work','stream',82,24],
-      ['stateSnapshot','Quota Snapshot Blob','stores shard checkpoints for restarts and region failover','storage',52,76],
-      ['throttleTopic','Throttle Event Topic','captures throttles for billing, replay, and support tooling','sink',82,76]
+      ['stateSnapshot','Quota Snapshot Blob','stores shard checkpoints consumed by replacement edge pods in other regions','storage',52,76],
+      ['throttleTopic','Throttle Event Topic','stores throttled-request evidence for billing and partner support tooling','sink',82,76]
     ],
     flows:[
       ['partnerDaemon','syncApi','POST /sync/contact batch CT-8801','A tenant daemon sends a large contact sync burst after an overnight export job.'],
@@ -110,11 +110,11 @@ const contexts={
     components:[
       ['sessionServers','Match Session Servers','emit player inventory mutations after each completed match','producer',8,28],
       ['inventoryApi','Inventory Write API','owns inventory commits for shard us-central-7','api',28,28],
-      ['tabletManager','Tablet Manager','assigns shard ownership and repair windows','control',52,10],
+      ['tabletManager','Tablet Manager','assigns shard ownership and maintenance windows','control',52,10],
       ['lsmShard','Inventory LSM Shard','authoritative key-value store for player inventory documents','mechanism',52,42],
       ['changeStream','Inventory CDC Stream','feeds fraud and analytics consumers from committed mutations','stream',82,22],
-      ['backupBucket','Shard Backup Bucket','holds restore checkpoints and manifests','storage',52,78],
-      ['repairQueue','Storage Repair Queue','tracks replay and corruption work items','sink',82,78]
+      ['backupBucket','Shard Backup Bucket','holds bootstrap checkpoints and shard manifests','storage',52,78],
+      ['repairQueue','Corruption Work Queue','holds corruption work items consumed by shard maintenance workers','sink',82,78]
     ],
     flows:[
       ['sessionServers','inventoryApi','PUT /inventory/player-8841 delta INV-9921','A completed match generates a burst of inventory mutations for one player.'],
@@ -134,8 +134,8 @@ const contexts={
       ['btreeIndex','Merchant Date B-Tree','serves merchant and created_at range seeks on the primary cluster','mechanism',56,18],
       ['reportingApi','Merchant Reporting API','owns dashboard queries for merchants and finance operators','api',82,22],
       ['schemaController','Schema Controller','rolls out index builds and versioned query plans','control',56,78],
-      ['backupStore','Base Backup Store','retains nightly cluster backups for restore workflows','storage',30,78],
-      ['reindexWorker','Reindex Worker','rebuilds damaged indexes without replacing the base table','worker',82,78]
+      ['backupStore','Base Backup Store','retains nightly cluster backups consumed by replacement SQL nodes','storage',30,78],
+      ['reindexWorker','Merchant Index Worker','maintains damaged merchant-date indexes from the authoritative base table','worker',82,78]
     ],
     flows:[
       ['checkoutService','ordersPrimary','insert order O-551991','A live checkout commits a new order row into the primary transactional store.'],
@@ -156,7 +156,7 @@ const contexts={
       ['manifestService','Segment Manifest Service','tracks which sealed segments belong to each tenant and day','control',52,10],
       ['archiveBucket','Audit Archive Bucket','authoritative storage for sealed history segments and checksums','storage',82,24],
       ['auditQuery','Audit Query API','serves point-in-time rollout lookups to compliance analysts','api',82,58],
-      ['rebuildWorker','Manifest Rebuild Worker','repairs missing catalog entries from archived checksums','worker',52,78]
+      ['rebuildWorker','Segment Catalog Worker','reconstructs missing catalog entries from archived checksums','worker',52,78]
     ],
     flows:[
       ['releasePipelines','historyIngest','POST /history/rollouts event FF-662','Deployment systems send a rollout event when a new flag change is pushed.'],
@@ -176,9 +176,9 @@ const contexts={
       ['syncPolicy','Durability Policy Service','publishes fsync and replica acknowledgement requirements','control',52,10],
       ['wal','Ledger WAL','records every committed transfer before it becomes visible','mechanism',52,40],
       ['ledgerPrimary','Ledger Primary Store','authoritative balances and transfer state after commit','database',82,22],
-      ['drStandby','EU-West Ledger Standby','replays the replicated log for disaster recovery','database',82,58],
-      ['archiveVault','Immutable WAL Vault','retains completed log segments for audits and restores','storage',52,78],
-      ['recoveryRunner','Crash Recovery Runner','replays WAL segments after process or node restart','worker',28,78]
+      ['drStandby','EU-West Ledger Standby','applies the replicated log so the standby stays ready for regional promotion','database',82,58],
+      ['archiveVault','Immutable WAL Vault','retains completed log segments for audits and ledger bootstrap jobs','storage',52,78],
+      ['recoveryRunner','Ledger Bootstrap Worker','boots replacement ledger nodes from WAL segments after unclean restarts','worker',28,78]
     ],
     flows:[
       ['cardSwitch','ledgerApi','POST /transfers TR-844120','An approved payment reaches the ledger commit path from the card switch.'],
@@ -194,12 +194,12 @@ const contexts={
     scenario:'A social app presence service absorbs noisy online and offline updates by staging them in memtables backed by a replicated commit log and rebuilding buffers after node loss.',
     components:[
       ['mobileClients','Mobile Presence Clients','emit user presence updates from active devices','producer',8,28],
-      ['presenceGateway','Presence Gateway','owns write admission for presence updates at the edge','api',28,28],
+      ['presenceGateway','Presence Gateway','owns presence write intake at the edge','api',28,28],
       ['shardController','Presence Shard Controller','assigns shard ownership and memory budgets','control',52,10],
       ['commitLog','Presence Commit Log','authoritative ordered history of accepted presence changes','stream',28,78],
       ['memtable','Presence Memtable Buffer','holds the latest per-user presence state for hot reads','mechanism',52,42],
       ['snapshotStore','Hot State Snapshot Store','stores checkpoints used during rolling restarts','storage',52,78],
-      ['restoreWorker','Presence Restore Worker','rebuilds buffers after a shard process is replaced','worker',82,78]
+      ['restoreWorker','Presence Buffer Worker','rehydrates hot buffers after a shard process is replaced','worker',82,78]
     ],
     flows:[
       ['mobileClients','presenceGateway','POST /presence user-18 online','A device reports a fresh presence heartbeat for one user.'],
@@ -216,12 +216,12 @@ const contexts={
     scenario:'An observability platform compacts hourly metric blocks into query-efficient day blocks while keeping rollback and replay paths for failed merges.',
     components:[
       ['nodeAgents','Node Metrics Agents','produce high-cardinality time-series samples from customer nodes','producer',8,24],
-      ['metricsGateway','Metrics Ingest Gateway','owns durable sample admission for the TSDB cluster','api',28,24],
+      ['metricsGateway','Metrics Ingest Gateway','owns durable sample intake for the TSDB cluster','api',28,24],
       ['tsdbCluster','Metrics Block Store','authoritative storage for accepted time-series blocks','database',28,62],
       ['compactor','TSDB Compactor','merges blocks according to the active retention and merge policy','mechanism',52,40],
       ['retentionPlane','Retention Policy Plane','publishes hot and cold block merge schedules','control',52,10],
       ['snapshotBucket','Pre-Merge Snapshot Bucket','stores rollback checkpoints before merged manifests go live','storage',52,78],
-      ['mergeReplayQueue','Merge Replay Queue','holds failed merge work items for retried recovery','sink',82,78]
+      ['mergeReplayQueue','Failed Merge Work Queue','holds failed merge work items consumed by the merge-operations fleet','sink',82,78]
     ],
     flows:[
       ['nodeAgents','metricsGateway','POST /samples block BLK-7712','Customer nodes push a fresh block of time-series samples into the observability pipeline.'],
@@ -242,7 +242,7 @@ const contexts={
       ['sparseIndex','Audit Sparse Index','maps coarse keys to candidate archive block offsets','mechanism',52,40],
       ['logArchive','Sorted Audit Log Archive','authoritative storage for immutable access log blocks','storage',82,24],
       ['caseExport','Case Export Bucket','stores investigator-ready evidence bundles and manifests','sink',82,58],
-      ['rebuildJob','Sparse Index Rebuild Job','repairs missing markers after storage audits or migrations','worker',52,78]
+      ['rebuildJob','Sparse Index Worker','reconstructs missing sparse-index markers after storage audits or migrations','worker',52,78]
     ],
     flows:[
       ['auditor','complianceApi','GET /cases/447/search?principal=alice','An investigator requests all accesses by one principal for an active case.'],
@@ -262,8 +262,8 @@ const contexts={
       ['payoutsTable','Payouts Primary Table','authoritative storage for payout lifecycle records','database',28,62],
       ['coveringIndex','Pending Payout Covering Index','stores the query keys plus returned columns for the main grid','mechanism',56,22],
       ['schemaManager','Schema Manager','rolls out index revisions and query-plan toggles','control',56,78],
-      ['backupStore','Payout Backup Store','retains table backups used for repair drills and restores','storage',28,78],
-      ['reindexWorker','Covering Index Rebuilder','recreates the covering index when corruption or drift is detected','worker',82,78]
+      ['backupStore','Payout Backup Store','retains table backups consumed by drill clusters and replacement payout nodes','storage',28,78],
+      ['reindexWorker','Covering Index Worker','recreates the covering index when corruption or drift is detected','worker',82,78]
     ],
     flows:[
       ['financeUi','dashboardApi','GET /payouts?merchant=441&state=pending','An analyst requests the pending payout grid for one merchant account.'],
@@ -284,8 +284,8 @@ const contexts={
       ['documentStore','Knowledge Document Store','authoritative storage for articles and attached notes','database',28,62],
       ['invertedIndex','Support Inverted Index','maps terms to postings lists for fast full-text retrieval','mechanism',56,22],
       ['relevancePolicy','Relevance Policy Service','pushes synonym packs and ranking overrides','control',56,78],
-      ['snapshotRepo','Index Snapshot Repository','stores shard snapshots used for rollout and restore','storage',82,62],
-      ['rebuildWorker','Index Rebuild Worker','restores shards after corruption or region evacuation','worker',82,22]
+      ['snapshotRepo','Index Snapshot Repository','stores shard snapshots consumed by shard rollout and bootstrap workers','storage',82,62],
+      ['rebuildWorker','Search Shard Worker','rehydrates shards after corruption or region evacuation','worker',82,22]
     ],
     flows:[
       ['editorPipeline','documentStore','commit article KB-448 token-decryption fix','Knowledge ingestion first lands the new article in the authoritative document store.'],
@@ -305,10 +305,10 @@ const contexts={
       ['clickTopic','Campaign Click Topic','authoritative event source for the revenue job','stream',28,22],
       ['revenueJob','Campaign Revenue Job','owns event-time revenue aggregation for the ads team','worker',28,62],
       ['tumblingWindow','One-Minute Tumbling Window','groups events into non-overlapping minute buckets per campaign','mechanism',56,22],
-      ['jobControl','Streaming Job Control Plane','publishes deployment epochs and replay commands','control',56,78],
-      ['checkpointBucket','Revenue Checkpoint Bucket','stores operator snapshots used for restart and replay','storage',82,78],
+      ['jobControl','Streaming Job Control Plane','publishes deployment epochs and restart commands','control',56,78],
+      ['checkpointBucket','Revenue Checkpoint Bucket','stores operator snapshots consumed by replacement revenue workers','storage',82,78],
       ['warehouse','Ads Analytics Warehouse','authoritative sink for closed minute revenue rows','sink',82,22],
-      ['lateTopic','Late Revenue Correction Topic','captures events that arrive after a minute has closed','sink',82,50]
+      ['lateTopic','Late Revenue Event Topic','stores post-close revenue events for downstream revenue materializers','sink',82,50]
     ],
     flows:[
       ['webSdk','clickTopic','publish click clk-991 for campaign c44','Live campaign traffic emits click and conversion events into the source topic.'],
@@ -328,10 +328,10 @@ const contexts={
       ['swipeTopic','Card Swipe Topic','authoritative source of payment events for fraud features','stream',28,22],
       ['featureJob','Fraud Feature Job','owns real-time feature generation for the fraud platform','worker',28,62],
       ['slidingWindow','Five-Minute Sliding Window','maintains rolling spend and decline features per card','mechanism',56,22],
-      ['modelControl','Model Control Plane','publishes feature policies and replay commands','control',56,78],
+      ['modelControl','Model Control Plane','publishes feature policies and restart commands','control',56,78],
       ['featureStore','Fraud Feature Store','authoritative sink for online model features','sink',82,22],
-      ['checkpointStore','Feature Checkpoint Store','stores snapshots used during rollout and failover','storage',82,78],
-      ['reviewQueue','Fraud Review Queue','captures corrections and manual-review triggers','sink',82,50]
+      ['checkpointStore','Feature Checkpoint Store','stores snapshots consumed by replacement feature workers during rollouts','storage',82,78],
+      ['reviewQueue','Fraud Triage Task Queue','stores analyst tasks for late reversals and anomaly spikes','sink',82,50]
     ],
     flows:[
       ['posTerminals','swipeTopic','publish auth event AU-771 for card 4312','Merchants stream a new card authorization into the fraud feature pipeline.'],
@@ -352,9 +352,9 @@ const contexts={
       ['analyticsJob','Collaboration Analytics Job','owns live activity analytics for the editor product','worker',28,62],
       ['sessionWindow','Editing Session Window','groups activity into user sessions based on inactivity gaps','mechanism',56,22],
       ['activityPolicy','Activity Policy Service','publishes the current inactivity gap per product surface','control',56,78],
-      ['checkpointBucket','Session Checkpoint Bucket','stores operator snapshots for restarts and gap replays','storage',82,78],
+      ['checkpointBucket','Session Checkpoint Bucket','stores operator snapshots consumed by replacement session workers','storage',82,78],
       ['warehouse','Product Analytics Warehouse','authoritative sink for closed editing sessions','sink',82,22],
-      ['replayRunner','Analytics Replay Runner','replays gaps after a worker loss or regional outage','worker',82,50]
+      ['replayRunner','Session State Worker','rehydrates session state after a worker loss or regional outage','worker',82,50]
     ],
     flows:[
       ['browserEditors','editTopic','publish keystroke EVT-441 for doc-77 user-18','A live collaborative editing burst lands in the shared document event stream.'],
@@ -374,9 +374,9 @@ const contexts={
       ['etaJob','Parcel ETA Job','owns route-delay analytics for the logistics platform','worker',28,62],
       ['watermarkCoordinator','Watermark Coordinator','advances event-time frontier across many lagging sources','mechanism',56,22],
       ['sourceControl','Source Control Plane','publishes idle-source timeout and skew policy','control',56,78],
-      ['checkpointStore','ETA Checkpoint Store','stores frontier and operator checkpoints for recovery','storage',82,78],
+      ['checkpointStore','ETA Checkpoint Store','stores frontier and operator checkpoints consumed by replacement ETA workers','storage',82,78],
       ['warehouse','Logistics Delay Warehouse','authoritative sink for closed leg-delay aggregates','sink',82,22],
-      ['lateCorrections','Late ETA Correction Topic','captures events that arrive behind the current frontier','sink',82,50]
+      ['lateCorrections','Late ETA Event Topic','stores post-frontier parcel scans for downstream ETA materializers','sink',82,50]
     ],
     flows:[
       ['scanDevices','trackingTopic','publish scan EVT-9921 with eventTime 14:02:11','Handheld and dock scanners stream package movement events into the pipeline.'],
@@ -396,10 +396,10 @@ const contexts={
       ['reservationTopic','Inventory Reservation Topic','authoritative stream of inventory changes','stream',28,22],
       ['inventoryJob','Inventory Projection Job','owns materialized availability for the warehouse platform','worker',28,62],
       ['checkpointService','Checkpoint Barrier Service','coordinates durable snapshots of operator state and offsets','mechanism',56,22],
-      ['opsControl','Streaming Ops Control','publishes checkpoint interval and restore commands','control',56,78],
+      ['opsControl','Streaming Ops Control','publishes checkpoint interval and restart commands','control',56,78],
       ['projectionDb','Available Inventory Projection DB','authoritative sink for queryable SKU availability','database',82,22],
-      ['snapshotBucket','Inventory Snapshot Bucket','stores completed restore points for fast recovery','storage',82,78],
-      ['poisonQueue','Inventory Poison Event Queue','captures malformed or unrecoverable events for review','sink',82,50]
+      ['snapshotBucket','Inventory Snapshot Bucket','stores completed snapshots consumed by replacement inventory projection jobs','storage',82,78],
+      ['poisonQueue','Inventory Poison Event Queue','stores malformed or unrecoverable events for support tooling','sink',82,50]
     ],
     flows:[
       ['warehouseApps','reservationTopic','publish reserve, cancel, and receive events for sku-884','Warehouse systems emit inventory mutations into the authoritative event stream.'],

@@ -70,7 +70,7 @@
       ['writer', 'Writer A', 'Issues a compare-and-set inventory update', 8, 20],
       ['primary', 'Inventory primary', 'Defines the single register order', 42, 36],
       ['reader', 'Reader B', 'Reads after the write response', 86, 20],
-      ['clock', 'Real-time axis', 'Tracks invocation and response boundaries', 50, 84]
+      ['clock', 'Operation timeline', 'Tracks invocation and response boundaries', 50, 84]
     ],
     [
       ['writer', 'primary', 'CAS stock 5 to 4'],

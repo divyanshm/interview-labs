@@ -179,8 +179,8 @@
       entities: [
         ['saga', 'Package saga log', 'durably records package PKG-8 progress', 15, 50],
         ['ticket', 'Concert box office', 'reserves ticket T-19', 48, 15],
-        ['train', 'Rail booking', 'books seat C7', 82, 50],
-        ['hotel', 'Hotel booking', 'tries room H-3', 48, 85]
+        ['train', 'Rail reservation service', 'books seat C7', 82, 50],
+        ['hotel', 'Hotel reservation service', 'tries room H-3', 48, 85]
       ],
       connections: [
         ['saga', 'ticket', 'reserve T-19'],
@@ -218,7 +218,7 @@
         },
         {
           title: 'Book the train',
-          narration: 'Rail booking commits seat C7 and the saga advances to the hotel.',
+          narration: 'The rail reservation service commits seat C7 and the saga advances to the hotel.',
           action: ['saga', 'train', 'book seat C7'],
           states: {
             saga: {package: 'PKG-8', next: 'BOOK_HOTEL', completed: 'TICKET,TRAIN'},
@@ -265,7 +265,7 @@
         ['subscription', 'Subscription ledger', 'commits subscription SUB-31', 15, 18],
         ['eventBus', 'Farm event stream', 'delivers keyed domain events', 50, 50],
         ['harvest', 'Harvest allocator', 'assigns weekly crate C-88', 84, 18],
-        ['courier', 'Courier schedule', 'creates Friday stop D-14', 84, 82],
+        ['courier', 'Courier dispatch service', 'creates Friday stop D-14', 84, 82],
         ['billing', 'Billing ledger', 'charges invoice INV-31', 15, 82]
       ],
       connections: [
@@ -354,7 +354,7 @@
       family: 'workflow',
       scenario: 'A passport renewal coordinator orders photo review, fee capture, printing, and recovery.',
       entities: [
-        ['orchestrator', 'Renewal workflow', 'owns durable state for APP-73', 15, 50],
+        ['orchestrator', 'Renewal orchestrator', 'owns durable state for APP-73', 15, 50],
         ['photo', 'Photo review desk', 'validates portrait P-73', 48, 15],
         ['payment', 'Fee ledger', 'captures charge CH-73', 82, 50],
         ['printer', 'Passport printer', 'prints booklet B-73', 48, 85]
@@ -617,7 +617,7 @@
       scenario: 'A library catalog lets a long report read book availability while a checkout creates a newer row version.',
       entities: [
         ['versions', 'Book version chain', 'stores committed versions of BK-10', 18, 50],
-        ['report', 'Morning circulation report', 'reads snapshot timestamp 40', 50, 15],
+        ['report', 'Morning circulation query', 'reads snapshot timestamp 40', 50, 15],
         ['checkout', 'Checkout transaction', 'creates the timestamp-43 version', 82, 50],
         ['vacuum', 'Version vacuum', 'reclaims versions no snapshot needs', 50, 85]
       ],
@@ -960,7 +960,7 @@
         ['outbox', 'Payroll outbox', 'stores tenant-sequenced event EVT-700', 42, 20],
         ['relay', 'Partitioned relay', 'leases tenant ACME rows', 75, 20],
         ['stream', 'Payroll event stream', 'retains ACME events in sequence', 75, 80],
-        ['analytics', 'Compensation projection', 'deduplicates and advances per-tenant offset', 20, 80]
+        ['analytics', 'Compensation projector', 'deduplicates and advances per-tenant offset', 20, 80]
       ],
       connections: [
         ['payroll', 'outbox', 'commit salary + tenantSeq=44'],

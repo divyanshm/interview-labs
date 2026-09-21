@@ -53,6 +53,7 @@ const allowedFamilies = new Set([
   'trust', 'trace', 'migration', 'dedup', 'connection', 'cells', 'shard-merge'
 ]);
 const genericEntity = /^(service [a-z]|component|processor|state transition)$/i;
+const abstractEntity = /^(failover|failure|recovery|retry|retries|rebalance|rebalancing|replication|commit|abort|election|decision|detection|validation|cutover|migration|merge|rebuild|rollback|compensation|admission|rejection|refresh|invalidation|handoff|repair|resolution|conflict|shuffle|compaction|checkpoint|timeout|cancellation|fallback|degradation|mitigation)$/i;
 const genericConnection = /\b(invoke service operation|route request|exchange node metadata|apply control decision|persist durable metadata|return response)\b/i;
 const errors = [];
 const layoutSignatures = new Set();
@@ -88,6 +89,7 @@ for (const [key, lesson] of Object.entries(lessons)) {
     if (ids.has(id)) fail(key, `duplicates entity ID "${id}"`);
     ids.add(id);
     if (genericEntity.test(label.trim())) fail(key, `uses generic entity "${label}"`);
+    if (abstractEntity.test(label.trim())) fail(key, `uses action/event "${label}" as an entity`);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 5 || x > 95 || y < 5 || y > 95) {
       fail(key, `entity "${id}" has invalid coordinates`);
     }
@@ -167,6 +169,7 @@ for (const key of mechanismKeys) {
     componentIds.add(id);
     architectureLabels.push(String(label).trim().toLowerCase());
     if (!label || !role || genericEntity.test(String(label).trim())) fail(key, `uses a generic production component "${label}"`);
+    if (abstractEntity.test(String(label).trim())) fail(key, `uses action/event "${label}" as a production component`);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 5 || x > 95 || y < 5 || y > 95) {
       fail(key, `production component "${id}" has invalid coordinates`);
     }
@@ -210,6 +213,10 @@ for (const { key, concept } of concepts) {
   }
   if (!Array.isArray(diagram.components) || diagram.components.length < 5) {
     fail(key, 'storyboard must contain at least five concrete components');
+  } else {
+    for (const component of diagram.components) {
+      if (abstractEntity.test(String(component[1]).trim())) fail(key, `uses action/event "${component[1]}" as a storyboard component`);
+    }
   }
   if (!Array.isArray(diagram.links) || diagram.links.length < 3) {
     fail(key, 'storyboard must contain at least three meaningful interactions');

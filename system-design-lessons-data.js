@@ -555,7 +555,7 @@
 
   add("storage-systems", "Compaction", "storage",
     "An LSM store merges versions and tombstones to control read amplification.",
-    storageEntities(["L0 R3","L0 R2","L1 R1","merge heap","L1 output"], "sorted-run"),
+    storageEntities(["L0 R3","L0 R2","L1 R1","merge heap","L1 output run"], "sorted-run"),
     [
       { from: "n0", to: "n3", relation: "newest-input" }, { from: "n1", to: "n3", relation: "input" },
       { from: "n2", to: "n3", relation: "oldest-input" }, { from: "n3", to: "n4", relation: "sorted-output" }
@@ -719,7 +719,7 @@
 
   add("distributed-data-processing", "MapReduce", "mapreduce",
     "A batch job counts words across three documents.",
-    storageEntities(["doc0: cat dog","doc1: cat owl","doc2: dog cat","map 0","map 1","map 2","reduce"], "mapreduce-stage"),
+    storageEntities(["doc0: cat dog","doc1: cat owl","doc2: dog cat","Mapper 0","Mapper 1","Mapper 2","Reducer 0"], "mapreduce-stage"),
     [
       { from: "n0", to: "n3", relation: "input-split" }, { from: "n1", to: "n4", relation: "input-split" },
       { from: "n2", to: "n5", relation: "input-split" }, { from: "n3", to: "n6", relation: "group-by-key" },
@@ -770,7 +770,7 @@
 
   add("distributed-data-processing", "Hash joins", "mapreduce",
     "A worker joins a small users table to a large orders partition.",
-    storageEntities(["users build","hash buckets","orders probe","joined rows"], "join-stage"),
+    storageEntities(["users input run","hash buckets","orders input run","join result buffer"], "join-stage"),
     [
       { from: "n0", to: "n1", relation: "build" }, { from: "n2", to: "n1", relation: "probe" },
       { from: "n1", to: "n3", relation: "emit-match" }
@@ -794,7 +794,7 @@
 
   add("distributed-data-processing", "Sort-merge joins", "mapreduce",
     "Two large relations already sorted by customer ID are joined sequentially.",
-    storageEntities(["customers sorted","orders sorted","left cursor","right cursor","output"], "join-stage"),
+    storageEntities(["customers sorted","orders sorted","left cursor","right cursor","joined output buffer"], "join-stage"),
     [
       { from: "n0", to: "n2", relation: "scan" }, { from: "n1", to: "n3", relation: "scan" },
       { from: "n2", to: "n4", relation: "equal-key" }, { from: "n3", to: "n4", relation: "equal-key" }
@@ -849,7 +849,7 @@
 
   add("search-retrieval", "TF-IDF", "search",
     "A small corpus ranks documents for the query distributed search.",
-    storageEntities(["q: distributed search","d1 tf 2,0","d2 tf 1,1","d3 tf 0,2","score"], "term-vector"),
+    storageEntities(["q: distributed search","d1 tf 2,0","d2 tf 1,1","d3 tf 0,2","ranking scorecard"], "term-vector"),
     [
       { from: "n0", to: "n1", relation: "dot-product" }, { from: "n0", to: "n2", relation: "dot-product" },
       { from: "n0", to: "n3", relation: "dot-product" }, { from: "n1", to: "n4", relation: "rank" },
@@ -874,7 +874,7 @@
 
   add("search-retrieval", "BM25", "search",
     "A search engine scores distributed across short and long documents.",
-    storageEntities(["query term","d1 tf=3 len=100","d2 tf=2 len=300","d3 tf=1 len=80","ranking"], "score-factor"),
+    storageEntities(["query term","d1 tf=3 len=100","d2 tf=2 len=300","d3 tf=1 len=80","BM25 ranking board"], "score-factor"),
     [
       { from: "n0", to: "n1", relation: "score" }, { from: "n0", to: "n2", relation: "score" },
       { from: "n0", to: "n3", relation: "score" }, { from: "n1", to: "n4", relation: "rank" },
@@ -899,7 +899,7 @@
 
   add("search-retrieval", "Top-K retrieval", "search",
     "A coordinator keeps the best three results while scanning shard scores.",
-    storageEntities(["score stream","min-heap root","heap slot 1","heap slot 2","top-3"], "heap-position"),
+    storageEntities(["score stream","min-heap root","heap slot 1","heap slot 2","Top-3 result set"], "heap-position"),
     [
       { from: "n0", to: "n1", relation: "candidate" }, { from: "n1", to: "n2", relation: "heap-child" },
       { from: "n1", to: "n3", relation: "heap-child" }, { from: "n1", to: "n4", relation: "final-sort" }
