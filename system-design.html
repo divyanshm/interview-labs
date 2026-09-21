@@ -94,7 +94,7 @@
   </main>
 </div>
 <dialog class="concept-dialog" id="conceptDialog">
-  <div class="concept-panel">
+  <div class="concept-panel" id="conceptPanel">
     <header class="concept-header">
       <div><div class="eyebrow" id="conceptChapter"></div><h2 id="conceptTitle"></h2></div>
       <button class="concept-close" id="conceptClose" aria-label="Close visual explainer">×</button>
@@ -111,6 +111,11 @@
           <button class="control" id="conceptPrev">← Back</button>
           <button class="control primary" id="conceptNext">Step →</button>
           <button class="control" id="conceptPlay">▶ Play</button>
+          <div class="diagram-zoom" aria-label="Diagram zoom controls">
+            <button class="control" id="conceptZoomOut" aria-label="Zoom diagram out">−</button>
+            <button class="control zoom-value" id="conceptZoomReset" aria-label="Reset diagram zoom">100%</button>
+            <button class="control" id="conceptZoomIn" aria-label="Zoom diagram in">+</button>
+          </div>
         </div>
         <div class="concept-flow" id="conceptFlow"></div>
         <div class="concept-dots" id="conceptDots"></div>

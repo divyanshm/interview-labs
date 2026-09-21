@@ -144,7 +144,8 @@ const mechanismVisuals={
     ]
   }
 };
-let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture';
+let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture',conceptZoom=1;
+const conceptZoomLevels=[.6,.75,.9,1,1.15,1.3,1.5];
 const authoredLessons=window.SYSTEM_DESIGN_LESSONS||{};
 const lessonLayouts={
   sequence:[[10,20],[36,20],[64,20],[90,20],[23,72],[50,72],[77,72],[50,46],[90,72]],
@@ -324,8 +325,18 @@ function renderTokenBucketMechanism(step){
 function teachingStateRows(state,previousState){
   return Object.entries(state||{}).map(([field,value])=>{
     const previous=previousState?.[field],changed=previous!==undefined&&String(previous)!==String(value);
-    return `<span class="lesson-state-row ${changed?'changed':''}"><small>${esc(field)}</small><b>${changed?`${esc(previous)} → `:''}${esc(value)}</b></span>`;
+    return `<span class="lesson-state-row ${changed?'changed':''}" title="${esc(`${field}: ${value}`)}"><small>${esc(field)}</small><b>${esc(value)}</b></span>`;
   }).join('');
+}
+function collisionFreeLessonPoints(count){
+  const columns=count<=4?2:3,rows=Math.ceil(count/columns);
+  const x=columns===2?[27,73]:[16,50,84];
+  const y=rows===1?[50]:rows===2?[27,73]:[17,50,83];
+  return Array.from({length:count},(_,index)=>{
+    const row=Math.floor(index/columns),itemsInRow=Math.min(columns,count-row*columns);
+    const rowX=itemsInRow===1?[50]:itemsInRow===2?[27,73]:x;
+    return [rowX[index%columns],y[row]];
+  });
 }
 function renderTeachingLesson(model){
   const lesson=model.lesson,step=lesson.steps[conceptStep],previous=lesson.steps[Math.max(0,conceptStep-1)];
@@ -335,17 +346,14 @@ function renderTeachingLesson(model){
       return `<article class="lesson-idea ${index===step[0]?'active':index<conceptStep?'done':''}"><i>${String(index+1).padStart(2,'0')}</i><b>${esc(entity[1])}</b><p>${esc(entity[2])}</p>${teachingStateRows(state,previous.states?.[entity[0]])}</article>`;
     }).join('')}</div></div>`;
   }
-  const layout=lessonLayouts[lesson.family]||lessonLayouts.workflow;
-  const points=lesson.entities.map((entity,index)=>{
-    const authored=Number.isFinite(entity[3])&&Number.isFinite(entity[4])?[entity[3],entity[4]]:layout[index%layout.length];
-    return [Math.max(10,Math.min(90,authored[0])),Math.max(12,Math.min(86,authored[1]))];
-  });
+  const rows=Math.ceil(lesson.entities.length/(lesson.entities.length<=4?2:3));
+  const points=collisionFreeLessonPoints(lesson.entities.length);
   const indexes=new Map(lesson.entities.map((entity,index)=>[entity[0],index]));
   const action=step.action,active=new Set(action?[action[0],action[1]]:[]);
   const connectionHtml=(lesson.connections||[]).map(connection=>{
     const from=indexes.get(connection[0]),to=indexes.get(connection[1]);if(from===undefined||to===undefined)return '';
     const a=points[from],b=points[to],isActive=action&&connection[0]===action[0]&&connection[1]===action[1];
-    return `<g class="lesson-link ${isActive?'active':''}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#lessonArrow)"/>${isActive?`<text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(action[2]||connection[2])}</text>`:''}</g>`;
+    return `<g class="lesson-link ${isActive?'active':''}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#lessonArrow)"/></g>`;
   }).join('');
   const cards=lesson.entities.map((entity,index)=>{
     const id=entity[0],state=step.states?.[id]||{},previousState=previous.states?.[id]||{};
@@ -356,7 +364,7 @@ function renderTeachingLesson(model){
     const now=step.states?.[entity[0]]||{},before=previous.states?.[entity[0]]||{};
     for(const [field,value] of Object.entries(now))if(before[field]!==undefined&&String(before[field])!==String(value))changes.push(`${entity[1]} · ${field}: ${before[field]} → ${value}`);
   }
-  return `<div class="teaching-lesson family-${esc(lesson.family)}"><div class="lesson-scenario"><b>Scenario</b>${esc(lesson.scenario)}</div><div class="lesson-action ${action?'active':''}"><b>${esc(step.title)}</b><span>${esc(action?.[2]||'Observe the system state')}</span></div><div class="lesson-map"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="lessonArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${connectionHtml}</svg>${cards}</div><div class="lesson-changes"><b>What changed</b>${changes.length?changes.map(change=>`<span>${esc(change)}</span>`).join(''):'<span>Initial state—nothing has changed yet.</span>'}</div></div>`;
+  return `<div class="teaching-lesson family-${esc(lesson.family)}"><div class="lesson-scenario"><b>Scenario</b>${esc(lesson.scenario)}</div><div class="lesson-action ${action?'active':''}"><b>${esc(step.title)}</b><span>${esc(action?.[2]||'Observe the system state')}</span></div><div class="lesson-map lesson-rows-${rows}" style="--lesson-map-height:${Math.max(500,rows*220)}px"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="lessonArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${connectionHtml}</svg>${cards}</div><div class="lesson-changes"><b>What changed</b>${changes.length?changes.map(change=>`<span>${esc(change)}</span>`).join(''):'<span>Initial state—nothing has changed yet.</span>'}</div></div>`;
 }
 function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
@@ -379,8 +387,13 @@ function renderConceptScene(model,step){
 }
 function drawConcept(){
   const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
+  $('#conceptPanel').classList.toggle('lesson-mode',presentation.kind==='lesson');
   $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.lesson?.family==='explain'?'Guided mental model':'Production scenario · data, messages, and invariants';
-  $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;$('#conceptFlow').innerHTML=renderConceptScene(presentation,step);
+  $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;
+  $('#conceptFlow').innerHTML=`<div class="concept-zoom-layer" style="--concept-zoom:${conceptZoom}">${renderConceptScene(presentation,step)}</div>`;
+  $('#conceptZoomReset').textContent=`${Math.round(conceptZoom*100)}%`;
+  $('#conceptZoomOut').disabled=conceptZoom===conceptZoomLevels[0];
+  $('#conceptZoomIn').disabled=conceptZoom===conceptZoomLevels[conceptZoomLevels.length-1];
   const lessonStep=presentation.lesson?.steps[conceptStep];
   $('#conceptStatus').innerHTML=lessonStep
     ?`<div class="lesson-status-head"><b>Step ${conceptStep+1}/${presentation.steps.length} · ${esc(lessonStep.title)}</b><span>${esc(lessonStep.narration)}</span></div><div class="lesson-status-grid"><span><small>Observable outcome</small>${esc(lessonStep.outcome)}</span><span><small>Invariant to remember</small>${esc(lessonStep.invariant)}</span></div>`
@@ -390,6 +403,12 @@ function drawConcept(){
   $('#conceptPrev').disabled=conceptStep===0;$('#conceptNext').disabled=conceptStep===presentation.steps.length-1;
 }
 function stopConceptPlay(){conceptPlaying=false;$('#conceptPlay').textContent='▶ Play'}
+function setConceptZoom(direction){
+  const current=conceptZoomLevels.indexOf(conceptZoom);
+  const next=direction===0?conceptZoomLevels.indexOf(1):Math.max(0,Math.min(conceptZoomLevels.length-1,current+direction));
+  conceptZoom=conceptZoomLevels[next];
+  drawConcept();
+}
 function openConcept(index){
   activeConcept=conceptRegistry[index];conceptModel=makeConceptModel(activeConcept);conceptStep=0;stopConceptPlay();
   const mechanism=mechanismFor(activeConcept);
@@ -405,6 +424,7 @@ function openConcept(index){
   drawConcept();if(!$('#conceptDialog').open)$('#conceptDialog').showModal();
 }
 $('#conceptClose').onclick=()=>$('#conceptDialog').close();$('#conceptReset').onclick=()=>{stopConceptPlay();conceptStep=0;drawConcept()};$('#conceptPrev').onclick=()=>{stopConceptPlay();if(conceptStep>0){conceptStep--;drawConcept()}};
+$('#conceptZoomOut').onclick=()=>setConceptZoom(-1);$('#conceptZoomIn').onclick=()=>setConceptZoom(1);$('#conceptZoomReset').onclick=()=>setConceptZoom(0);
 $$('[data-concept-view]').forEach(button=>button.onclick=()=>{stopConceptPlay();conceptView=button.dataset.conceptView;conceptStep=0;$$('[data-concept-view]').forEach(item=>item.classList.toggle('active',item===button));drawConcept()});
 $('#conceptNext').onclick=()=>{stopConceptPlay();const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel;if(conceptStep<presentation.steps.length-1){conceptStep++;drawConcept()}};
 $('#conceptPlay').onclick=async()=>{conceptPlaying=!conceptPlaying;$('#conceptPlay').textContent=conceptPlaying?'❚❚ Pause':'▶ Play';const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel;while(conceptPlaying&&conceptStep<presentation.steps.length-1){await sleep(950);if(conceptPlaying){conceptStep++;drawConcept()}}stopConceptPlay()};
