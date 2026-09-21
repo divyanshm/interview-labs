@@ -145,6 +145,67 @@ const mechanismVisuals={
   }
 };
 let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture';
+const authoredLessons=window.SYSTEM_DESIGN_LESSONS||{};
+const lessonLayouts={
+  sequence:[[10,20],[36,20],[64,20],[90,20],[23,72],[50,72],[77,72],[50,46],[90,72]],
+  workflow:[[10,18],[38,18],[66,18],[90,18],[22,72],[50,72],[78,72],[50,45],[90,72]],
+  transaction:[[12,18],[40,18],[68,18],[88,18],[20,72],[50,72],[80,72],[50,45],[88,72]],
+  replicas:[[50,12],[17,38],[50,48],[83,38],[28,82],[72,82],[50,82],[12,78],[88,78]],
+  consensus:[[50,12],[14,46],[50,48],[86,46],[27,82],[73,82],[50,82],[12,80],[88,80]],
+  topology:[[50,12],[15,40],[50,48],[85,40],[25,82],[75,82],[50,82],[12,78],[88,78]],
+  cache:[[10,48],[38,20],[38,76],[68,76],[90,48],[68,20],[50,48],[15,82],[88,82]],
+  log:[[10,22],[35,22],[65,22],[90,22],[20,72],[50,72],[80,72],[50,47],[90,72]],
+  capacity:[[10,50],[36,22],[36,78],[66,22],[66,78],[90,50],[50,50],[14,82],[86,82]],
+  timeline:[[10,50],[35,50],[65,50],[90,50],[22,78],[50,78],[78,78],[50,22],[90,78]],
+  storage:[[12,18],[40,18],[68,18],[88,18],[22,72],[50,72],[78,72],[50,45],[88,72]],
+  tree:[[50,12],[25,42],[75,42],[12,78],[38,78],[62,78],[88,78],[50,78],[50,48]],
+  bits:[[10,22],[38,22],[68,22],[90,22],[22,74],[50,74],[78,74],[50,48],[90,74]],
+  counters:[[10,22],[38,22],[68,22],[90,22],[22,74],[50,74],[78,74],[50,48],[90,74]],
+  stream:[[10,20],[36,20],[64,20],[90,20],[22,74],[50,74],[78,74],[50,48],[90,74]],
+  mapreduce:[[10,20],[36,20],[64,20],[90,20],[22,74],[50,74],[78,74],[50,48],[90,74]],
+  search:[[10,48],[35,20],[35,76],[65,20],[65,76],[90,48],[50,48],[12,82],[88,82]],
+  graph:[[50,12],[16,40],[50,48],[84,40],[26,82],[74,82],[50,82],[12,78],[88,78]],
+  gateway:[[10,50],[35,20],[35,78],[65,20],[65,78],[90,50],[50,50],[12,82],[88,82]],
+  identity:[[10,50],[35,18],[35,80],[65,18],[65,80],[90,50],[50,50],[12,82],[88,82]],
+  trust:[[10,50],[35,18],[35,80],[65,18],[65,80],[90,50],[50,50],[12,82],[88,82]],
+  trace:[[10,20],[35,20],[65,20],[90,20],[22,74],[50,74],[78,74],[50,47],[90,74]],
+  migration:[[12,20],[40,20],[68,20],[88,20],[22,76],[50,76],[78,76],[50,48],[88,76]],
+  dedup:[[10,48],[38,20],[38,76],[68,20],[68,76],[90,48],[50,48],[12,82],[88,82]],
+  connection:[[10,22],[38,22],[68,22],[90,22],[22,75],[50,75],[78,75],[50,48],[90,75]],
+  cells:[[50,12],[16,40],[50,48],[84,40],[25,82],[75,82],[50,82],[12,78],[88,78]]
+};
+function fallbackLesson(entry){
+  const visual=entry.concept.visual;
+  const nodes=visual?.nodes||[[entry.concept.name,entry.concept.summary]];
+  return {
+    family:'explain',
+    scenario:`Build a mental model of ${entry.concept.name} before applying it to an architecture.`,
+    entities:nodes.map((node,index)=>[`idea${index}`,node[0],node[1],0,0]),
+    connections:[],
+    steps:(visual?.steps||[[0,[],entry.concept.summary]]).map((step,index)=>({
+      title:`Idea ${index+1}: ${nodes[Math.min(index,nodes.length-1)][0]}`,
+      narration:step[2],
+      action:null,
+      states:Object.fromEntries(nodes.map((node,nodeIndex)=>[`idea${nodeIndex}`,{
+        role:node[1],
+        focus:nodeIndex===step[0]?'Examine now':nodeIndex<index?'Established':'Coming next'
+      }])),
+      outcome:index===0?'Start with the concrete pressure and actors.':`Connect this idea to ${nodes[Math.min(index,nodes.length-1)][0]}.`,
+      invariant:entry.concept.tradeoff
+    }))
+  };
+}
+function lessonFor(entry){
+  return authoredLessons[`${entry.chapter.id}::${entry.concept.name}`]||fallbackLesson(entry);
+}
+function modelFromLesson(lesson){
+  return {
+    kind:'lesson',
+    lesson,
+    nodes:lesson.entities.map(entity=>[entity[1],entity[2]]),
+    steps:lesson.steps.map((step,index)=>[index,[...Array(index).keys()],step.narration])
+  };
+}
 function mechanismFor(entry){
   if(entry.concept.name==='Token bucket')return mechanismVisuals['Token bucket'];
   const mechanism=(window.SYSTEM_DESIGN_MECHANISMS||{})[`${entry.chapter.id}::${entry.concept.name}`];
@@ -163,25 +224,7 @@ function mechanismFor(entry){
   };
 }
 function makeConceptModel(entry){
-  if(entry.concept.visual){
-    return {
-      kind:inferVisualKind(entry),
-      diagram:entry.concept.diagram||null,
-      nodes:entry.concept.visual.nodes.map(node=>[...node]),
-      steps:entry.concept.visual.steps.map(step=>[step[0],[...step[1]],step[2]])
-    };
-  }
-  const match=visualMatchers.find(([pattern])=>pattern.test(entry.concept.name));
-  if(match){const source=match[1]();return {kind:inferVisualKind(entry),nodes:source.nodes.map(x=>[...x]),steps:source.steps.map(x=>[x[0],[...x[1]],x[2]])}}
-  const nodes=chapterScenes[entry.chapter.id]||chapterScenes['advanced-senior-staff-level-concepts'];
-  const name=entry.concept.name,summary=entry.concept.summary;
-  return {kind:inferVisualKind(entry),nodes,steps:[
-    [0,[],`Start with the pressure that makes ${name} relevant. Identify the actor, input, and required outcome.`],
-    [1,[0],`The input crosses the first system boundary. Ask who owns state and which guarantees apply here.`],
-    [2,[0,1],`${name} changes the flow: ${summary}`],
-    [3,[0,1,2],`Follow the intermediate state. Look for delay, duplication, partial failure, skew, or competing ownership.`],
-    [4,[0,1,2,3],`The system produces an observable outcome. Now test the design against the tradeoff shown on the right.`]
-  ]};
+  return modelFromLesson(lessonFor(entry));
 }
 function nodeState(index,step){return index===step[0]?'active':step[1].includes(index)?'done':''}
 function nodeCard(node,index,step,className='system-node'){return `<div class="${className} ${nodeState(index,step)}"><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}
@@ -278,8 +321,46 @@ function renderTokenBucketMechanism(step){
   const result={ready:'Waiting for a request',refill:`Refilled to ${state.tokens} tokens`,check:`Need ${state.cost}; have ${state.tokens}`,admit:`ADMIT · ${state.tokens} remain`,reject:`REJECT · keep ${state.tokens} tokens`}[state.result];
   return `<div class="token-mechanism"><div class="token-clock ${state.active==='clock'?'active':''}"><b>Refill clock</b><small>elapsed = ${state.elapsed}s<br>rate = 1 token/s</small></div><div class="bucket-wrap"><div class="bucket-formula">tokens = min(B, tokens + elapsed × r)</div><div class="token-bucket-shape"><span class="bucket-capacity">capacity B = 5</span>${tokens}</div><div class="token-result ${state.result}">${result}</div></div><div><div class="token-request ${state.active==='request'?'active':''}"><b>Incoming request</b><small>cost = ${state.cost||'—'} tokens</small></div><div class="token-decision ${state.active==='decision'?'active':''}" style="margin-top:12px"><b>Atomic decision</b><small>consume or reject</small></div></div><div class="token-pseudocode">refill = min(capacity, tokens + elapsed × rate)<br>if refill ≥ cost: tokens = refill - cost; admit<br>else: tokens = refill; reject or delay</div></div>`;
 }
+function teachingStateRows(state,previousState){
+  return Object.entries(state||{}).map(([field,value])=>{
+    const previous=previousState?.[field],changed=previous!==undefined&&String(previous)!==String(value);
+    return `<span class="lesson-state-row ${changed?'changed':''}"><small>${esc(field)}</small><b>${changed?`${esc(previous)} → `:''}${esc(value)}</b></span>`;
+  }).join('');
+}
+function renderTeachingLesson(model){
+  const lesson=model.lesson,step=lesson.steps[conceptStep],previous=lesson.steps[Math.max(0,conceptStep-1)];
+  if(lesson.family==='explain'){
+    return `<div class="lesson-explainer"><div class="lesson-scenario">${esc(lesson.scenario)}</div><div class="lesson-idea-grid">${lesson.entities.map((entity,index)=>{
+      const state=step.states?.[entity[0]]||{};
+      return `<article class="lesson-idea ${index===step[0]?'active':index<conceptStep?'done':''}"><i>${String(index+1).padStart(2,'0')}</i><b>${esc(entity[1])}</b><p>${esc(entity[2])}</p>${teachingStateRows(state,previous.states?.[entity[0]])}</article>`;
+    }).join('')}</div></div>`;
+  }
+  const layout=lessonLayouts[lesson.family]||lessonLayouts.workflow;
+  const points=lesson.entities.map((entity,index)=>{
+    const authored=Number.isFinite(entity[3])&&Number.isFinite(entity[4])?[entity[3],entity[4]]:layout[index%layout.length];
+    return [Math.max(10,Math.min(90,authored[0])),Math.max(12,Math.min(86,authored[1]))];
+  });
+  const indexes=new Map(lesson.entities.map((entity,index)=>[entity[0],index]));
+  const action=step.action,active=new Set(action?[action[0],action[1]]:[]);
+  const connectionHtml=(lesson.connections||[]).map(connection=>{
+    const from=indexes.get(connection[0]),to=indexes.get(connection[1]);if(from===undefined||to===undefined)return '';
+    const a=points[from],b=points[to],isActive=action&&connection[0]===action[0]&&connection[1]===action[1];
+    return `<g class="lesson-link ${isActive?'active':''}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#lessonArrow)"/>${isActive?`<text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(action[2]||connection[2])}</text>`:''}</g>`;
+  }).join('');
+  const cards=lesson.entities.map((entity,index)=>{
+    const id=entity[0],state=step.states?.[id]||{},previousState=previous.states?.[id]||{};
+    return `<article class="lesson-entity ${active.has(id)?'active':''}" style="left:${points[index][0]}%;top:${points[index][1]}%"><header><i>${componentIcon(entity[1])}</i><span><b>${esc(entity[1])}</b><small>${esc(entity[2])}</small></span></header><div>${teachingStateRows(state,previousState)}</div></article>`;
+  }).join('');
+  const changes=[];
+  for(const entity of lesson.entities){
+    const now=step.states?.[entity[0]]||{},before=previous.states?.[entity[0]]||{};
+    for(const [field,value] of Object.entries(now))if(before[field]!==undefined&&String(before[field])!==String(value))changes.push(`${entity[1]} · ${field}: ${before[field]} → ${value}`);
+  }
+  return `<div class="teaching-lesson family-${esc(lesson.family)}"><div class="lesson-scenario"><b>Scenario</b>${esc(lesson.scenario)}</div><div class="lesson-action ${action?'active':''}"><b>${esc(step.title)}</b><span>${esc(action?.[2]||'Observe the system state')}</span></div><div class="lesson-map"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="lessonArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${connectionHtml}</svg>${cards}</div><div class="lesson-changes"><b>What changed</b>${changes.length?changes.map(change=>`<span>${esc(change)}</span>`).join(''):'<span>Initial state—nothing has changed yet.</span>'}</div></div>`;
+}
 function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
+  if(kind==='lesson'){ $('#conceptFlow').className=`concept-flow kind-lesson family-${model.lesson.family}`;return renderTeachingLesson(model) }
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
   if(model.diagram&&kind==='mechanism'){$('#conceptFlow').className='concept-flow kind-authored kind-mechanism';return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
@@ -298,9 +379,12 @@ function renderConceptScene(model,step){
 }
 function drawConcept(){
   const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
-  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':'Production architecture & interaction flow';
+  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.lesson?.family==='explain'?'Guided mental model':'Production scenario · data, messages, and invariants';
   $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;$('#conceptFlow').innerHTML=renderConceptScene(presentation,step);
-  $('#conceptStatus').innerHTML=`<b>Step ${conceptStep+1} of ${presentation.steps.length}</b><br>${esc(step[2])}`;
+  const lessonStep=presentation.lesson?.steps[conceptStep];
+  $('#conceptStatus').innerHTML=lessonStep
+    ?`<div class="lesson-status-head"><b>Step ${conceptStep+1}/${presentation.steps.length} · ${esc(lessonStep.title)}</b><span>${esc(lessonStep.narration)}</span></div><div class="lesson-status-grid"><span><small>Observable outcome</small>${esc(lessonStep.outcome)}</span><span><small>Invariant to remember</small>${esc(lessonStep.invariant)}</span></div>`
+    :`<b>Step ${conceptStep+1} of ${presentation.steps.length}</b><br>${esc(step[2])}`;
   $('#conceptDots').innerHTML=presentation.steps.map((_,index)=>`<button class="concept-dot ${index===conceptStep?'active':index<conceptStep?'done':''}" data-step="${index}" aria-label="Go to step ${index+1}"></button>`).join('');
   $$('.concept-dot').forEach(dot=>dot.onclick=()=>{conceptStep=Number(dot.dataset.step);drawConcept()});
   $('#conceptPrev').disabled=conceptStep===0;$('#conceptNext').disabled=conceptStep===presentation.steps.length-1;
