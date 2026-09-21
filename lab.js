@@ -333,6 +333,85 @@ intervals:{
 }
 };
 
+const stressLabs={
+  'hash-tables':{
+    title:'Hash table load factor and probe cost',
+    lede:'Watch expected O(1) lookup degrade as occupied buckets and collision chains grow, then recover after resizing.',
+    frames:[
+      {type:'hash-load',capacity:12,items:[1,7,10],collisions:{},load:25,probes:1.1,note:'At 25% load, most keys land in an empty bucket and complete in one probe.'},
+      {type:'hash-load',capacity:12,items:[0,1,3,4,6,7,10],collisions:{3:2},load:58,probes:1.6,note:'At 58% load, collisions appear. Chaining stores multiple keys; open addressing probes onward.'},
+      {type:'hash-load',capacity:12,items:[0,1,2,3,4,5,6,7,9,10],collisions:{1:3,3:2,7:2},load:83,probes:4.7,note:'At 83% load, clusters and chains lengthen. The constant factor behind O(1) is now visibly expensive.'},
+      {type:'hash-load',capacity:24,items:[0,1,3,4,6,7,10,13,15,18],collisions:{},load:42,probes:1.3,note:'Resize and rehash into 24 buckets. Memory increases, but probe length returns near one.'}
+    ]
+  },
+  heaps:{
+    title:'Heap growth: partial order, not saturation',
+    lede:'A heap does not “fill up” logically. Its height grows logarithmically, so each insertion or removal touches only one root-to-leaf path.',
+    frames:[
+      {type:'heap-growth',values:[2,5,8],path:[0],note:'Three elements occupy two levels. The minimum is always at index 0.'},
+      {type:'heap-growth',values:[2,5,8,9,7,11,10],path:[6,2,0],note:'Seven elements occupy three levels. An update follows at most three ancestors.'},
+      {type:'heap-growth',values:[1,3,2,7,8,5,4,12,10,9,11,13,6,15,14],path:[14,6,2,0],note:'Fifteen elements occupy four levels—not fifteen. Heap operations remain O(log n).'},
+      {type:'heap-growth',values:[1,3,2,7,8,5,4,12,10,9,11,13,6,15,14,20,18,17,16,21,19,22,25,23,24,26,28,27,30,31,29],path:[30,14,6,2,0],note:'Thirty-one elements occupy five levels. Growth increases memory linearly but operation depth logarithmically.'}
+    ]
+  },
+  'union-find':{
+    title:'Union-Find depth before and after compression',
+    lede:'The danger is not capacity but parent-chain depth. Union-by-size prevents tall trees; Find flattens the paths it actually touches.',
+    frames:[
+      {type:'dsu-depth',parents:[0,0,1,2,3,4,5,6],active:[],note:'A deliberately bad sequence creates a chain of depth 7. Find(7) follows every parent.'},
+      {type:'dsu-depth',parents:[0,0,1,2,3,4,5,6],active:[7,6,5,4,3,2,1,0],note:'Find(7) walks 7 → 6 → 5 → 4 → 3 → 2 → 1 → 0.'},
+      {type:'dsu-depth',parents:[0,0,0,0,0,0,0,0],active:[7,0],note:'Path compression rewires every visited node directly to root 0.'},
+      {type:'dsu-depth',parents:[0,0,0,0,0,0,0,0],active:[7,0],note:'The next Find(7) takes one hop. Repeated operations approach inverse-Ackermann time.'}
+    ]
+  },
+  tries:{
+    title:'Trie memory growth and prefix sharing',
+    lede:'Tries trade memory for prefix speed. Shared prefixes save nodes; wide alphabets and sparse child arrays waste them.',
+    frames:[
+      {type:'trie-growth',words:['cat'],nodes:4,characters:3,note:'“cat” needs root + three character nodes.'},
+      {type:'trie-growth',words:['cat','car'],nodes:5,characters:6,note:'“car” reuses c → a and adds only r. Six stored characters use five trie nodes including root.'},
+      {type:'trie-growth',words:['cat','car','care','cart'],nodes:7,characters:14,note:'Related words heavily share the “car” prefix, improving both lookup reuse and memory efficiency.'},
+      {type:'trie-growth',words:['cat','car','care','cart','dog','sun'],nodes:13,characters:20,note:'Unrelated prefixes create new branches. Dictionary/map children avoid allocating a full alphabet array at every sparse node.'}
+    ]
+  },
+  'range-query-trees':{
+    title:'Why hierarchical summaries beat rescanning',
+    lede:'As the array grows, a scan touches every element, while a Fenwick or segment tree update/query touches logarithmically many summaries.',
+    frames:[
+      {type:'range-scale',size:8,visited:[0,1,3,7],note:'For n = 8, a Fenwick update touches indices 1, 2, 4, and 8: four summaries instead of eight elements.'},
+      {type:'range-scale',size:16,visited:[2,3,7,15],note:'Doubling to 16 adds only one possible tree level. Work grows from roughly 4 to 5 touched nodes.'},
+      {type:'range-scale',size:32,visited:[5,7,15,31],note:'At n = 32, the operation still follows one bit-defined ancestor path.'},
+      {type:'range-scale',size:64,visited:[10,11,15,31,63],note:'A scan may touch 64 values; the tree touches at most about log₂(64) + 1 summaries.'}
+    ]
+  }
+};
+
+function renderStress(frame){
+  if(frame.type==='hash-load'){
+    const occupied=new Set(frame.items);
+    return `<div class="stress-visual hash-stress"><div class="stress-buckets">${Array.from({length:frame.capacity},(_,index)=>`<i class="${occupied.has(index)?'used':''} ${(frame.collisions[index]||0)>1?'collision':''}"><small>${index}</small><b>${occupied.has(index)?`key${index}`:'—'}</b>${frame.collisions[index]?`<em>chain ×${frame.collisions[index]}</em>`:''}</i>`).join('')}</div><div class="stress-metrics"><span><small>Load factor</small><b>${frame.load}%</b><i><em style="width:${frame.load}%"></em></i></span><span><small>Average probes</small><b>${frame.probes}</b></span><span><small>Capacity</small><b>${frame.capacity}</b></span></div></div>`;
+  }
+  if(frame.type==='heap-growth'){
+    const height=Math.floor(Math.log2(frame.values.length)),path=new Set(frame.path);
+    const levels=Array.from({length:height+1},(_,level)=>{const start=2**level-1,end=Math.min(frame.values.length,2**(level+1)-1);return `<div class="heap-level">${frame.values.slice(start,end).map((value,offset)=>{const index=start+offset;return `<i class="${path.has(index)?'active':''}"><small>${index}</small><b>${value}</b></i>`}).join('')}</div>`}).join('');
+    return `<div class="stress-visual heap-stress"><div class="heap-levels">${levels}</div><div class="stress-metrics"><span><small>Elements n</small><b>${frame.values.length}</b></span><span><small>Tree height</small><b>${height}</b></span><span><small>Worst path</small><b>${height+1} nodes</b></span></div></div>`;
+  }
+  if(frame.type==='dsu-depth'){
+    const active=new Set(frame.active),maxDepth=Math.max(...frame.parents.map((_,node)=>{let depth=0,current=node;while(frame.parents[current]!==current&&depth<frame.parents.length){current=frame.parents[current];depth++}return depth}));
+    return `<div class="stress-visual dsu-stress"><div class="dsu-chain">${frame.parents.map((parent,node)=>`<span class="${active.has(node)?'active':''}"><b>${node}</b><small>parent ${parent}</small>${node<frame.parents.length-1?'<i>→</i>':''}</span>`).join('')}</div><div class="stress-metrics"><span><small>Nodes</small><b>${frame.parents.length}</b></span><span><small>Maximum depth</small><b>${maxDepth}</b></span><span><small>Find(7)</small><b>${maxDepth===1?'1 hop':`${maxDepth} hops`}</b></span></div></div>`;
+  }
+  if(frame.type==='trie-growth'){
+    const prefixes=new Set(['']);frame.words.forEach(word=>{for(let i=1;i<=word.length;i++)prefixes.add(word.slice(0,i))});
+    const shared=frame.characters-(frame.nodes-1);
+    return `<div class="stress-visual trie-stress"><div class="trie-paths">${[...prefixes].sort((a,b)=>a.length-b.length||a.localeCompare(b)).map(prefix=>`<i style="--depth:${prefix.length}" class="${frame.words.includes(prefix)?'word':''}">${prefix||'root'}</i>`).join('')}</div><div class="stress-metrics"><span><small>Total characters</small><b>${frame.characters}</b></span><span><small>Character nodes</small><b>${frame.nodes-1}</b></span><span><small>Nodes saved by sharing</small><b>${shared}</b></span></div></div>`;
+  }
+  if(frame.type==='range-scale'){
+    const visited=new Set(frame.visited),touches=frame.visited.length;
+    return `<div class="stress-visual range-stress"><div class="range-cells">${Array.from({length:frame.size},(_,index)=>`<i class="${visited.has(index)?'active':''}">${index+1}</i>`).join('')}</div><div class="stress-comparison"><span><small>Linear scan</small><b style="width:100%">${frame.size} touches</b></span><span><small>Tree path</small><b style="width:${Math.max(12,touches/frame.size*100)}%">${touches} touches</b></span></div><div class="stress-metrics"><span><small>Array size</small><b>${frame.size}</b></span><span><small>Tree levels</small><b>${Math.log2(frame.size)+1}</b></span><span><small>Complexity</small><b>O(log n)</b></span></div></div>`;
+  }
+  return '';
+}
+
 function renderVisual(v){
   if(v.type==='boxes'){
     return `<div class="box-row">${v.items.map((x,i)=>`<div class="box ${v.active.includes(i)?'active':''} ${v.done.includes(i)?'done':''}" data-index="${i}">${esc(x)}</div>`).join('')}${Object.entries(v.pointers).map(([name,i])=>`<div class="pointer" style="left:${12+i*59+26}px;top:4px">${esc(name)}</div>`).join('')}</div>`;
@@ -352,10 +431,12 @@ function renderVisual(v){
 }
 
 function renderPage(t){
+  const stress=stressLabs[topicKey];
   document.title=`${t.title} · Coding Interview Lab`;$('#sideIcon').textContent=t.icon;$('#sideTitle').textContent=t.title;
   $('#content').innerHTML=`
     <section id="start"><div class="eyebrow">Data structure interview lab</div><h1>${t.title}</h1><p class="lede">${t.tagline}</p><div class="chips">${t.chips.map(x=>`<span class="chip">${x}</span>`).join('')}</div><div class="hero-note"><b>How to use this page:</b> learn the physical mental model, predict each animation step, connect problem signals to patterns, then rehearse the C# templates.</div><div class="grid">${t.mental.map(([h,p])=>`<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join('')}</div></section>
     <section id="visual"><div class="eyebrow">Interactive execution</div><h2>${t.visual.name}</h2><div class="lab"><div class="stage"><div class="controls"><button class="control" id="reset">↺ Reset</button><button class="control primary" id="step">Step →</button><button class="control" id="play">▶ Play</button></div><div class="visual" id="visualStage"></div></div><div class="inspector"><h3>State transition</h3><div class="status" id="status"></div><div class="label">C# line executing</div><div class="code" id="walkCode"></div><div class="label">Interview habit</div><p class="muted">Before stepping, say what must remain true. That invariant is more valuable than memorizing syntax.</p></div></div></section>
+    ${stress?`<section id="stress"><div class="eyebrow">Behavior under load</div><h2>${stress.title}</h2><p class="lede">${stress.lede}</p><div class="stress-lab"><div class="controls"><button class="control" id="stressReset">↺ Reset</button><button class="control primary" id="stressStep">Stress →</button><button class="control" id="stressPlay">▶ Play</button></div><div id="stressStage"></div><div class="status" id="stressStatus"></div></div></section>`:''}
     <section id="patterns"><div class="eyebrow">Problem recognition</div><h2>Map clues to patterns.</h2><p class="lede">These archetypes cover the recurring mental models behind a large share of interview and LeetCode-style questions.</p><input class="search" id="patternSearch" placeholder="Filter patterns…"><div class="card full"><table class="pattern-table"><thead><tr><th>Problem signal</th><th>Pattern</th><th>Why it fits</th><th>Runtime</th></tr></thead><tbody>${t.patterns.map(r=>`<tr><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td>${r[2]}</td><td class="complexity">${r[3]}</td></tr>`).join('')}</tbody></table></div></section>
     <section id="templates"><div class="eyebrow">C# toolbox</div><h2>Templates to understand, not memorize blindly.</h2><p class="lede">Click a template, then explain every state variable and invariant aloud.</p>${t.templates.map((x,i)=>`<div class="accordion ${i===0?'open':''}"><button>${x[0]} <span style="float:right">＋</span></button><pre class="code">${esc(x[1])}</pre></div>`).join('')}</section>
     <section id="pitfalls"><div class="eyebrow">Failure modes</div><h2>Catch these before the interviewer does.</h2><div class="grid">${t.pitfalls.map((x,i)=>`<div class="card half pitfall"><h3>${String(i+1).padStart(2,'0')}</h3><p>${x}</p></div>`).join('')}</div></section>
@@ -364,12 +445,23 @@ function renderPage(t){
 
 if(!topics[topicKey])throw new Error(`Unknown topic: ${topicKey}`);
 renderPage(topics[topicKey]);
+if(stressLabs[topicKey])$('nav a[href="#visual"]').insertAdjacentHTML('afterend','<a href="#stress">02b · Under load</a>');
 let frame=0,playing=false;
 function draw(){const t=topics[topicKey],f=t.visual.frames[frame];$('#visualStage').innerHTML=renderVisual(f[0]);$('#status').innerHTML=`<b>Step ${frame+1}/${t.visual.frames.length}</b><br>${f[2]}`;$('#walkCode').innerHTML=code(t.visual.code,f[1]);$('#step').disabled=frame===t.visual.frames.length-1}
 function reset(){playing=false;$('#play').textContent='▶ Play';frame=0;draw()}
 $('#step').onclick=()=>{if(frame<topics[topicKey].visual.frames.length-1){frame++;draw()}};
 $('#reset').onclick=reset;
 $('#play').onclick=async()=>{playing=!playing;$('#play').textContent=playing?'❚❚ Pause':'▶ Play';while(playing&&frame<topics[topicKey].visual.frames.length-1){await new Promise(r=>setTimeout(r,850));if(playing){frame++;draw()}}playing=false;$('#play').textContent='▶ Play'};
+if(stressLabs[topicKey]){
+  let stressFrame=0,stressPlaying=false;
+  const stress=stressLabs[topicKey];
+  const drawStress=()=>{$('#stressStage').innerHTML=renderStress(stress.frames[stressFrame]);$('#stressStatus').innerHTML=`<b>Load step ${stressFrame+1}/${stress.frames.length}</b><br>${stress.frames[stressFrame].note}`;$('#stressStep').disabled=stressFrame===stress.frames.length-1};
+  const resetStress=()=>{stressPlaying=false;$('#stressPlay').textContent='▶ Play';stressFrame=0;drawStress()};
+  $('#stressReset').onclick=resetStress;
+  $('#stressStep').onclick=()=>{if(stressFrame<stress.frames.length-1){stressFrame++;drawStress()}};
+  $('#stressPlay').onclick=async()=>{stressPlaying=!stressPlaying;$('#stressPlay').textContent=stressPlaying?'❚❚ Pause':'▶ Play';while(stressPlaying&&stressFrame<stress.frames.length-1){await new Promise(r=>setTimeout(r,950));if(stressPlaying){stressFrame++;drawStress()}}stressPlaying=false;$('#stressPlay').textContent='▶ Play'};
+  drawStress();
+}
 $('#patternSearch').oninput=e=>{$$('.pattern-table tbody tr').forEach(r=>r.style.display=r.textContent.toLowerCase().includes(e.target.value.toLowerCase())?'table-row':'none')};
 $$('.accordion button').forEach(b=>b.onclick=()=>b.parentElement.classList.toggle('open'));
 $('#present').onclick=()=>{document.body.classList.toggle('presentation');$('#present').textContent=document.body.classList.contains('presentation')?'✕ Exit':'⛶ Presentation'};

@@ -142,6 +142,30 @@ const mechanismVisuals={
       [0,[],`Reject or delay that request. Return retry guidance derived from the 2-token deficit and refill rate.`,{tokens:2,elapsed:2,cost:4,result:'reject',active:'decision'}],
       [0,[],`After 3 more seconds, refill to capacity: min(5, 2 + 3 × 1) = 5. Bursts are bounded while average rate stays near r.`,{tokens:5,elapsed:3,cost:0,result:'refill',active:'clock'}]
     ]
+  },
+  'Bloom filter':{
+    kind:'mechanism-bloom-filter',
+    steps:[
+      [0,[],`Start with a 24-bit filter. Every bit is zero, so no key can be reported as maybe present.`,{bits:[],active:[],key:'—',inserted:0,occupancy:0,fpr:'0.0%',result:'empty'}],
+      [0,[],`Insert “alpha”. Three hashes select positions 3, 11, and 18; set all three bits.`,{bits:[3,11,18],active:[3,11,18],key:'alpha',inserted:1,occupancy:13,fpr:'0.2%',result:'insert'}],
+      [0,[],`Insert “beta”. Its positions 5, 11, and 20 share bit 11 with alpha, so only two new bits are set.`,{bits:[3,5,11,18,20],active:[5,11,20],key:'beta',inserted:2,occupancy:21,fpr:'0.9%',result:'insert'}],
+      [0,[],`Probe “gamma” at positions 2, 11, and 17. Bit 2 is zero, proving gamma is definitely absent.`,{bits:[3,5,11,18,20],active:[2,11,17],key:'gamma',inserted:2,occupancy:21,fpr:'0.9%',result:'absent'}],
+      [0,[],`After many inserts, 17 of 24 bits are set. Occupancy rises and unrelated keys increasingly collide with set bits.`,{bits:[0,1,3,4,5,6,8,9,10,11,12,14,15,17,18,20,22],active:[],key:'many keys',inserted:10,occupancy:71,fpr:'35.6%',result:'saturated'}],
+      [0,[],`Probe unseen key “omega” at 4, 12, and 20. All are already one, creating a false positive: maybe present.`,{bits:[0,1,3,4,5,6,8,9,10,11,12,14,15,17,18,20,22],active:[4,12,20],key:'omega (never inserted)',inserted:10,occupancy:71,fpr:'35.6%',result:'false-positive'}],
+      [0,[],`Rebuild into a 48-bit filter sized for expected cardinality. Lower occupancy restores a useful false-positive rate.`,{size:48,bits:[1,5,9,14,19,23,28,31,36,40,44,47],active:[1,23,47],key:'rebuilt filter',inserted:10,occupancy:25,fpr:'1.6%',result:'rebuilt'}]
+    ]
+  },
+  'Count-Min Sketch':{
+    kind:'mechanism-count-min-sketch',
+    steps:[
+      [0,[],`Start with four hash rows and eight counters per row. A query returns the minimum selected counter.`,{matrix:Array(32).fill(0),active:[],key:'—',truth:0,estimate:0,error:0,result:'empty'}],
+      [0,[],`Record “fox”. Each row hashes fox to one column and increments that counter.`,{matrix:[0,0,1,0,0,0,0,0, 0,0,0,0,0,1,0,0, 0,1,0,0,0,0,0,0, 0,0,0,0,1,0,0,0],active:[2,13,17,28],key:'fox +1',truth:1,estimate:1,error:0,result:'update'}],
+      [0,[],`Record fox twice more. Reading the same four positions gives [3,3,3,3], so min = 3.`,{matrix:[0,0,3,0,0,0,0,0, 0,0,0,0,0,3,0,0, 0,3,0,0,0,0,0,0, 0,0,0,0,3,0,0,0],active:[2,13,17,28],key:'fox +2',truth:3,estimate:3,error:0,result:'update'}],
+      [0,[],`Other keys collide with fox in some rows. The affected counters rise, but at least one row remains collision-free.`,{matrix:[1,0,5,0,0,1,0,0, 0,1,0,0,0,4,1,0, 0,3,0,2,0,0,1,0, 0,0,1,0,6,0,0,1],active:[2,13,17,28],key:'fox query',truth:3,estimate:3,error:0,result:'query'}],
+      [0,[],`A narrow sketch under heavy load accumulates collisions in every fox counter: [9,7,6,11].`,{matrix:[4,3,9,5,2,6,3,4, 2,6,3,4,5,7,8,2, 3,6,5,7,2,4,6,3, 4,3,5,2,11,4,3,5],active:[2,13,17,28],key:'fox query under load',truth:3,estimate:6,error:3,result:'overestimate'}],
+      [0,[],`The estimate is min(9,7,6,11) = 6. Count-Min never underestimates, but collisions add an error of 3.`,{matrix:[4,3,9,5,2,6,3,4, 2,6,3,4,5,7,8,2, 3,6,5,7,2,4,6,3, 4,3,5,2,11,4,3,5],active:[2,13,17,28],key:'fox',truth:3,estimate:6,error:3,result:'overestimate'}],
+      [0,[],`Increase width to reduce collision probability; increase depth to reduce the chance every row collides.`,{matrix:[1,0,4,1,0,2,0,1, 0,2,0,1,0,3,2,0, 1,3,0,2,0,1,2,0, 1,0,2,0,4,1,0,1],active:[2,13,17,28],key:'fox after resize',truth:3,estimate:3,error:0,result:'resized'}]
+    ]
   }
 };
 let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture',conceptZoom=1;
@@ -187,7 +211,7 @@ function modelFromLesson(lesson){
   };
 }
 function mechanismFor(entry){
-  if(entry.concept.name==='Token bucket')return mechanismVisuals['Token bucket'];
+  if(mechanismVisuals[entry.concept.name])return mechanismVisuals[entry.concept.name];
   const mechanism=(window.SYSTEM_DESIGN_MECHANISMS||{})[`${entry.chapter.id}::${entry.concept.name}`];
   if(!mechanism)return null;
   const indexes=new Map(mechanism.diagram.components.map((component,index)=>[component[0],index]));
@@ -294,7 +318,7 @@ function renderArchitecture(scene,step,stepCount,currentIndex=conceptStep){
   const completedEdges=new Set(scene.frames.slice(0,frameIndex).map(item=>item.edge).filter(index=>index>=0));
   const activeEndpoints=new Set(edge?[edge[0],edge[1]]:[]);
   const defs='<defs><marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>';
-  const links=scene.edges.map(([from,to,label],index)=>{const a=points[from],b=points[to],state=index===frame.edge?'active':completedEdges.has(index)?'done':'';return `<g class="architecture-link ${state}"><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/><text x="${(a[0]+b[0])/2}" y="${(a[1]+b[1])/2-2}">${esc(label)}</text></g>`}).join('');
+  const links=scene.edges.map(([from,to,label],index)=>{const a=points[from],b=points[to],state=index===frame.edge?'active':completedEdges.has(index)?'done':'';return `<g class="architecture-link ${state}"><title>${esc(label)}</title><line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" marker-end="url(#flowArrow)"/></g>`}).join('');
   const components=scene.components.map((node,index)=>{const state=activeEndpoints.has(index)?'active':frame.states[index]||'';return `<div class="architecture-component ${state}" style="left:${points[index][0]}%;top:${points[index][1]}%"><i>${componentIcon(node[0],node[2])}</i><b>${esc(node[0])}</b><small>${esc(node[1])}</small></div>`}).join('');
   return `<svg class="architecture-links" viewBox="0 0 100 100" preserveAspectRatio="none">${defs}${links}</svg>${components}`;
 }
@@ -337,6 +361,31 @@ function renderTokenBucketMechanism(step){
   const state=step[3],tokens=Array.from({length:5},(_,index)=>`<i class="token-slot ${index<state.tokens?'full':''}"></i>`).join('');
   const result={ready:'Waiting for a request',refill:`Refilled to ${state.tokens} tokens`,check:`Need ${state.cost}; have ${state.tokens}`,admit:`ADMIT · ${state.tokens} remain`,reject:`REJECT · keep ${state.tokens} tokens`}[state.result];
   return `<div class="token-mechanism"><div class="token-clock ${state.active==='clock'?'active':''}"><b>Refill clock</b><small>elapsed = ${state.elapsed}s<br>rate = 1 token/s</small></div><div class="bucket-wrap"><div class="bucket-formula">tokens = min(B, tokens + elapsed × r)</div><div class="token-bucket-shape"><span class="bucket-capacity">capacity B = 5</span>${tokens}</div><div class="token-result ${state.result}">${result}</div></div><div><div class="token-request ${state.active==='request'?'active':''}"><b>Incoming request</b><small>cost = ${state.cost||'—'} tokens</small></div><div class="token-decision ${state.active==='decision'?'active':''}" style="margin-top:12px"><b>Atomic decision</b><small>consume or reject</small></div></div><div class="token-pseudocode">refill = min(capacity, tokens + elapsed × rate)<br>if refill ≥ cost: tokens = refill - cost; admit<br>else: tokens = refill; reject or delay</div></div>`;
+}
+function renderBloomFilterMechanism(step){
+  const state=step[3],bits=new Set(state.bits),active=new Set(state.active);
+  const cells=Array.from({length:state.size||24},(_,index)=>`<i class="${bits.has(index)?'set':''} ${active.has(index)?'active':''}"><small>${index}</small><b>${bits.has(index)?1:0}</b></i>`).join('');
+  const resultLabels={empty:'Empty filter',insert:'Set all hash positions',absent:'DEFINITELY ABSENT',saturated:'High false-positive pressure','false-positive':'MAYBE PRESENT · false positive',rebuilt:'Rebuilt with more bits'};
+  return `<div class="probability-mechanism bloom-mechanism">
+    <div class="prob-input"><small>Current key</small><b>${esc(state.key)}</b><span>h₁ · h₂ · h₃</span></div>
+    <div class="bloom-array">${cells}</div>
+    <div class="prob-result ${state.result}">${resultLabels[state.result]}</div>
+    <div class="prob-metrics"><span><small>Inserted keys</small><b>${state.inserted}</b></span><span><small>Bit occupancy</small><b>${state.occupancy}%</b><i><em style="width:${state.occupancy}%"></em></i></span><span><small>Estimated FPR</small><b>${state.fpr}</b></span></div>
+    <div class="prob-rule">Any selected bit = 0 → definitely absent<br>All selected bits = 1 → maybe present</div>
+  </div>`;
+}
+function renderCountMinSketchMechanism(step){
+  const state=step[3],active=new Set(state.active),rows=Array.from({length:4},(_,row)=>{
+    const cells=state.matrix.slice(row*8,row*8+8).map((value,column)=>{const index=row*8+column;return `<i class="${active.has(index)?'active':''}"><small>${column}</small><b>${value}</b></i>`}).join('');
+    return `<div class="cms-row"><strong>h${row+1}</strong>${cells}</div>`;
+  }).join('');
+  return `<div class="probability-mechanism cms-mechanism">
+    <div class="prob-input"><small>Stream item</small><b>${esc(state.key)}</b><span>one counter per hash row</span></div>
+    <div class="cms-matrix">${rows}</div>
+    <div class="cms-equation">estimate(key) = min(selected counters) = <b>${state.estimate}</b></div>
+    <div class="prob-metrics"><span><small>True count</small><b>${state.truth}</b></span><span><small>Estimated count</small><b>${state.estimate}</b></span><span class="${state.error?'warning':''}"><small>Collision error</small><b>+${state.error}</b></span></div>
+    <div class="prob-rule">Width controls collision error · Depth controls confidence<br>Counters only increase, so the estimate never falls below the true count.</div>
+  </div>`;
 }
 function teachingStateRows(state,previousState){
   return Object.entries(state||{}).map(([field,value])=>{
@@ -437,6 +486,8 @@ function renderConceptScene(model,step){
   if(kind==='lesson'){ $('#conceptFlow').className=`concept-flow kind-lesson family-${model.lesson.family}`;return renderTeachingLesson(model) }
   if(kind==='storyboard'){ $('#conceptFlow').className=`concept-flow kind-storyboard storyboard-${model.diagram.kind}`;return renderStoryboard(model,step) }
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
+  if(kind==='mechanism-bloom-filter'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderBloomFilterMechanism(step) }
+  if(kind==='mechanism-count-min-sketch'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderCountMinSketchMechanism(step) }
   if(model.diagram&&kind==='mechanism'){$('#conceptFlow').className='concept-flow kind-authored kind-mechanism';return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
   if(model.diagram){$('#conceptFlow').className=`concept-flow kind-authored kind-${model.diagram.kind}`;return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
