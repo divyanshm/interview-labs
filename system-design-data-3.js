@@ -2032,8 +2032,14 @@ const SYSTEM_DESIGN_CONCEPT_HASH_3 = value => {
 };
 
 const SYSTEM_DESIGN_SEMANTIC_DIAGRAM_3 = (concept,definition) => {
-  const components = definition.components.map(component=>[...component]);
-  components[5][1] = `${concept.name} ${definition.role}`;
+  const components = definition.components.map((component,index)=>{
+    const copy = [...component];
+    if (index === 5 && copy[0] === 'concept') {
+      copy[0] = 'policy';
+      copy[2] = copy[2].replace(/^concept-specific\s+/i,'');
+    }
+    return copy;
+  });
   const variant = SYSTEM_DESIGN_CONCEPT_HASH_3(concept.name) % SYSTEM_DESIGN_SEMANTIC_LAYOUTS_3.length;
   const layout = SYSTEM_DESIGN_SEMANTIC_LAYOUTS_3[variant];
   components.forEach((component,index)=>{

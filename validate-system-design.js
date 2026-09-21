@@ -78,6 +78,13 @@ function isTransientArchitectureNode(label, type) {
   return true;
 }
 
+function isSyntheticConceptNode(component) {
+  const [id,, role] = component;
+  if (id === 'concept') return true;
+  if (/\bconcept-specific\b/i.test(String(role))) return true;
+  return false;
+}
+
 for (const [key, lesson] of Object.entries(lessons)) {
   if (!registry.has(key)) fail(key, 'does not match a catalog concept');
   if (!allowedFamilies.has(lesson.family)) fail(key, `unknown family "${lesson.family}"`);
@@ -229,6 +236,9 @@ for (const { key, concept } of concepts) {
     fail(key, 'storyboard must contain at least five concrete components');
   } else {
     for (const component of diagram.components) {
+      if (isSyntheticConceptNode(component)) {
+        fail(key, `uses synthetic concept node "${component[1]}" instead of a deployable component`);
+      }
       if (abstractEntity.test(String(component[1]).trim())) fail(key, `uses action/event "${component[1]}" as a storyboard component`);
       if (['architecture', 'topology', 'sequence'].includes(diagram.kind) && isTransientArchitectureNode(component[1], component[3])) {
         fail(key, `uses transient artifact "${component[1]}" as a storyboard component`);

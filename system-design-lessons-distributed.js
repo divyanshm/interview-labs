@@ -1049,6 +1049,86 @@
     ]
   );
 
+  add(
+    'time-based-distributed-patterns::Heartbeats',
+    'topology',
+    'A service discovery system uses periodic heartbeats, arrival history, and an active probe before removing an API instance from routing.',
+    [
+      ['instance', 'API instance', 'Emits identity, epoch, and progress every two seconds', 8, 48],
+      ['receiver', 'Heartbeat receiver', 'Accepts and timestamps liveness reports', 28, 48],
+      ['arrivals', 'Liveness state store', 'Persists last-seen time and consecutive misses', 48, 18],
+      ['detector', 'Failure detector', 'Computes suspicion from elapsed time and miss threshold', 48, 78],
+      ['probe', 'Active probe worker', 'Checks whether the process is reachable', 70, 78],
+      ['registry', 'Service registry', 'Publishes healthy instances to request routers', 70, 18],
+      ['router', 'Request router', 'Stops selecting instances removed from membership', 92, 48]
+    ],
+    [
+      ['instance', 'receiver', 'heartbeat instance-7 epoch 12 progress 431'],
+      ['receiver', 'arrivals', 'record last seen at 10:00:04'],
+      ['arrivals', 'detector', 'evaluate elapsed time and missed intervals'],
+      ['detector', 'probe', 'probe instance-7 after three misses'],
+      ['probe', 'registry', 'remove instance-7 after probe timeout'],
+      ['registry', 'router', 'publish membership epoch 88 without instance-7'],
+      ['instance', 'receiver', 'resume with newer process epoch 13']
+    ],
+    [
+      ['Healthy baseline', 'Instance 7 reports every two seconds and remains eligible for requests.', ['instance', 'receiver', 'heartbeat at 10:00:04'], [
+        {processEpoch:'12',progress:'431',nextHeartbeat:'10:00:06'},
+        {lastAccepted:'10:00:04',queueDepth:'0'},
+        {lastSeen:'10:00:04',misses:'0'},
+        {status:'healthy',elapsed:'0s'},
+        {status:'idle',attempts:'0'},
+        {membershipEpoch:'87',instance7:'healthy'},
+        {membershipEpoch:'87',routeTo7:'enabled'}
+      ], 'A recent heartbeat is evidence that the process was alive when it sent the report.', 'A heartbeat proves recent progress, not future availability.'],
+      ['First interval missed', 'No report arrives at 10:00:06, so the detector records delay without changing membership.', ['arrivals', 'detector', 'one interval late'], [
+        {processEpoch:'12',progress:'431',nextHeartbeat:'late'},
+        {lastAccepted:'10:00:04',queueDepth:'0'},
+        {lastSeen:'10:00:04',misses:'1'},
+        {status:'healthy',elapsed:'2s'},
+        {status:'idle',attempts:'0'},
+        {membershipEpoch:'87',instance7:'healthy'},
+        {membershipEpoch:'87',routeTo7:'enabled'}
+      ], 'The service remains routable during the configured grace period.', 'One late heartbeat is not proof of failure in an asynchronous network.'],
+      ['Suspicion threshold reached', 'Three intervals pass without a heartbeat, so the detector marks the instance suspect.', ['detector', 'probe', 'start active probe at 10:00:10'], [
+        {processEpoch:'12',progress:'431',nextHeartbeat:'missing'},
+        {lastAccepted:'10:00:04',queueDepth:'0'},
+        {lastSeen:'10:00:04',misses:'3'},
+        {status:'suspect',elapsed:'6s'},
+        {status:'probing',attempts:'1'},
+        {membershipEpoch:'87',instance7:'healthy'},
+        {membershipEpoch:'87',routeTo7:'enabled'}
+      ], 'Suspicion triggers corroboration before the control plane removes capacity.', 'Detection thresholds trade recovery speed for false-positive risk.'],
+      ['Probe also times out', 'The active probe cannot reach instance 7 before its deadline.', ['probe', 'registry', 'declare unreachable for epoch 12'], [
+        {processEpoch:'12',progress:'431',nextHeartbeat:'missing'},
+        {lastAccepted:'10:00:04',queueDepth:'0'},
+        {lastSeen:'10:00:04',misses:'3'},
+        {status:'unreachable',elapsed:'7s'},
+        {status:'timed out',attempts:'2'},
+        {membershipEpoch:'88 pending',instance7:'remove'},
+        {membershipEpoch:'87',routeTo7:'enabled'}
+      ], 'Missing passive evidence is corroborated by a failed active check.', 'Failure detectors produce suspicion; they cannot prove why a process is unreachable.'],
+      ['Membership and routing update', 'The registry publishes epoch 88 and routers stop sending new requests to instance 7.', ['registry', 'router', 'membership epoch 88'], [
+        {processEpoch:'12',progress:'431',nextHeartbeat:'missing'},
+        {lastAccepted:'10:00:04',queueDepth:'0'},
+        {lastSeen:'10:00:04',misses:'3'},
+        {status:'unreachable',elapsed:'8s'},
+        {status:'complete',attempts:'2'},
+        {membershipEpoch:'88',instance7:'removed'},
+        {membershipEpoch:'88',routeTo7:'disabled'}
+      ], 'New traffic avoids the suspected instance.', 'Routers consume a versioned membership update rather than infer health independently.'],
+      ['Restart rejoins safely', 'The process restarts with epoch 13, proves readiness, and is admitted as a new incarnation.', ['instance', 'receiver', 'heartbeat epoch 13 progress 0 ready'], [
+        {processEpoch:'13',progress:'0',nextHeartbeat:'10:00:16'},
+        {lastAccepted:'10:00:14',queueDepth:'0'},
+        {lastSeen:'10:00:14',misses:'0'},
+        {status:'healthy-new-epoch',elapsed:'0s'},
+        {status:'idle',attempts:'0'},
+        {membershipEpoch:'89',instance7:'healthy epoch13'},
+        {membershipEpoch:'89',routeTo7:'enabled'}
+      ], 'The replacement incarnation rejoins without reviving stale epoch-12 authority.', 'Process epochs prevent delayed heartbeats from restoring stale membership.']
+    ]
+  );
+
   window.SYSTEM_DESIGN_LESSONS = {
     ...(window.SYSTEM_DESIGN_LESSONS || {}),
     ...lessons

@@ -166,6 +166,16 @@ const mechanismVisuals={
       [0,[],`The estimate is min(9,7,6,11) = 6. Count-Min never underestimates, but collisions add an error of 3.`,{matrix:[4,3,9,5,2,6,3,4, 2,6,3,4,5,7,8,2, 3,6,5,7,2,4,6,3, 4,3,5,2,11,4,3,5],active:[2,13,17,28],key:'fox',truth:3,estimate:6,error:3,result:'overestimate'}],
       [0,[],`Increase width to reduce collision probability; increase depth to reduce the chance every row collides.`,{matrix:[1,0,4,1,0,2,0,1, 0,2,0,1,0,3,2,0, 1,3,0,2,0,1,2,0, 1,0,2,0,4,1,0,1],active:[2,13,17,28],key:'fox after resize',truth:3,estimate:3,error:0,result:'resized'}]
     ]
+  },
+  'B-trees':{
+    kind:'mechanism-btree',
+    steps:[
+      [0,[],`A B-tree page stores several sorted keys. Root separators 20 and 40 direct every lookup to one of three leaf pages.`,{root:[20,40],leaves:[['l0',[5,10,15]],['l1',[20,25,35]],['l2',[40,50,60]]],active:['root'],search:null,caption:'Balanced tree · every leaf is at depth 1'}],
+      [0,[],`Search for 35. At the root, 20 ≤ 35 < 40 selects the middle child; one more page read finds 35 in that leaf.`,{root:[20,40],leaves:[['l0',[5,10,15]],['l1',[20,25,35]],['l2',[40,50,60]]],active:['root','l1'],search:35,caption:'Lookup path: root → middle leaf'}],
+      [0,[],`Insert 30 into the middle leaf. The keys remain sorted, but four entries exceed this example page capacity of three.`,{root:[20,40],leaves:[['l0',[5,10,15]],['l1',[20,25,30,35]],['l2',[40,50,60]]],active:['root','l1'],search:30,overflow:'l1',caption:'Leaf overflow · split required'}],
+      [0,[],`Split the full leaf into [20,25] and [30,35], then promote separator 30 into the parent root.`,{root:[20,30,40],leaves:[['l0',[5,10,15]],['l1',[20,25]],['l1b',[30,35]],['l2',[40,50,60]]],active:['root','l1','l1b'],search:30,promoted:30,caption:'Split preserves balance · all leaves remain at depth 1'}],
+      [0,[],`A range scan from 25 through 50 descends once, then walks adjacent leaves in key order: 25, 30, 35, 40, 50.`,{root:[20,30,40],leaves:[['l0',[5,10,15]],['l1',[20,25]],['l1b',[30,35]],['l2',[40,50,60]]],active:['root','l1','l1b','l2'],range:[25,50],caption:'Range scan follows ordered leaf pages'}]
+    ]
   }
 };
 let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture',conceptZoom=1;
@@ -235,6 +245,10 @@ function modelFromLesson(lesson){
 }
 function mechanismFor(entry){
   if(mechanismVisuals[entry.concept.name])return mechanismVisuals[entry.concept.name];
+  if(entry.chapter.id==='storage-systems'){
+    const storageLesson=lessonFor(entry);
+    if(storageLesson)return modelFromLesson(storageLesson);
+  }
   const mechanism=(window.SYSTEM_DESIGN_MECHANISMS||{})[`${entry.chapter.id}::${entry.concept.name}`];
   if(!mechanism)return null;
   const indexes=new Map(mechanism.diagram.components.map((component,index)=>[component[0],index]));
@@ -541,6 +555,30 @@ function renderCountMinSketchMechanism(step){
     <div class="prob-rule">Width controls collision error · Depth controls confidence<br>Counters only increase, so the estimate never falls below the true count.</div>
   </div>`;
 }
+function renderBTreeMechanism(step){
+  const state=step[3],leaves=state.leaves;
+  const rootKeys=state.root.map(key=>`<i class="${state.promoted===key?'promoted':''}">${key}</i>`).join('');
+  const leafWidth=100/leaves.length;
+  const edgeLines=leaves.map((leaf,index)=>{
+    const x=(index+.5)*leafWidth;
+    return `<line x1="50" y1="25" x2="${x}" y2="68" class="${state.active.includes(leaf[0])?'active':''}"/>`;
+  }).join('');
+  const leafCards=leaves.map((leaf,index)=>{
+    const [id,keys]=leaf;
+    const keyCells=keys.map(key=>{
+      const selected=state.search===key||(state.range&&key>=state.range[0]&&key<=state.range[1]);
+      return `<i class="${selected?'selected':''}">${key}</i>`;
+    }).join('');
+    return `<div class="btree-page leaf ${state.active.includes(id)?'active':''} ${state.overflow===id?'overflow':''}" style="left:${(index+.5)*leafWidth}%"><small>leaf page</small><span>${keyCells}</span>${state.overflow===id?'<em>page full</em>':''}</div>`;
+  }).join('');
+  return `<div class="btree-mechanism">
+    <div class="btree-rule"><b>B-tree invariant</b><span>Sorted multi-key pages · branching fan-out · all leaves at the same depth</span></div>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><marker id="btreeArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>${edgeLines}</svg>
+    <div class="btree-page root ${state.active.includes('root')?'active':''}"><small>root page · separators</small><span>${rootKeys}</span>${state.promoted?`<em>promote ${state.promoted} ↑</em>`:''}</div>
+    <div class="btree-leaves">${leafCards}</div>
+    <div class="btree-caption">${esc(state.caption)}</div>
+  </div>`;
+}
 function teachingStateRows(state,previousState){
   return Object.entries(state||{}).map(([field,value])=>{
     const previous=previousState?.[field],changed=previous!==undefined&&String(previous)!==String(value);
@@ -645,6 +683,7 @@ function renderConceptScene(model,step){
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
   if(kind==='mechanism-bloom-filter'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderBloomFilterMechanism(step) }
   if(kind==='mechanism-count-min-sketch'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderCountMinSketchMechanism(step) }
+  if(kind==='mechanism-btree'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-btree';return renderBTreeMechanism(step) }
   if(model.diagram&&kind==='mechanism'){$('#conceptFlow').className='concept-flow kind-authored kind-mechanism';return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}
   const architecture=architectureScene(activeConcept.concept.name);if(architecture){$('#conceptFlow').className='concept-flow kind-architecture';return renderArchitecture(architecture,step,model.steps.length)}
   if(model.diagram){$('#conceptFlow').className=`concept-flow kind-authored kind-${model.diagram.kind}`;return renderArchitecture(sceneFromDiagram(model.diagram),step,model.steps.length)}

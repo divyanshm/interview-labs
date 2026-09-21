@@ -446,13 +446,16 @@
       { id: "root", label: "[20|40]", role: "internal-page", x: 50, y: 12 },
       { id: "l0", label: "[5,10,15]", role: "leaf-page", x: 18, y: 60 },
       { id: "l1", label: "[20,25,35]", role: "leaf-page", x: 50, y: 60 },
-      { id: "l2", label: "[40,50,60]", role: "leaf-page", x: 82, y: 60 }
+      { id: "l2", label: "[40,50,60]", role: "leaf-page", x: 82, y: 60 },
+      { id: "leafchain", label: "ordered leaf chain", role: "range-scan structure", x: 50, y: 88 }
     ], [
       { from: "root", to: "l0", relation: "keys<20" },
       { from: "root", to: "l1", relation: "20<=keys<40" },
       { from: "root", to: "l2", relation: "keys>=40" },
       { from: "l0", to: "l1", relation: "next-leaf" },
-      { from: "l1", to: "l2", relation: "next-leaf" }
+      { from: "l1", to: "l2", relation: "next-leaf" },
+      { from: "l0", to: "leafchain", relation: "range-scan-start" },
+      { from: "leafchain", to: "l2", relation: "range-scan-end" }
     ], [
       step("Root partitions keys", "Separator keys 20 and 40 divide three leaf pages.", null,
         { pages: { root: [20,40], l0: [5,10,15], l1: [20,25,35], l2: [40,50,60] }, searchKey: null, path: [], split: null, result: null },
@@ -575,6 +578,392 @@
       step("Install output", "f completes the sorted run and input files become obsolete.", { type: "install" },
         { inputs: {}, cursors: {}, output: [["a",1],["b",9],["c",3],["f",6]], currentKey: null, dropped: [["b",2],["d",4],["d","DEL"]], complete: true },
         "Three overlapping runs become one compact run.", "Output is sorted, nonduplicated, and preserves newest visibility.")
+    ]);
+
+  add("storage-systems", "Bloom filters", "bits",
+    "An SSTable reader uses a three-hash Bloom filter to avoid disk probes while tracking false-positive pressure.",
+    [
+      ["key","candidate key","lookup input",8,12],
+      ["h1","h1 mod 12","first hash",28,28],
+      ["h2","h2 mod 12","second hash",50,16],
+      ["h3","h3 mod 12","third hash",72,28],
+      ["array","bits 0..11","bit array",50,55],
+      ["sst","SSTable block","disk verification",82,78]
+    ], [
+      ["key","h1","hash key"],["key","h2","hash key"],["key","h3","hash key"],
+      ["h1","array","select bit"],["h2","array","select bit"],["h3","array","select bit"],
+      ["array","sst","verify possible match"]
+    ], [
+      step("Seed the filter", "Inserted keys set positions 1, 3, 5, 7, and 10 in the twelve-bit array.", null,
+        { key:null,hashes:[],bits:[0,1,0,1,0,1,0,1,0,0,1,0],setBits:5,fillRatio:0.42,verdict:"ready",diskReads:0 },
+        "The filter summarizes keys already written to the SSTable.", "Insertion only sets bits; it never clears them."),
+      step("Hash a definite miss", "Key kiwi maps to positions 1, 4, and 10.", ["key","h1","hash kiwi to 1,4,10"],
+        { key:"kiwi",hashes:[1,4,10],bits:[0,1,0,1,0,1,0,1,0,0,1,0],setBits:5,fillRatio:0.42,verdict:"hashing",diskReads:0 },
+        "The reader has three concrete positions to test.", "A query uses the same hash functions as insertion."),
+      step("Reject on a zero", "Position 4 is zero, proving kiwi is absent without reading the SSTable.", ["h2","array","observe bit 4 = 0"],
+        { key:"kiwi",hashes:[1,4,10],bits:[0,1,0,1,0,1,0,1,0,0,1,0],setBits:5,fillRatio:0.42,verdict:"definitely absent",diskReads:0 },
+        "One disk probe is avoided.", "Any queried zero forbids a false negative."),
+      step("Verify a possible match", "Key lime maps to 1, 5, and 10; all are one, so the SSTable must verify it.", ["array","sst","probe lime after all-one result"],
+        { key:"lime",hashes:[1,5,10],bits:[0,1,0,1,0,1,0,1,0,0,1,0],setBits:5,fillRatio:0.42,verdict:"possibly present",diskReads:1,result:"lime found" },
+        "The positive filter answer becomes an exact disk lookup.", "Bloom positives are candidates, never proof."),
+      step("Expose false-positive pressure", "After more inserts set nine of twelve bits, pear finds three ones but is absent on disk.", ["array","sst","verify pear false positive"],
+        { key:"pear",hashes:[2,7,11],bits:[1,1,1,1,0,1,1,1,1,0,1,1],setBits:9,fillRatio:0.75,verdict:"false positive",diskReads:2,result:"pear absent" },
+        "High occupancy causes an unnecessary read and signals filter rotation or resizing.", "False-positive probability rises as the bit array fills.")
+    ]);
+
+  add("storage-systems", "Indexing", "tree",
+    "A primary-key index maps account IDs to exact heap-row locations and verifies the base row after lookup.",
+    [
+      ["query","id=42","search key",8,15],
+      ["root","[20|50]","index root",45,12],
+      ["leaf","20→p2 42→p7","index leaf",45,48],
+      ["page","heap page p7","base page",76,65],
+      ["row","row id=42 Ada","base row",88,86]
+    ], [
+      ["query","root","compare separators"],["root","leaf","choose key range"],
+      ["leaf","page","follow row pointer"],["page","row","verify base row"]
+    ], [
+      step("Separate index and heap", "The index stores ordered key-to-location entries while heap page p7 stores the complete account row.", null,
+        { search:null,root:[20,50],leaf:[[20,"p2:3"],[42,"p7:1"]],page:[["p7:0",41],["p7:1",42]],row:["42","Ada","active"],path:[],verified:false },
+        "Keys are smaller than full rows and can be searched independently.", "Each live index pointer resolves to one base-row slot."),
+      step("Descend by key", "ID 42 falls between root separators 20 and 50.", ["query","root","compare id 42"],
+        { search:42,root:[20,50],leaf:[[20,"p2:3"],[42,"p7:1"]],page:[["p7:0",41],["p7:1",42]],row:["42","Ada","active"],path:["root"],verified:false },
+        "The middle leaf is selected.", "Traversal follows the only child range that can contain the key."),
+      step("Resolve the pointer", "The leaf entry 42→p7:1 supplies the physical heap location.", ["root","leaf","find 42 to p7:1"],
+        { search:42,root:[20,50],leaf:[[20,"p2:3"],[42,"p7:1"]],page:[["p7:0",41],["p7:1",42]],row:["42","Ada","active"],path:["root","leaf","p7:1"],verified:false },
+        "The engine avoids scanning unrelated heap pages.", "Index order determines location, not row truth."),
+      step("Fetch and verify", "Heap page p7 slot 1 is read and its row ID is checked against 42.", ["leaf","page","read p7 slot 1"],
+        { search:42,root:[20,50],leaf:[[20,"p2:3"],[42,"p7:1"]],page:[["p7:0",41],["p7:1",42]],row:["42","Ada","active"],path:["root","leaf","p7:1","row42"],verified:true },
+        "The complete Ada row is returned.", "A lookup verifies the base-row key before returning data."),
+      step("Maintain on movement", "Vacuum moves row 42 to p9:0 and atomically updates its leaf pointer.", ["page","leaf","replace p7:1 with p9:0"],
+        { search:42,root:[20,50],leaf:[[20,"p2:3"],[42,"p9:0"]],page:[["p9:0",42]],row:["42","Ada","active"],path:["root","leaf","p9:0","row42"],verified:true },
+        "Future lookups follow the new location.", "An index entry and its referenced row must not remain durably inconsistent.")
+    ]);
+
+  add("storage-systems", "Secondary indexes", "tree",
+    "An email secondary index finds customer rows by a non-primary attribute and verifies stale entries against base data.",
+    [
+      ["email","ada@example","secondary key",8,16],
+      ["index","email→[17,42]","secondary leaf",42,18],
+      ["row17","PK17 email=ada","base row",70,48],
+      ["row42","PK42 email=ada","base row",88,70],
+      ["row51","PK51 email=bo","base row",58,84]
+    ], [
+      ["email","index","seek secondary key"],["index","row17","fetch PK17"],
+      ["index","row42","fetch PK42"],["index","row51","maintain changed key"]
+    ], [
+      step("Index duplicate values", "The non-unique email entry stores primary keys 17 and 42 rather than complete rows.", null,
+        { lookup:null,index:{ "ada@example":[17,42],"bo@example":[51] },rows:{ 17:"ada@example",42:"ada@example",51:"bo@example" },candidates:[],verified:[],stale:[] },
+        "One secondary key can fan out to multiple base records.", "Posting primary keys keeps the secondary structure compact."),
+      step("Seek the email", "The B-tree seek for ada@example returns candidate primary keys 17 and 42.", ["email","index","seek ada@example"],
+        { lookup:"ada@example",index:{ "ada@example":[17,42],"bo@example":[51] },rows:{ 17:"ada@example",42:"ada@example",51:"bo@example" },candidates:[17,42],verified:[],stale:[] },
+        "Two exact base-row reads are planned.", "Candidates come only from the matching secondary entry."),
+      step("Verify base rows", "Rows 17 and 42 still contain ada@example, so both satisfy the predicate.", ["index","row17","verify candidate emails"],
+        { lookup:"ada@example",index:{ "ada@example":[17,42],"bo@example":[51] },rows:{ 17:"ada@example",42:"ada@example",51:"bo@example" },candidates:[17,42],verified:[17,42],stale:[] },
+        "Both customer rows are returned.", "Base-row verification protects reads during asynchronous maintenance."),
+      step("Change one attribute", "Customer 42 changes to dee@example before the old secondary entry is removed.", ["row42","index","queue email index update"],
+        { lookup:"ada@example",index:{ "ada@example":[17,42],"bo@example":[51] },rows:{ 17:"ada@example",42:"dee@example",51:"bo@example" },candidates:[17,42],verified:[17],stale:[42] },
+        "Verification suppresses stale candidate 42.", "A stale index may add false candidates but must not create false query results."),
+      step("Apply index maintenance", "The updater removes 42 from ada@example and adds it under dee@example.", ["row42","index","move PK42 posting"],
+        { lookup:"ada@example",index:{ "ada@example":[17],"bo@example":[51],"dee@example":[42] },rows:{ 17:"ada@example",42:"dee@example",51:"bo@example" },candidates:[17],verified:[17],stale:[] },
+        "The secondary index converges with base rows.", "Every committed attribute eventually has exactly one corresponding posting per row.")
+    ]);
+
+  add("storage-systems", "Inverted indexes", "tree",
+    "A document store builds term postings with document IDs, frequencies, and positions, then intersects them for an AND query.",
+    [
+      ["terms","distributed + storage","query terms",8,12],
+      ["dict","term dictionary","lexicon",35,18],
+      ["pd","distributed: d1,d4,d7","posting list",55,42],
+      ["ps","storage: d2,d4,d7","posting list",55,76],
+      ["docs","base docs d1..d7","document rows",86,58]
+    ], [
+      ["terms","dict","resolve posting offsets"],["dict","pd","load distributed postings"],
+      ["dict","ps","load storage postings"],["pd","ps","intersect doc IDs"],
+      ["ps","docs","verify positions and fields"]
+    ], [
+      step("Publish postings", "The lexicon points to sorted postings that carry term frequency and token positions.", null,
+        { query:[],dictionary:{ distributed:120,storage:188 },distributed:[[1,2,[0,3]],[4,1,[2]],[7,1,[1]]],storage:[[2,1,[0]],[4,2,[0,4]],[7,1,[2]]],cursors:[0,0],matches:[],verified:[] },
+        "Each term can be retrieved without scanning documents.", "Every posting list is strictly ordered by document ID."),
+      step("Resolve both terms", "The dictionary maps distributed to offset 120 and storage to offset 188.", ["terms","dict","lookup two term offsets"],
+        { query:["distributed","storage"],dictionary:{ distributed:120,storage:188 },distributed:[[1,2,[0,3]],[4,1,[2]],[7,1,[1]]],storage:[[2,1,[0]],[4,2,[0,4]],[7,1,[2]]],cursors:[0,0],matches:[],verified:[] },
+        "Two posting streams are opened.", "Dictionary document frequency matches each posting-list length."),
+      step("Advance smaller doc IDs", "d1 is below d2, then d2 is below d4, so cursors advance without base reads.", ["pd","ps","merge by ascending doc ID"],
+        { query:["distributed","storage"],dictionary:{ distributed:120,storage:188 },distributed:[[1,2,[0,3]],[4,1,[2]],[7,1,[1]]],storage:[[2,1,[0]],[4,2,[0,4]],[7,1,[2]]],cursors:[1,1],matches:[],verified:[] },
+        "Both cursors arrive at d4.", "Advancing the smaller ID cannot skip an intersection."),
+      step("Intersect equal postings", "Equal IDs d4 and d7 enter the candidate result.", ["pd","ps","emit d4 and d7"],
+        { query:["distributed","storage"],dictionary:{ distributed:120,storage:188 },distributed:[[1,2,[0,3]],[4,1,[2]],[7,1,[1]]],storage:[[2,1,[0]],[4,2,[0,4]],[7,1,[2]]],cursors:[3,3],matches:[4,7],verified:[] },
+        "The AND query has two candidates.", "A document matches only if it appears in every required posting list."),
+      step("Verify document constraints", "Base documents confirm d4 and d7 are live and satisfy any non-indexed filters.", ["ps","docs","verify d4 and d7"],
+        { query:["distributed","storage"],dictionary:{ distributed:120,storage:188 },distributed:[[1,2,[0,3]],[4,1,[2]],[7,1,[1]]],storage:[[2,1,[0]],[4,2,[0,4]],[7,1,[2]]],cursors:[3,3],matches:[4,7],verified:[4,7] },
+        "The store returns two exact documents with ranking features.", "Posting candidates are checked against document liveness and residual predicates.")
+    ]);
+
+  add("storage-systems", "Sparse indexes", "tree",
+    "A sorted file uses one index entry per data block, then scans inside the selected block for an exact key.",
+    [
+      ["query","key=37","lookup key",8,14],
+      ["sparse","1→B0 21→B1 41→B2","sparse index",42,16],
+      ["b0","B0 keys 1..20","data block",25,68],
+      ["b1","B1 keys 21..40","data block",52,78],
+      ["b2","B2 keys 41..60","data block",82,62]
+    ], [
+      ["query","sparse","floor search"],["sparse","b0","block offset"],
+      ["sparse","b1","block offset"],["sparse","b2","block offset"]
+    ], [
+      step("Index block boundaries", "Only first keys 1, 21, and 41 are stored for three sorted blocks.", null,
+        { key:null,index:[[1,"B0"],[21,"B1"],[41,"B2"]],selected:null,scan:[],result:null,entriesPerBlock:20 },
+        "Three entries cover sixty records.", "Each entry names the first key of one non-overlapping sorted block."),
+      step("Floor-search the index", "For key 37, the greatest boundary not exceeding it is 21.", ["query","sparse","floor key 37 to boundary 21"],
+        { key:37,index:[[1,"B0"],[21,"B1"],[41,"B2"]],selected:"B1",scan:[],result:null,entriesPerBlock:20 },
+        "The lookup selects B1.", "The predecessor boundary identifies the only possible block."),
+      step("Scan within B1", "The reader checks keys 21 through 37 inside the block.", ["sparse","b1","scan sorted records to 37"],
+        { key:37,index:[[1,"B0"],[21,"B1"],[41,"B2"]],selected:"B1",scan:[21,25,30,35,37],result:37,entriesPerBlock:20 },
+        "Key 37 is found after a bounded local scan.", "Sparse indexing trades index size for within-block work."),
+      step("Stop an absent lookup", "For key 39, B1 reaches key 40 without equality and stops before B2.", ["b1","query","report key 39 absent"],
+        { key:39,index:[[1,"B0"],[21,"B1"],[41,"B2"]],selected:"B1",scan:[35,37,40],result:"absent",entriesPerBlock:20 },
+        "No other block can contain 39.", "Sorted, disjoint ranges make the absence conclusion exact."),
+      step("Handle a new block", "Appending B3 for keys 61..80 adds only boundary entry 61→B3.", ["b2","sparse","append boundary 61 to B3"],
+        { key:null,index:[[1,"B0"],[21,"B1"],[41,"B2"],[61,"B3"]],selected:"B3",scan:[],result:null,entriesPerBlock:20 },
+        "Index growth follows block count, not row count.", "Every published block has one ordered boundary entry.")
+    ]);
+
+  add("storage-systems", "Covering indexes", "tree",
+    "A covering index answers an active-user projection from indexed columns and visits the base table only for an uncovered field.",
+    [
+      ["query","status=active","predicate",8,14],
+      ["cover","active→(17,Ada),(42,Bo)","covering leaf",42,22],
+      ["base17","row17 city=SEA","base row",72,46],
+      ["base42","row42 city=DAL","base row",86,72],
+      ["result","id,name projection","query output",45,84]
+    ], [
+      ["query","cover","seek active"],["cover","result","emit included columns"],
+      ["cover","base17","fetch uncovered city"],["cover","base42","fetch uncovered city"]
+    ], [
+      step("Store included columns", "The index key status includes projected columns id and name in each leaf entry.", null,
+        { predicate:null,index:{ active:[[17,"Ada"],[42,"Bo"]],disabled:[[51,"Cy"]] },baseReads:[],projection:[],requested:["id","name"],covered:true },
+        "The leaf can satisfy status, id, and name without heap data.", "A query is covered only when every required column exists in the index."),
+      step("Seek active entries", "The engine reads the contiguous active range from the leaf.", ["query","cover","seek status active"],
+        { predicate:"active",index:{ active:[[17,"Ada"],[42,"Bo"]],disabled:[[51,"Cy"]] },baseReads:[],projection:[],requested:["id","name"],covered:true },
+        "Two qualifying entries are available.", "Index key order groups equal status values."),
+      step("Return index-only rows", "Included values directly produce (17,Ada) and (42,Bo).", ["cover","result","emit covered projection"],
+        { predicate:"active",index:{ active:[[17,"Ada"],[42,"Bo"]],disabled:[[51,"Cy"]] },baseReads:[],projection:[[17,"Ada"],[42,"Bo"]],requested:["id","name"],covered:true },
+        "The query completes with zero base-page reads.", "Index-only output must come from a visibility-valid entry."),
+      step("Request an uncovered field", "Adding city to the projection makes the index non-covering.", ["query","cover","request city not in leaf"],
+        { predicate:"active",index:{ active:[[17,"Ada"],[42,"Bo"]],disabled:[[51,"Cy"]] },baseReads:[17,42],projection:[],requested:["id","name","city"],covered:false },
+        "Primary-key pointers schedule two heap fetches.", "Missing projected columns require base-row access."),
+      step("Join base values", "Rows 17 and 42 supply SEA and DAL and are rechecked as active.", ["base17","result","assemble full projection"],
+        { predicate:"active",index:{ active:[[17,"Ada"],[42,"Bo"]],disabled:[[51,"Cy"]] },baseReads:[17,42],projection:[[17,"Ada","SEA"],[42,"Bo","DAL"]],requested:["id","name","city"],covered:false },
+        "The expanded projection is exact but costs two reads.", "Base verification remains authoritative for uncovered data.")
+    ]);
+
+  add("storage-systems", "Partition indexes", "topology",
+    "A routing index maps tenant hash ranges to versioned shard owners during an online partition move.",
+    [
+      ["key","tenant hash=62","routing key",8,14],
+      ["map","v8 range directory","partition index",42,16],
+      ["s1","S1 [0,49]","shard owner",20,72],
+      ["s2","S2 [50,74]","shard owner",55,82],
+      ["s3","S3 [75,99]","shard owner",86,62],
+      ["copy","S4 shadow [50,74]","migration target",82,30]
+    ], [
+      ["key","map","lookup range"],["map","s1","route low range"],["map","s2","route middle range"],
+      ["map","s3","route high range"],["s2","copy","copy range"],["map","copy","publish new owner"]
+    ], [
+      step("Publish routing epoch", "Directory v8 assigns three disjoint hash ranges to S1, S2, and S3.", null,
+        { epoch:8,ranges:[[0,49,"S1"],[50,74,"S2"],[75,99,"S3"]],key:null,owner:null,shadow:null,cutover:false },
+        "Every hash has one active owner.", "Ranges cover the keyspace exactly once within an epoch."),
+      step("Route hash 62", "The partition index finds range [50,74] and returns S2.", ["key","map","find containing range for 62"],
+        { epoch:8,ranges:[[0,49,"S1"],[50,74,"S2"],[75,99,"S3"]],key:62,owner:"S2",shadow:null,cutover:false },
+        "The request reaches one shard instead of broadcasting.", "Clients route using one internally consistent directory epoch."),
+      step("Start online copy", "S4 receives a snapshot of S2's range while v8 still routes reads and writes to S2.", ["s2","copy","copy [50,74] at LSN 900"],
+        { epoch:8,ranges:[[0,49,"S1"],[50,74,"S2"],[75,99,"S3"]],key:62,owner:"S2",shadow:{ owner:"S4",range:[50,74],lsn:900 },cutover:false },
+        "Foreground ownership remains stable during bulk movement.", "A shadow copy cannot serve authoritative writes before cutover."),
+      step("Catch up and cut over", "After S4 replays through LSN 944, directory v9 changes [50,74] to S4.", ["map","copy","publish epoch 9 owner S4"],
+        { epoch:9,ranges:[[0,49,"S1"],[50,74,"S4"],[75,99,"S3"]],key:62,owner:"S4",shadow:{ owner:"S4",range:[50,74],lsn:944 },cutover:true },
+        "New requests route to S4.", "An epoch change atomically selects one write owner per range."),
+      step("Reject stale routing", "A v8 client sent to S2 receives epoch 9 and retries against S4.", ["s2","map","redirect stale epoch 8"],
+        { epoch:9,ranges:[[0,49,"S1"],[50,74,"S4"],[75,99,"S3"]],key:62,owner:"S4",shadow:null,cutover:true,retry:"v8 rejected" },
+        "The moved range has no split write authority.", "Owners reject requests carrying an obsolete routing epoch.")
+    ]);
+
+  add("storage-systems", "Columnar storage", "storage",
+    "An analytical scan reads only region and revenue columns from compressed row groups.",
+    [
+      ["query","SUM revenue WHERE region=EU","scan request",8,12],
+      ["ids","id: 1 2 3 4","id column",24,54],
+      ["regions","region: EU US EU AP","region column",46,72],
+      ["revenue","revenue: 8 5 7 9","revenue column",68,54],
+      ["names","name: A B C D","name column",88,76]
+    ], [
+      ["query","regions","predicate scan"],["regions","revenue","select matching positions"],
+      ["revenue","query","aggregate values"],["ids","names","row reconstruction"]
+    ], [
+      step("Group values by column", "One row group stores each field contiguously instead of storing complete rows together.", null,
+        { rowGroup:"RG0",columns:{ id:[1,2,3,4],region:["EU","US","EU","AP"],revenue:[8,5,7,9],name:["A","B","C","D"] },readColumns:[],positions:[],sum:0,bytesRead:0 },
+        "Similar values share pages and compression context.", "All columns preserve the same row-position ordering."),
+      step("Prune unused columns", "The projection and predicate require only region and revenue; id and name pages stay unread.", ["query","regions","open region page only"],
+        { rowGroup:"RG0",columns:{ id:[1,2,3,4],region:["EU","US","EU","AP"],revenue:[8,5,7,9],name:["A","B","C","D"] },readColumns:["region"],positions:[],sum:0,bytesRead:16 },
+        "Three quarters of the logical fields are initially skipped.", "Column pruning must retain every predicate and output dependency."),
+      step("Build a selection vector", "Scanning the region column marks row positions 0 and 2 as EU.", ["regions","revenue","select positions 0 and 2"],
+        { rowGroup:"RG0",columns:{ id:[1,2,3,4],region:["EU","US","EU","AP"],revenue:[8,5,7,9],name:["A","B","C","D"] },readColumns:["region"],positions:[0,2],sum:0,bytesRead:16 },
+        "The selection vector avoids materializing nonmatching rows.", "A position refers to the same logical row across every column."),
+      step("Read selected measures", "The revenue page contributes values 8 and 7 at selected positions.", ["revenue","query","aggregate positions 0 and 2"],
+        { rowGroup:"RG0",columns:{ id:[1,2,3,4],region:["EU","US","EU","AP"],revenue:[8,5,7,9],name:["A","B","C","D"] },readColumns:["region","revenue"],positions:[0,2],sum:15,bytesRead:32 },
+        "The aggregate equals 15 without reading names or IDs.", "Aggregation consumes only values selected by the predicate vector."),
+      step("Contrast row reconstruction", "A point request for row 3 must gather position 2 from all four columns.", ["ids","names","gather row position 2"],
+        { rowGroup:"RG0",columns:{ id:[1,2,3,4],region:["EU","US","EU","AP"],revenue:[8,5,7,9],name:["A","B","C","D"] },readColumns:["id","region","revenue","name"],positions:[2],sum:7,bytesRead:64,row:[3,"EU",7,"C"] },
+        "Columnar analytics are efficient while full-row reconstruction touches more pages.", "A reconstructed row uses one identical ordinal from every required column.")
+    ]);
+
+  add("storage-systems", "Row-oriented storage", "storage",
+    "An OLTP heap co-locates each customer's fields so a primary-key point read and update touch one row page.",
+    [
+      ["query","GET id=42","point request",8,14],
+      ["directory","42→page P7","page directory",36,22],
+      ["p7r0","row 41|Cy|US|5","row slot",30,70],
+      ["p7r1","row 42|Ada|EU|8","row slot",58,82],
+      ["p7r2","row 43|Bo|AP|9","row slot",86,66]
+    ], [
+      ["query","directory","resolve page"],["directory","p7r1","read row slot"],
+      ["p7r0","p7r1","adjacent row"],["p7r1","p7r2","adjacent row"]
+    ], [
+      step("Co-locate complete rows", "Page P7 stores each customer's ID, name, region, and revenue together by row slot.", null,
+        { page:"P7",slots:{ 0:[41,"Cy","US",5],1:[42,"Ada","EU",8],2:[43,"Bo","AP",9] },lookup:null,slot:null,row:null,dirty:false,scanFields:[] },
+        "A complete tuple occupies one contiguous record.", "Each slot is independently addressable within its page."),
+      step("Resolve row location", "The primary directory maps ID 42 to P7 slot 1.", ["query","directory","lookup id 42"],
+        { page:"P7",slots:{ 0:[41,"Cy","US",5],1:[42,"Ada","EU",8],2:[43,"Bo","AP",9] },lookup:42,slot:1,row:null,dirty:false,scanFields:[] },
+        "Only page P7 must be fetched.", "The directory pointer identifies one current row slot."),
+      step("Read the complete tuple", "One slot read returns 42, Ada, EU, and revenue 8.", ["directory","p7r1","read P7 slot 1"],
+        { page:"P7",slots:{ 0:[41,"Cy","US",5],1:[42,"Ada","EU",8],2:[43,"Bo","AP",9] },lookup:42,slot:1,row:[42,"Ada","EU",8],dirty:false,scanFields:["id","name","region","revenue"] },
+        "The point query needs no cross-page reconstruction.", "All fields in a row share one record version."),
+      step("Update one field in place", "Revenue changes from 8 to 10 inside row 42 and marks P7 dirty.", ["query","p7r1","set revenue 10"],
+        { page:"P7",slots:{ 0:[41,"Cy","US",5],1:[42,"Ada","EU",10],2:[43,"Bo","AP",9] },lookup:42,slot:1,row:[42,"Ada","EU",10],dirty:true,scanFields:["revenue"] },
+        "The updated tuple remains co-located.", "A row update publishes one consistent record image."),
+      step("Expose analytical cost", "SUM(revenue) scans revenue fields embedded in all three row records.", ["p7r0","p7r2","scan revenue across rows"],
+        { page:"P7",slots:{ 0:[41,"Cy","US",5],1:[42,"Ada","EU",10],2:[43,"Bo","AP",9] },lookup:"SUM revenue",slot:null,row:null,dirty:true,scanFields:["slot0.revenue","slot1.revenue","slot2.revenue"],sum:24 },
+        "The aggregate reads unrelated name and region bytes from the same page.", "Row layout optimizes tuple locality, not single-column scans.")
+    ]);
+
+  add("storage-systems", "Log-structured storage", "storage",
+    "A key-value store appends new versions, resolves reads through a location index, and cleans segments by copying live records.",
+    [
+      ["write","PUT b=9","mutation",8,12],
+      ["active","segment S3 append tail","active segment",34,24],
+      ["old","segment S1 sealed","old segment",22,76],
+      ["index","a→S1:0 b→S3:1","location index",62,44],
+      ["clean","segment S4 output","cleaned segment",84,78]
+    ], [
+      ["write","active","append record"],["active","index","publish new location"],
+      ["index","old","read older location"],["old","clean","copy live records"],
+      ["clean","index","rewrite locations"]
+    ], [
+      step("Start with sealed records", "S1 contains a=1 and b=2; the location index points both keys into S1.", null,
+        { segments:{ S1:[["a",1,true],["b",2,true]],S3:[] },tail:["S3",0],locations:{ a:"S1:0",b:"S1:1" },lookup:null,liveBytes:2,deadBytes:0 },
+        "Reads find current records indirectly through the index.", "A location index points to the newest appended version."),
+      step("Append a new version", "PUT b=9 writes a complete record at the S3 tail rather than overwriting S1.", ["write","active","append b=9 at S3:0"],
+        { segments:{ S1:[["a",1,true],["b",2,false]],S3:[["b",9,true]] },tail:["S3",1],locations:{ a:"S1:0",b:"S1:1" },lookup:null,liveBytes:2,deadBytes:1 },
+        "The old b=2 becomes reclaimable dead data.", "Foreground writes advance the append tail monotonically."),
+      step("Publish the new location", "The index atomically changes b from S1:1 to S3:0.", ["active","index","set b location S3:0"],
+        { segments:{ S1:[["a",1,true],["b",2,false]],S3:[["b",9,true]] },tail:["S3",1],locations:{ a:"S1:0",b:"S3:0" },lookup:"b",result:9,liveBytes:2,deadBytes:1 },
+        "Reads of b now return 9.", "Index publication follows durable append and exposes only a complete record."),
+      step("Select a dirty segment", "Cleaner chooses S1 because half its records are dead and copies only live a=1 to S4.", ["old","clean","copy live a=1"],
+        { segments:{ S1:[["a",1,true],["b",2,false]],S3:[["b",9,true]],S4:[["a",1,true]] },tail:["S3",1],locations:{ a:"S1:0",b:"S3:0" },lookup:null,cleaning:"S1",liveBytes:2,deadBytes:1 },
+        "Dead b=2 is omitted from cleaner output.", "Cleaning copies a record only if the index still names its old location."),
+      step("Swap locations and reclaim", "The index moves a to S4:0, then S1 is deleted.", ["clean","index","publish a S4:0 and retire S1"],
+        { segments:{ S3:[["b",9,true]],S4:[["a",1,true]] },tail:["S3",1],locations:{ a:"S4:0",b:"S3:0" },lookup:"a",result:1,liveBytes:2,deadBytes:0 },
+        "Space is reclaimed without blocking append-only writes.", "A segment is removed only after every live copied record has a published new location.")
+    ]);
+
+  add("storage-systems", "Object storage", "storage",
+    "An object store resolves a key to immutable metadata and a version manifest whose chunks are distributed across storage nodes.",
+    [
+      ["key","photos/cat.jpg","object key",8,14],
+      ["meta","metadata v17","metadata record",36,20],
+      ["manifest","manifest m17","chunk manifest",55,50],
+      ["c1","chunk a8f 4MiB","data chunk",28,82],
+      ["c2","chunk b31 4MiB","data chunk",58,86],
+      ["c3","chunk c09 1MiB","data chunk",86,72]
+    ], [
+      ["key","meta","namespace lookup"],["meta","manifest","version pointer"],
+      ["manifest","c1","chunk 0"],["manifest","c2","chunk 1"],["manifest","c3","chunk 2"]
+    ], [
+      step("Resolve immutable metadata", "The key maps to version 17, content length 9 MiB, checksum 71de, and manifest m17.", null,
+        { key:"photos/cat.jpg",version:17,etag:"71de",length:"9MiB",manifest:null,chunks:[],verified:[],result:null },
+        "Namespace metadata describes one immutable object version.", "A version's length, checksum, and manifest pointer do not mutate."),
+      step("Load the manifest", "Manifest m17 orders chunk hashes a8f, b31, and c09 with exact lengths.", ["meta","manifest","read m17"],
+        { key:"photos/cat.jpg",version:17,etag:"71de",length:"9MiB",manifest:[["a8f",4],["b31",4],["c09",1]],chunks:[],verified:[],result:null },
+        "The reader knows which byte ranges to fetch.", "Manifest order defines object byte order."),
+      step("Fetch chunks in parallel", "The client requests all three content-addressed chunks from their storage nodes.", ["manifest","c1","fetch a8f,b31,c09"],
+        { key:"photos/cat.jpg",version:17,etag:"71de",length:"9MiB",manifest:[["a8f",4],["b31",4],["c09",1]],chunks:["a8f","b31","c09"],verified:[],result:null },
+        "Nine MiB of chunk payload is available for assembly.", "Each returned chunk must match its manifest hash."),
+      step("Verify and assemble", "Hashes verify all chunks before concatenation in manifest order.", ["c1","manifest","verify chunk hashes"],
+        { key:"photos/cat.jpg",version:17,etag:"71de",length:"9MiB",manifest:[["a8f",4],["b31",4],["c09",1]],chunks:["a8f","b31","c09"],verified:["a8f","b31","c09"],result:"9MiB object" },
+        "The complete cat.jpg bytes are returned.", "Assembly never mixes chunks from different manifests."),
+      step("Publish a replacement version", "A PUT creates manifest m18 and atomically advances only the key's metadata pointer.", ["key","meta","commit version 18 manifest m18"],
+        { key:"photos/cat.jpg",version:18,etag:"8a20",length:"10MiB",manifest:[["a8f",4],["d44",4],["e10",2]],chunks:["a8f","d44","e10"],verified:["a8f","d44","e10"],result:"10MiB object" },
+        "Readers choose either complete v17 or complete v18.", "Object replacement publishes a new immutable version rather than patching chunks in place.")
+    ]);
+
+  add("storage-systems", "Block storage", "topology",
+    "A virtual disk controller maps logical blocks to mirrored physical extents and repairs a failed replica.",
+    [
+      ["host","write LBA 12","block client",8,14],
+      ["ctl","volume controller","mapping authority",38,22],
+      ["map","LBA12→extent E7","block map",55,48],
+      ["r1","node A E7","primary extent",28,82],
+      ["r2","node B E7","mirror extent",60,86],
+      ["r3","node C spare","repair target",88,68]
+    ], [
+      ["host","ctl","read/write LBA"],["ctl","map","resolve extent"],
+      ["map","r1","write replica A"],["map","r2","write replica B"],["r1","r3","repair extent"]
+    ], [
+      step("Map the logical block", "Volume v3 maps LBA 12 to mirrored extent E7 on nodes A and B.", null,
+        { volume:"v3",lba:12,generation:4,mapping:{ extent:"E7",replicas:["A","B"] },writes:[],acks:[],failed:[],repair:null },
+        "The host sees a stable block number independent of physical placement.", "One mapping generation identifies the authoritative replica set."),
+      step("Issue a block write", "The host sends 4 KiB payload checksum 9c1 to the controller for LBA 12.", ["host","ctl","WRITE LBA12 checksum 9c1"],
+        { volume:"v3",lba:12,generation:4,mapping:{ extent:"E7",replicas:["A","B"] },writes:[["A","9c1"],["B","9c1"]],acks:[],failed:[],repair:null },
+        "The controller fans the write to both extents.", "Replicas receive identical block generation and checksum."),
+      step("Acknowledge durable mirrors", "Nodes A and B fsync generation 44 and return acknowledgements.", ["r1","ctl","ack A and B generation 44"],
+        { volume:"v3",lba:12,generation:4,mapping:{ extent:"E7",replicas:["A","B"] },writes:[["A","9c1"],["B","9c1"]],acks:[["A",44],["B",44]],failed:[],repair:null },
+        "The controller safely acknowledges the host write.", "Success requires the configured number of durable replica acknowledgements."),
+      step("Detect one failed extent", "Node B stops responding; reads continue from A while C is allocated as a repair target.", ["ctl","r3","allocate replacement for B"],
+        { volume:"v3",lba:12,generation:4,mapping:{ extent:"E7",replicas:["A","B"] },writes:[],acks:[["A",44]],failed:["B"],repair:{ source:"A",target:"C",generation:44,status:"copying" } },
+        "The volume remains readable but degraded.", "Repair copies from a replica whose generation and checksum are current."),
+      step("Complete repair and remap", "C verifies checksum 9c1, then mapping generation 5 replaces B with C.", ["r3","map","publish replicas A,C generation 5"],
+        { volume:"v3",lba:12,generation:5,mapping:{ extent:"E7",replicas:["A","C"] },writes:[],acks:[["A",44],["C",44]],failed:["B"],repair:{ source:"A",target:"C",generation:44,status:"complete" } },
+        "The block returns to two healthy copies.", "A replacement joins the active map only after complete verified synchronization.")
+    ]);
+
+  add("storage-systems", "Distributed filesystems", "topology",
+    "A distributed filesystem resolves a pathname through namespace metadata, reads replicated chunks, and repairs a lost copy.",
+    [
+      ["client","open /logs/app","filesystem client",8,12],
+      ["namespace","/logs/app→f81","namespace metadata",38,18],
+      ["manifest","f81: C10,C11","file chunk map",55,46],
+      ["cs1","chunk server A","chunk replica host",22,82],
+      ["cs2","chunk server B","chunk replica host",55,86],
+      ["cs3","chunk server C","chunk replica host",86,72]
+    ], [
+      ["client","namespace","resolve pathname"],["namespace","manifest","load file metadata"],
+      ["manifest","cs1","locate C10 replicas"],["manifest","cs2","locate C11 replicas"],
+      ["cs1","cs3","repair missing replica"]
+    ], [
+      step("Resolve the namespace", "The metadata authority maps /logs/app to file ID f81 and generation 12.", null,
+        { path:"/logs/app",fileId:"f81",generation:12,chunks:null,locations:{},reads:[],failed:[],repair:null },
+        "The hierarchical name resolves independently of data placement.", "One namespace generation identifies the current file manifest."),
+      step("Load chunk metadata", "File f81 consists of ordered chunks C10 and C11 with replication factor two.", ["namespace","manifest","read f81 generation 12"],
+        { path:"/logs/app",fileId:"f81",generation:12,chunks:["C10","C11"],locations:{ C10:["A","B"],C11:["B","C"] },reads:[],failed:[],repair:null },
+        "The client receives chunk order and replica locations.", "Every published chunk has the configured number of distinct hosts."),
+      step("Read nearby replicas", "The client reads C10 from A and C11 from C and concatenates them by chunk ordinal.", ["manifest","cs1","read C10 from A and C11 from C"],
+        { path:"/logs/app",fileId:"f81",generation:12,chunks:["C10","C11"],locations:{ C10:["A","B"],C11:["B","C"] },reads:[["C10","A"],["C11","C"]],failed:[],repair:null },
+        "The file stream is reconstructed without routing data through the namespace authority.", "Chunk bytes are ordered by the file manifest, not response time."),
+      step("Detect under-replication", "Server B fails, leaving C10 only on A and C11 only on C.", ["cs2","namespace","report B unavailable"],
+        { path:"/logs/app",fileId:"f81",generation:12,chunks:["C10","C11"],locations:{ C10:["A"],C11:["C"] },reads:[["C10","A"],["C11","C"]],failed:["B"],repair:{ C10:["A","C"],C11:["C","A"],status:"scheduled" } },
+        "Metadata marks both chunks under-replicated and chooses nonfailed targets.", "Failure detection changes placement metadata only after a host lease expires."),
+      step("Repair and publish locations", "A copies C10 to C, C copies C11 to A, and verified replicas restore factor two.", ["cs1","cs3","copy and verify C10/C11"],
+        { path:"/logs/app",fileId:"f81",generation:13,chunks:["C10","C11"],locations:{ C10:["A","C"],C11:["C","A"] },reads:[["C10","A"],["C11","C"]],failed:["B"],repair:{ C10:["A","C"],C11:["C","A"],status:"complete" } },
+        "The file is healthy despite losing one chunk server.", "New locations publish only after chunk identity and checksum verification.")
     ]);
 
   function timelineEntities(labels) {
