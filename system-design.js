@@ -171,6 +171,7 @@ const mechanismVisuals={
 let activeConcept=null,conceptModel=null,conceptStep=0,conceptPlaying=false,conceptView='architecture',conceptZoom=1;
 const conceptZoomLevels=[.6,.75,.9,1,1.15,1.3,1.5];
 const authoredLessons=window.SYSTEM_DESIGN_LESSONS||{};
+const productionContexts=window.SYSTEM_DESIGN_PRODUCTION_CONTEXTS||{};
 const lessonLayouts={
   sequence:[[10,20],[36,20],[64,20],[90,20],[23,72],[50,72],[77,72],[50,46],[90,72]],
   workflow:[[10,18],[38,18],[66,18],[90,18],[22,72],[50,72],[78,72],[50,45],[90,72]],
@@ -247,7 +248,35 @@ function modelFromStoryboard(entry){
     steps:frames.map((_,index)=>[index,[...Array(index).keys()],narratives[index]])
   };
 }
+function modelFromProductionContext(entry,context){
+  const completed=new Set();
+  const frames=context.flows.map((flow,index)=>{
+    if(index>0){
+      completed.add(context.flows[index-1][0]);
+      completed.add(context.flows[index-1][1]);
+    }
+    return [index,Object.fromEntries(context.components.map(component=>[
+      component[0],
+      component[0]===flow[0]||component[0]===flow[1]?'active':completed.has(component[0])?'done':''
+    ]))];
+  });
+  return {
+    kind:'production',
+    diagram:{
+      kind:'production',
+      components:context.components,
+      links:context.flows.map(flow=>flow.slice(0,3)),
+      frames
+    },
+    summary:context.scenario,
+    tradeoff:entry.concept.tradeoff,
+    nodes:context.components.map(component=>[component[1],component[2]]),
+    steps:context.flows.map((flow,index)=>[index,[...Array(index).keys()],flow[3]])
+  };
+}
 function makeConceptModel(entry){
+  const context=productionContexts[`${entry.chapter.id}::${entry.concept.name}`];
+  if(context)return modelFromProductionContext(entry,context);
   const lesson=lessonFor(entry);
   return lesson?modelFromLesson(lesson):modelFromStoryboard(entry);
 }
@@ -332,6 +361,7 @@ function renderStoryboard(model,step){
     return `<span class="${state}"><i>${componentIcon(component[1],component[3])}</i>${esc(component[1])}</span>`;
   }).join('');
   return `<div class="system-storyboard storyboard-${esc(model.diagram.kind)}">
+    ${model.kind==='production'?`<div class="storyboard-scenario"><small>Production scenario</small><b>${esc(model.summary)}</b></div>`:''}
     <div class="storyboard-head"><span><small>Current interaction</small><b>${esc(focus)}</b></span><p>${esc(step[2])}</p></div>
     <div class="storyboard-canvas">${renderArchitecture(scene,step,model.steps.length)}</div>
     <div class="storyboard-components">${stages}</div>
@@ -485,6 +515,7 @@ function renderConceptScene(model,step){
   const nodes=model.nodes,kind=model.kind;
   if(kind==='lesson'){ $('#conceptFlow').className=`concept-flow kind-lesson family-${model.lesson.family}`;return renderTeachingLesson(model) }
   if(kind==='storyboard'){ $('#conceptFlow').className=`concept-flow kind-storyboard storyboard-${model.diagram.kind}`;return renderStoryboard(model,step) }
+  if(kind==='production'){ $('#conceptFlow').className='concept-flow kind-storyboard kind-production';return renderStoryboard(model,step) }
   if(kind==='mechanism-token-bucket'){ $('#conceptFlow').className='concept-flow kind-mechanism';return renderTokenBucketMechanism(step) }
   if(kind==='mechanism-bloom-filter'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderBloomFilterMechanism(step) }
   if(kind==='mechanism-count-min-sketch'){ $('#conceptFlow').className='concept-flow kind-mechanism kind-probability';return renderCountMinSketchMechanism(step) }
@@ -505,8 +536,8 @@ function renderConceptScene(model,step){
 }
 function drawConcept(){
   const presentation=conceptView==='mechanism'?mechanismFor(activeConcept):conceptModel,step=presentation.steps[conceptStep];
-  $('#conceptPanel').classList.toggle('lesson-mode',presentation.kind==='lesson'||presentation.kind==='storyboard');
-  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
+  $('#conceptPanel').classList.toggle('lesson-mode',['lesson','storyboard','production'].includes(presentation.kind));
+  $('#conceptViewLabel').textContent=conceptView==='mechanism'?'How the mechanism works':presentation.kind==='production'?'Production architecture · workload, authority, and operations':presentation.kind==='storyboard'?'System walkthrough · components, interactions, and guarantees':'Production scenario · data, messages, and invariants';
   $('#conceptFlow').className=`concept-flow kind-${presentation.kind}`;
   $('#conceptFlow').innerHTML=`<div class="concept-zoom-layer" style="--concept-zoom:${conceptZoom}">${renderConceptScene(presentation,step)}</div>`;
   $('#conceptZoomReset').textContent=`${Math.round(conceptZoom*100)}%`;

@@ -139,25 +139,134 @@
     { from: "h3", to: "b9", relation: "index" }
   ]);
 
-  add("probabilistic-data-structures", "Bloom filter", "bits",
-    "An API gateway avoids disk reads for definitely absent session IDs.",
-    bloomEntities, bloomConnections, [
-      step("Start empty", "All twelve positions are zero before any session is admitted.", null,
-        { bits: [0,0,0,0,0,0,0,0,0,0,0,0], key: null, hashes: [], verdict: "empty" },
-        "The filter represents an empty set.", "A zero bit proves no inserted key used that position."),
-      step("Hash s42", "Three independent hashes map s42 to positions 2, 5, and 9.", { type: "hash", key: "s42" },
-        { bits: [0,0,0,0,0,0,0,0,0,0,0,0], key: "s42", hashes: [2,5,9], verdict: "pending-insert" },
-        "The target positions are known.", "Exactly k=3 positions are derived for every key."),
-      step("Set positions", "Insertion sets each selected position; existing ones would remain one.", { type: "set-bits", positions: [2,5,9] },
-        { bits: [0,0,1,0,0,1,0,0,0,1,0,0], key: "s42", hashes: [2,5,9], verdict: "inserted" },
-        "s42 is represented by three one bits.", "Bits only transition from zero to one."),
-      step("Reject s77", "s77 maps to 2, 6, and 10; bit 6 is zero, so it is definitely absent.", { type: "query", key: "s77" },
-        { bits: [0,0,1,0,0,1,0,0,0,1,0,0], key: "s77", hashes: [2,6,10], verdict: "definitely-absent" },
-        "The gateway skips the backing store.", "Any zero among queried positions proves absence."),
-      step("Admit a maybe", "s42 finds all three bits set, so the store must confirm membership.", { type: "query", key: "s42" },
-        { bits: [0,0,1,0,0,1,0,0,0,1,0,0], key: "s42", hashes: [2,5,9], verdict: "possibly-present" },
-        "The filter returns possibly present, not a guarantee.", "False positives are possible; false negatives are not.")
-    ]);
+  lessons["probabilistic-data-structures::Bloom filter"] = {
+    family: "cache",
+    scenario: "A session service uses one Bloom filter per tenant partition to reject definitely absent session IDs before reading its authoritative database.",
+    entities: [
+      ["client", "API client", "Requests a session by tenant and session ID", 8, 50],
+      ["api", "Session service", "Owns the read path and treats the filter as a negative cache", 30, 50],
+      ["directory", "Partition directory", "Maps tenant IDs to filter and database partitions", 52, 18],
+      ["filter", "Bloom filter shard", "Answers definitely absent or maybe present for one partition", 52, 78],
+      ["db", "Session database", "Authoritative source for session existence and payload", 78, 50],
+      ["builder", "Filter builder", "Builds new generations from snapshots and committed inserts", 90, 82]
+    ],
+    connections: [
+      ["client", "api", "GET tenant-7/session/s77"],
+      ["api", "directory", "resolve tenant-7 to partition P3"],
+      ["directory", "filter", "select Bloom generation P3-g18"],
+      ["api", "filter", "mightContain(session ID)"],
+      ["api", "db", "read only when filter says maybe"],
+      ["db", "builder", "snapshot and committed insert stream"],
+      ["builder", "filter", "publish rebuilt generation atomically"]
+    ],
+    steps: [
+      {
+        title: "Partitioned filters are ready",
+        narration: "The service keeps a small Bloom filter for each database partition rather than one globally contended filter.",
+        action: null,
+        states: {
+          client: { request: "idle", response: "—" },
+          api: { route: "idle", databaseReads: "0" },
+          directory: { tenant7: "partition P3", generation: "18" },
+          filter: { partition: "P3", occupancy: "31%", estimatedFPR: "1.2%" },
+          db: { partition: "P3", sessions: "8.4M" },
+          builder: { source: "snapshot + inserts", checkpoint: "LSN 920" }
+        },
+        outcome: "Filter memory and rebuild work are isolated by partition.",
+        invariant: "The directory must route a request to the filter generation built from the same logical database partition."
+      },
+      {
+        title: "Route the request",
+        narration: "A request for tenant-7 session s77 resolves to partition P3 before the service probes the filter.",
+        action: ["api", "directory", "resolve tenant-7 → P3 / generation 18"],
+        states: {
+          client: { request: "GET s77", response: "waiting" },
+          api: { route: "resolving tenant-7", databaseReads: "0" },
+          directory: { tenant7: "partition P3", generation: "18" },
+          filter: { partition: "P3", occupancy: "31%", estimatedFPR: "1.2%" },
+          db: { partition: "P3", sessions: "8.4M" },
+          builder: { source: "snapshot + inserts", checkpoint: "LSN 920" }
+        },
+        outcome: "The service selects P3-g18 without broadcasting to every filter.",
+        invariant: "Partitioning reduces memory and rebuild blast radius but requires consistent routing metadata."
+      },
+      {
+        title: "Definite miss skips the database",
+        narration: "The P3 filter finds at least one zero bit for s77, proving that s77 was not inserted into this generation.",
+        action: ["api", "filter", "mightContain(s77) → definitely absent"],
+        states: {
+          client: { request: "GET s77", response: "404 session not found" },
+          api: { route: "short-circuit negative", databaseReads: "0" },
+          directory: { tenant7: "partition P3", generation: "18" },
+          filter: { partition: "P3", verdict: "definitely absent", estimatedFPR: "1.2%" },
+          db: { partition: "P3", reads: "0" },
+          builder: { source: "snapshot + inserts", checkpoint: "LSN 920" }
+        },
+        outcome: "The service returns without spending a database read.",
+        invariant: "A Bloom filter is useful here only if the system prevents false negatives."
+      },
+      {
+        title: "Maybe present requires verification",
+        narration: "Session ghost42 maps only to set bits. That is not proof of existence, so the service reads the authoritative database.",
+        action: ["api", "db", "SELECT ghost42 after maybe-present verdict"],
+        states: {
+          client: { request: "GET ghost42", response: "waiting" },
+          api: { route: "verify maybe", databaseReads: "1" },
+          directory: { tenant7: "partition P3", generation: "18" },
+          filter: { partition: "P3", verdict: "maybe present", estimatedFPR: "1.2%" },
+          db: { partition: "P3", result: "not found" },
+          builder: { source: "snapshot + inserts", checkpoint: "LSN 920" }
+        },
+        outcome: "The database exposes a harmless false positive; the client still receives a correct 404.",
+        invariant: "Never treat maybe present as an authoritative positive."
+      },
+      {
+        title: "Real positive reaches the database",
+        narration: "Session s42 also produces maybe present, and the database confirms the row and returns its payload.",
+        action: ["api", "db", "SELECT s42 → active session"],
+        states: {
+          client: { request: "GET s42", response: "200 active session" },
+          api: { route: "verified positive", databaseReads: "2 total" },
+          directory: { tenant7: "partition P3", generation: "18" },
+          filter: { partition: "P3", verdict: "maybe present", estimatedFPR: "1.2%" },
+          db: { partition: "P3", result: "s42 active" },
+          builder: { source: "snapshot + inserts", checkpoint: "LSN 920" }
+        },
+        outcome: "The filter saves negative reads while preserving database authority for positive answers.",
+        invariant: "Bloom filters optimize absence-heavy workloads; they do not replace the source of truth."
+      },
+      {
+        title: "Rebuild instead of clearing bits",
+        narration: "Deletes and rising occupancy trigger a background rebuild because clearing a shared bit could create a false negative for another key.",
+        action: ["db", "builder", "build P3 generation 19 from snapshot @ LSN 1040"],
+        states: {
+          client: { request: "normal traffic", response: "served via g18" },
+          api: { route: "continue on generation 18", databaseReads: "metered" },
+          directory: { tenant7: "partition P3", generation: "18 active / 19 building" },
+          filter: { partition: "P3", occupancy: "67%", estimatedFPR: "30.1%" },
+          db: { partition: "P3", snapshot: "LSN 1040" },
+          builder: { source: "snapshot + insert catch-up", checkpoint: "LSN 1032" }
+        },
+        outcome: "Generation 18 remains readable while generation 19 catches up.",
+        invariant: "Standard Bloom filters cannot safely delete individual keys by clearing shared bits."
+      },
+      {
+        title: "Publish a healthier generation",
+        narration: "After replay reaches the database checkpoint, the directory atomically switches P3 to a larger, lower-occupancy filter.",
+        action: ["builder", "filter", "publish P3-g19 and retire g18"],
+        states: {
+          client: { request: "normal traffic", response: "served via g19" },
+          api: { route: "generation 19", databaseReads: "reduced" },
+          directory: { tenant7: "partition P3", generation: "19" },
+          filter: { partition: "P3", occupancy: "29%", estimatedFPR: "0.9%" },
+          db: { partition: "P3", snapshot: "authoritative" },
+          builder: { source: "complete", checkpoint: "LSN 1040" }
+        },
+        outcome: "False-positive pressure falls without interrupting the request path.",
+        invariant: "Publish a rebuilt filter only after it includes every committed insert through its cutover checkpoint."
+      }
+    ]
+  };
 
   add("probabilistic-data-structures", "Counting Bloom filter", "counters",
     "A cache tracks membership while allowing session IDs to be removed.",

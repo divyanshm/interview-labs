@@ -15,10 +15,17 @@ const lessonFiles = [
   'system-design-lessons-data.js',
   'system-design-lessons-platform.js'
 ];
+const productionContextFiles = [
+  'system-design-production-contexts-core.js',
+  'system-design-production-contexts-data.js',
+  'system-design-production-contexts-platform.js',
+  'system-design-production-contexts-compute.js',
+  'system-design-production-contexts-advanced.js'
+];
 const context = { window: {} };
 vm.createContext(context);
 
-for (const file of [...dataFiles, ...lessonFiles]) {
+for (const file of [...dataFiles, ...productionContextFiles, ...lessonFiles]) {
   const filePath = path.join(root, file);
   if (!fs.existsSync(filePath)) throw new Error(`Missing required script: ${file}`);
   vm.runInContext(fs.readFileSync(filePath, 'utf8'), context, { filename: file });
@@ -32,6 +39,8 @@ const registry = new Set(
   )
 );
 const lessons = context.window.SYSTEM_DESIGN_LESSONS || {};
+const mechanisms = context.window.SYSTEM_DESIGN_MECHANISMS || {};
+const productionContexts = context.window.SYSTEM_DESIGN_PRODUCTION_CONTEXTS || {};
 const concepts = context.window.SYSTEM_DESIGN_CHAPTERS.flatMap(chapter =>
   chapter.groups.flatMap(group =>
     group.concepts.map(concept => ({ key: `${chapter.id}::${concept.name}`, concept }))
@@ -49,6 +58,7 @@ const errors = [];
 const layoutSignatures = new Set();
 let stepCount = 0;
 let storyboardCount = 0;
+let productionContextCount = 0;
 
 function fail(key, message) {
   errors.push(`${key}: ${message}`);
@@ -62,6 +72,7 @@ for (const [key, lesson] of Object.entries(lessons)) {
     fail(key, 'must contain 4-9 concrete entities');
     continue;
   }
+
   if (!Array.isArray(lesson.steps) || lesson.steps.length < 5 || lesson.steps.length > 8) {
     fail(key, 'must contain 5-8 teaching steps');
     continue;
@@ -115,6 +126,80 @@ for (const [key, lesson] of Object.entries(lessons)) {
   });
 }
 
+const customMechanismKeys = new Set([
+  'rate-limiting-traffic-management::Token bucket',
+  'probabilistic-data-structures::Bloom filter',
+  'probabilistic-data-structures::Count-Min Sketch'
+]);
+const mechanismKeys = new Set([...Object.keys(mechanisms), ...customMechanismKeys]);
+const workloadPattern = /\b(client|caller|request|traffic|user|tenant|producer|consumer|reader|writer|application|job|event stream)\b/i;
+const servicePattern = /\b(service|api|gateway|router|worker|processor|coordinator|scheduler|controller|engine|pipeline|cluster)\b/i;
+const authorityPattern = /\b(authoritative|source of truth|database|store|storage|durable|ledger|registry|catalog|table|index|log|warehouse)\b/i;
+const operationsPattern = /\b(control|operator|monitor|metric|alert|builder|rebuild|repair|admin|health|recovery|checkpoint|replicator|cdc|backfill|autoscal|compaction|deployment)\b/i;
+const lowLevelPattern = /\b(bit array|counter matrix|hash function|clock register|token ring|fingerprint bucket|register array|skip list node|tree node)\b/i;
+
+for (const key of mechanismKeys) {
+  const production = productionContexts[key];
+  if (!production) {
+    fail(key, 'has a mechanism tab but no explicit production architecture');
+    continue;
+  }
+  productionContextCount += 1;
+  if (!production.scenario || production.scenario.length < 30) fail(key, 'production scenario is too vague');
+  if (!Array.isArray(production.components) || production.components.length < 5 || production.components.length > 8) {
+    fail(key, 'production architecture must contain 5-8 concrete components');
+    continue;
+  }
+  if (!Array.isArray(production.flows) || production.flows.length < 5 || production.flows.length > 8) {
+    fail(key, 'production architecture must contain 5-8 meaningful flows');
+    continue;
+  }
+
+  const componentIds = new Set();
+  const architectureLabels = [];
+  for (const component of production.components) {
+    if (!Array.isArray(component) || component.length < 6) {
+      fail(key, 'has a malformed production component');
+      continue;
+    }
+    const [id, label, role,, x, y] = component;
+    if (componentIds.has(id)) fail(key, `duplicates production component ID "${id}"`);
+    componentIds.add(id);
+    architectureLabels.push(String(label).trim().toLowerCase());
+    if (!label || !role || genericEntity.test(String(label).trim())) fail(key, `uses a generic production component "${label}"`);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 5 || x > 95 || y < 5 || y > 95) {
+      fail(key, `production component "${id}" has invalid coordinates`);
+    }
+  }
+
+  for (const [index, flow] of production.flows.entries()) {
+    if (!Array.isArray(flow) || flow.length < 4) {
+      fail(key, `production flow ${index + 1} is malformed`);
+      continue;
+    }
+    if (!componentIds.has(flow[0]) || !componentIds.has(flow[1])) fail(key, `production flow ${index + 1} has an unknown endpoint`);
+    if (!flow[2] || genericConnection.test(flow[2])) fail(key, `production flow ${index + 1} uses a generic label`);
+    if (!flow[3] || flow[3].length < 20) fail(key, `production flow ${index + 1} has vague narration`);
+  }
+
+  const productionText = production.components.map(component => component.slice(1, 4).join(' ')).join(' ');
+  if (!workloadPattern.test(productionText)) fail(key, 'production architecture has no workload or caller');
+  if (!servicePattern.test(productionText)) fail(key, 'production architecture has no service boundary');
+  if (!authorityPattern.test(productionText)) fail(key, 'production architecture has no authoritative dependency or durable state');
+  if (!operationsPattern.test(productionText)) fail(key, 'production architecture has no operational, update, or recovery path');
+  const lowLevelCount = production.components.filter(component => lowLevelPattern.test(component.slice(1, 4).join(' '))).length;
+  if (lowLevelCount > 1) fail(key, 'production architecture repeats low-level mechanism internals');
+
+  const mechanismLabels = new Set((mechanisms[key]?.diagram?.components || []).map(component => String(component[1]).trim().toLowerCase()));
+  const overlap = architectureLabels.filter(label => mechanismLabels.has(label));
+  if (overlap.length > 1) fail(key, `production architecture substantially overlaps mechanism components: ${overlap.join(', ')}`);
+}
+
+for (const key of Object.keys(productionContexts)) {
+  if (!registry.has(key)) fail(key, 'production context does not match a catalog concept');
+  if (!mechanismKeys.has(key)) fail(key, 'production context belongs to a concept without a mechanism tab');
+}
+
 for (const { key, concept } of concepts) {
   if (lessons[key]) continue;
   storyboardCount += 1;
@@ -149,6 +234,7 @@ console.log(JSON.stringify({
   catalogConcepts: registry.size,
   authoredLessons: Object.keys(lessons).length,
   architectureStoryboards: storyboardCount,
+  productionArchitectures: productionContextCount,
   genericFallbacks: 0,
   teachingSteps: stepCount,
   distinctLayouts: layoutSignatures.size
