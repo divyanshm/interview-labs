@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>System Design Mental Model Lab</title>
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <link rel="stylesheet" href="../assets/css/system-design.css">
+</head>
+<body>
+<button class="control present" id="present">⛶ Presentation</button>
+<div class="progress"><i id="progress"></i></div>
+<div class="app sd-shell">
+  <aside class="sidebar sd-sidebar">
+    <div class="brand"><div class="logo sd-logo">⌘</div><div><b>System Design</b><small>Single-stop handbook</small></div></div>
+    <a class="back" href="../index.html">← All tracks</a>
+    <input class="side-search" id="sideSearch" placeholder="Find any concept…">
+    <div class="nav-label">Explore</div>
+    <nav><a href="#start">Overview</a><a href="#method">Design method</a><a href="#visuals">Visual theater</a><a href="#catalog">Concept catalog</a></nav>
+    <div class="nav-label">27 chapters</div><nav class="chapter-nav" id="chapterNav"></nav>
+  </aside>
+  <main class="sd-main">
+    <section id="start" class="sd-hero">
+      <div class="eyebrow">Senior / staff system design</div><h1>Reason from <span style="color:var(--sd)">invariants and tradeoffs</span>.</h1>
+      <p class="lede">A concise visual handbook for distributed systems, storage, messaging, reliability, identity, observability, migration, and large-scale architecture.</p>
+      <input class="hero-search" id="heroSearch" placeholder="Search CAP, fencing tokens, Bloom filters, outbox, watermarks, SPIFFE…">
+      <div class="stats"><span class="stat"><b id="chapterCount">27</b> chapters</span><span class="stat"><b id="conceptCount">—</b> concepts</span><span class="stat"><b>14</b> visual models</span></div>
+      <div class="hero-note"><b>Use it actively:</b> search a term, open its chapter, explain the failure it addresses, then name the cost it introduces. Architecture quality lives in that tradeoff.</div>
+    </section>
+    <section id="method">
+      <div class="eyebrow">A repeatable interview method</div><h2>Design outside-in, then pressure-test.</h2>
+      <div class="method">
+        <div class="method-step"><b>01 · Requirements</b><span>Clarify users, core flows, consistency, latency, availability, durability, privacy, and exclusions.</span></div>
+        <div class="method-step"><b>02 · Scale</b><span>Estimate requests, read/write ratio, objects, bytes, growth, fan-out, hot keys, and geography.</span></div>
+        <div class="method-step"><b>03 · Contracts</b><span>Define APIs/events, idempotency, pagination, errors, versioning, and authorization boundaries.</span></div>
+        <div class="method-step"><b>04 · Data</b><span>Choose entities, access patterns, indexes, partition key, replication, retention, and consistency.</span></div>
+        <div class="method-step"><b>05 · Architecture</b><span>Draw request, data, and control flows. Keep ownership and trust boundaries explicit.</span></div>
+        <div class="method-step"><b>06 · Deep dive</b><span>Explore the hardest bottleneck: coordination, hot partition, fan-out, ordering, or failure recovery.</span></div>
+        <div class="method-step"><b>07 · Failure</b><span>Apply timeouts, retries, backpressure, isolation, failover, reconciliation, RPO, and RTO.</span></div>
+        <div class="method-step"><b>08 · Operability</b><span>Define SLOs, signals, rollout, migration, capacity, cost, audit, and disaster drills.</span></div>
+      </div>
+      <div class="compare-strip"><div class="compare-card"><b>Data plane</b><span>High-volume user traffic. Optimize throughput, latency, and horizontal scalability.</span></div><div class="compare-card"><b>Control plane</b><span>Configuration and orchestration. Optimize correctness, consistency, audit, and safe rollout.</span></div><div class="compare-card"><b>Failure plane</b><span>How the system degrades, contains damage, recovers, and proves recovery worked.</span></div></div>
+    </section>
+    <section id="visuals">
+      <div class="eyebrow">Interactive system theater</div><h2>Watch the distributed invariant move.</h2>
+      <div class="theater">
+        <div class="theater-stage"><div class="controls"><select class="control" id="visualType"></select><button class="control" id="visualReset">↺ Reset</button><button class="control primary" id="visualStep">Step →</button><button class="control" id="visualPlay">▶ Play</button></div><div class="system-flow" id="systemFlow"></div></div>
+        <div class="theater-info"><h3 id="visualTitle"></h3><div class="status" id="visualStatus"></div><div class="label">Mental model</div><p class="muted" id="visualMental"></p><div class="label">Invariant</div><div class="invariant" id="visualInvariant"></div><div class="label">Tradeoff</div><p class="muted" id="visualTradeoff"></p></div>
+      </div>
+    </section>
+    <section id="realtime">
+      <div class="eyebrow">Realtime Connections · chapter deep dive</div><h2>Choose the connection shape that matches the conversation.</h2>
+      <p class="lede">Long polling, Server-Sent Events, and WebSockets all deliver timely updates, but they create different connection lifecycles, traffic directions, infrastructure demands, and failure modes.</p>
+      <div class="transport-grid">
+        <article class="transport-card">
+          <div class="transport-title"><span>HTTP</span><h3>Long polling</h3></div>
+          <div class="transport-diagram">
+            <div class="transport-node client-node">Client</div><div class="transport-route"><b>GET /events?cursor=42 →</b><small>request waits</small></div><div class="transport-node service-node">API instances</div><div class="transport-route"><b>← event or timeout</b><small>then reconnect</small></div><div class="transport-node queue-node">Event store / broker</div>
+          </div>
+          <ol><li>Client sends a normal HTTP request with its last cursor.</li><li>Server holds the request until an event arrives or a timeout expires.</li><li>Server returns one response; the client processes it and immediately opens another request.</li></ol>
+          <p><b>Best fit:</b> broad HTTP compatibility and infrequent updates when true streaming infrastructure is unavailable.</p>
+          <p class="transport-risk">Watch connection counts, timeout alignment, reconnect gaps, duplicate delivery, and load-balancer idle limits.</p>
+        </article>
+        <article class="transport-card">
+          <div class="transport-title"><span>HTTP stream</span><h3>Server-Sent Events</h3></div>
+          <div class="transport-diagram">
+            <div class="transport-node client-node">EventSource</div><div class="transport-route one-way"><b>← text/event-stream</b><small>id · event · data</small></div><div class="transport-node gateway-node">Proxy / gateway</div><div class="transport-route one-way"><b>← subscribed events</b><small>heartbeat keeps stream open</small></div><div class="transport-node queue-node">Service + pub/sub</div>
+          </div>
+          <ol><li>Browser opens one HTTP GET and the server keeps the response stream open.</li><li>Server emits UTF-8 events with IDs; intermediaries must not buffer the stream.</li><li>EventSource reconnects automatically and can send <code>Last-Event-ID</code> to resume.</li></ol>
+          <p><b>Best fit:</b> notifications, dashboards, progress, and feeds where traffic is predominantly server → client.</p>
+          <p class="transport-risk">Plan heartbeat cadence, replay retention, per-origin connection limits, proxy buffering, and slow-client backpressure.</p>
+        </article>
+        <article class="transport-card">
+          <div class="transport-title"><span>Full duplex</span><h3>WebSockets</h3></div>
+          <div class="transport-diagram">
+            <div class="transport-node client-node">WebSocket client</div><div class="transport-route duplex"><b>⇄ frames</b><small>after HTTP Upgrade</small></div><div class="transport-node gateway-node">WebSocket gateway</div><div class="transport-route duplex"><b>⇄ route / fan-out</b><small>connection ID + topic</small></div><div class="transport-node queue-node">Services + pub/sub</div>
+          </div>
+          <ol><li>Client performs an authenticated HTTP Upgrade handshake.</li><li>One persistent connection carries independent messages in both directions.</li><li>At scale, gateways register connections and use shared pub/sub so any service can reach the owning gateway.</li></ol>
+          <p><b>Best fit:</b> chat, multiplayer, collaborative editing, trading, and interactive bidirectional protocols.</p>
+          <p class="transport-risk">Handle authentication renewal, ping/pong, ordering, bounded send queues, backpressure, reconnect/resume, and rolling gateway drains.</p>
+        </article>
+      </div>
+      <div class="transport-table-wrap"><table class="transport-table"><thead><tr><th>Choice</th><th>Direction</th><th>Connection lifecycle</th><th>Natural recovery</th><th>Primary scaling concern</th></tr></thead><tbody>
+        <tr><td>Long polling</td><td>Request / response</td><td>Repeated held HTTP requests</td><td>Reconnect with cursor</td><td>Request churn and held server resources</td></tr>
+        <tr><td>SSE</td><td>Server → client</td><td>One long-lived HTTP response</td><td>Automatic reconnect + Last-Event-ID</td><td>Open streams, buffering, and slow consumers</td></tr>
+        <tr><td>WebSockets</td><td>Bidirectional</td><td>Persistent upgraded connection</td><td>Application-defined resume protocol</td><td>Connection ownership, fan-out, and backpressure</td></tr>
+      </tbody></table></div>
+      <div class="hero-note"><b>Interview shortcut:</b> start with the least stateful option. Use long polling for compatibility, SSE for one-way streams, and WebSockets only when the client and server both need low-latency independent messages. <a href="#chapter-realtime-connections">Open the Realtime Connections chapter.</a></div>
+    </section>
+    <section id="catalog" class="catalog">
+      <div class="catalog-head"><div><div class="eyebrow">Searchable concept catalog</div><h2>Everything in one place.</h2></div><p class="muted">Chapters stay collapsed to reduce clutter. Select any concept to open its visual explainer and quick recap.</p></div>
+      <div id="chapters"></div><div class="empty-search" id="emptySearch">No matching concept. Try a broader term.</div>
+    </section>
+  </main>
+</div>
+<dialog class="concept-dialog" id="conceptDialog">
+  <div class="concept-panel" id="conceptPanel">
+    <header class="concept-header">
+      <div><div class="eyebrow" id="conceptChapter"></div><h2 id="conceptTitle"></h2></div>
+      <button class="concept-close" id="conceptClose" aria-label="Close visual explainer">×</button>
+    </header>
+    <div class="concept-layout">
+      <div class="concept-stage">
+        <div class="concept-view-switch" id="conceptViewSwitch">
+          <button class="active" data-concept-view="mechanism">1 · Mechanism</button>
+          <button data-concept-view="architecture">2 · Production architecture</button>
+        </div>
+        <div class="architecture-label" id="conceptViewLabel">Architecture &amp; step-driven data flow</div>
+        <div class="controls">
+          <button class="control" id="conceptReset">↺ Reset</button>
+          <button class="control" id="conceptPrev">← Back</button>
+          <button class="control primary" id="conceptNext">Step →</button>
+          <button class="control" id="conceptPlay">▶ Play</button>
+          <div class="diagram-zoom" aria-label="Diagram zoom controls">
+            <button class="control" id="conceptZoomOut" aria-label="Zoom diagram out">−</button>
+            <button class="control zoom-value" id="conceptZoomReset" aria-label="Reset diagram zoom">100%</button>
+            <button class="control" id="conceptZoomIn" aria-label="Zoom diagram in">+</button>
+          </div>
+        </div>
+        <div class="concept-flow" id="conceptFlow"></div>
+        <div class="concept-dots" id="conceptDots"></div>
+        <div class="status concept-status" id="conceptStatus"></div>
+      </div>
+      <aside class="concept-notes">
+        <div class="label">What it means</div><p id="conceptSummary"></p>
+        <div class="label">Why not always?</div><div class="invariant" id="conceptTradeoff"></div>
+        <div class="label">Interview recall</div><p class="muted" id="conceptRecall"></p>
+        <div class="label">Related concepts</div><div class="related-concepts" id="conceptRelated"></div>
+      </aside>
+    </div>
+    <div class="concept-hint">Use ←/→ to step, Space to play or pause, and Esc to close.</div>
+  </div>
+</dialog>
+<script src="../assets/js/system-design-catalog.js"></script>
+<script src="../assets/js/system-design-visual-contract.js"></script>
+<script src="../assets/js/system-design.js"></script>
+</body>
+</html>

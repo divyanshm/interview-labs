@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Graph Interview Lab</title>
+  <style>
+    :root{
+      --bg:#07111f;--panel:#101d31;--panel2:#162641;--ink:#e9f2ff;--muted:#9cb0cb;
+      --cyan:#4de2ff;--blue:#5b8cff;--green:#54e38e;--yellow:#ffd166;--red:#ff6b7a;
+      --purple:#b88cff;--line:#304766;--shadow:0 18px 50px #0007
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth;color-scheme:dark}
+    body{margin:0;background:radial-gradient(circle at 10% -10%,#173760 0,transparent 36%),var(--bg);color:var(--ink);font:16px/1.55 Inter,Segoe UI,Arial,sans-serif}
+    button,select,input{font:inherit}
+    select{color-scheme:dark}select option,select optgroup{color:var(--ink);background-color:var(--panel)}
+    button{cursor:pointer}
+    .app{display:grid;grid-template-columns:270px 1fr;min-height:100vh}
+    aside{position:sticky;top:0;height:100vh;padding:25px 18px;border-right:1px solid #ffffff15;background:#081321e8;backdrop-filter:blur(16px);overflow:auto}
+    .brand{display:flex;gap:11px;align-items:center;margin:0 6px 22px}
+    .brand-logo{display:grid;place-items:center;width:42px;height:42px;border:1px solid #4de2ff66;border-radius:14px;background:#4de2ff12;font-size:24px}
+    .brand h1{font-size:17px;line-height:1.1;margin:0}.brand small{color:var(--muted)}
+    nav a{display:flex;gap:10px;align-items:center;color:var(--muted);text-decoration:none;padding:9px 11px;border-radius:10px;margin:2px 0;font-size:14px}
+    nav a:hover,nav a.active{color:var(--ink);background:#4de2ff12}
+    .progress-wrap{margin:24px 7px 10px;color:var(--muted);font-size:12px}.bar{height:6px;border-radius:9px;background:#ffffff13;overflow:hidden;margin-top:7px}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+    .side-tip{margin-top:20px;padding:12px;border:1px solid #ffffff12;background:#ffffff07;border-radius:12px;color:var(--muted);font-size:12px}
+    main{min-width:0}
+    section{min-height:100vh;padding:70px clamp(24px,5vw,76px);display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid #ffffff0d}
+    .eyebrow{color:var(--cyan);font-weight:700;text-transform:uppercase;letter-spacing:.16em;font-size:12px}
+    h2{font-size:clamp(34px,5vw,64px);line-height:1.04;margin:10px 0 16px;max-width:940px}
+    h3{margin:0 0 8px;font-size:20px}h4{margin:0 0 6px}
+    .lede{color:var(--muted);font-size:clamp(17px,2vw,21px);max-width:850px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-top:30px}
+    .card{grid-column:span 4;border:1px solid #ffffff12;border-radius:18px;background:linear-gradient(145deg,#172944cc,#0e1b2ecc);padding:20px;box-shadow:0 8px 30px #0002}
+    .card.wide{grid-column:span 8}.card.full{grid-column:1/-1}.card.half{grid-column:span 6}
+    .card p{color:var(--muted);margin:7px 0}.card code,.pill{color:var(--cyan)}
+    .hero{position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:520px;height:520px;border-radius:50%;background:#4de2ff09;filter:blur(4px);right:-180px;top:5%}
+    .hero-content{position:relative;z-index:1}.hero h2 em{font-style:normal;color:var(--cyan)}
+    .chips{display:flex;gap:9px;flex-wrap:wrap;margin-top:24px}.chip,.pill{padding:7px 11px;border-radius:999px;border:1px solid #ffffff1c;background:#ffffff08;font-size:13px}
+    .cta,.control{border:1px solid #ffffff18;border-radius:10px;background:#ffffff0b;color:var(--ink);padding:9px 13px}
+    .cta{background:linear-gradient(135deg,var(--blue),#7c5cff);border:0;font-weight:700;margin-top:28px;padding:13px 18px}
+    .cta:hover,.control:hover{filter:brightness(1.18)}
+    .mini-graph{width:340px;max-width:100%;height:190px;margin-top:28px}
+    svg text{fill:var(--ink);font-weight:700;text-anchor:middle;dominant-baseline:middle;pointer-events:none}
+    .edge{stroke:var(--line);stroke-width:3}.edge.weighted-label{stroke-width:0}
+    .node{fill:#152944;stroke:#6b83a5;stroke-width:3;transition:.25s}.node.current{fill:var(--yellow);stroke:#fff2b0}.node.visited{fill:var(--green);stroke:#b5ffd1}.node.frontier{fill:var(--blue);stroke:#bed0ff}.node.path{fill:var(--purple);stroke:#ecddff}
+    .edge.active{stroke:var(--yellow);filter:drop-shadow(0 0 5px var(--yellow))}.edge.path{stroke:var(--purple);stroke-width:5}.edge.rejected{stroke:var(--red);stroke-dasharray:7 5;opacity:.65}
+    .concept{cursor:pointer;position:relative;transition:.2s}.concept:hover{transform:translateY(-3px);border-color:#4de2ff55}.concept .detail{display:none;border-top:1px solid #ffffff14;margin-top:12px;padding-top:12px}.concept.open .detail{display:block}.plus{position:absolute;right:15px;top:13px;color:var(--cyan);font-size:22px}
+    .compare{width:100%;border-collapse:collapse;margin-top:18px;font-size:14px}.compare th,.compare td{padding:12px;text-align:left;border-bottom:1px solid #ffffff12}.compare th{color:var(--cyan)}.compare td{color:var(--muted)}
+    .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0}.tab{border:1px solid #ffffff18;border-radius:999px;padding:8px 14px;background:transparent;color:var(--muted)}.tab.active{background:#4de2ff18;color:var(--cyan);border-color:#4de2ff66}
+    .tabpane{display:none}.tabpane.active{display:block}
+    .representation{white-space:pre;background:#07111f;border-radius:12px;padding:14px;color:#b8d0ec;overflow:auto;min-height:150px}
+    .lab{display:grid;grid-template-columns:minmax(400px,1.5fr) minmax(270px,1fr);gap:18px;margin-top:24px}
+    .viz,.inspector{background:#0b1728;border:1px solid #ffffff14;border-radius:18px;padding:18px;min-width:0}
+    #traversalSvg,#dijkstraSvg,#theaterSvg{width:100%;height:430px;background:radial-gradient(circle,#ffffff09 1px,transparent 1px);background-size:22px 22px;border-radius:12px}
+    .controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.controls label{display:flex;align-items:center;gap:7px;color:var(--muted)}
+    .control.primary{background:#5b8cff;color:white}.control:disabled{opacity:.35;cursor:not-allowed}
+    .status{padding:13px;border-radius:12px;background:#ffffff08;margin:10px 0;color:var(--muted);min-height:76px}.status b{color:var(--yellow)}
+    .ds-title{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--cyan);margin:17px 0 8px}.data-structure{display:flex;gap:7px;flex-wrap:wrap;min-height:42px}.token{display:grid;place-items:center;min-width:40px;height:40px;border-radius:9px;background:#263c5f;border:1px solid #6684b2;font-weight:700}.token.hot{background:#746027;border-color:var(--yellow)}
+    .code{white-space:pre;overflow:auto;background:#06101d;color:#a9c2de;padding:14px;border-radius:12px;font:13px/1.55 Consolas,monospace}.code .line{display:block;padding:0 7px;border-radius:4px}.code .line.active{color:white;background:#ffd16624;border-left:3px solid var(--yellow)}
+    .legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+    .callstack{display:flex;flex-direction:column-reverse;gap:5px}.frame{padding:8px 10px;border-left:3px solid var(--purple);background:#b88cff12;border-radius:5px}
+    .mental-model{border-left:3px solid var(--cyan);padding:12px 14px;background:#4de2ff0b;border-radius:0 12px 12px 0;color:var(--muted);margin:12px 0}.mental-model b{color:var(--cyan)}
+    .algo-state{display:flex;gap:7px;flex-wrap:wrap}.edge-token{padding:7px 9px;border:1px solid #ffffff18;background:#ffffff08;border-radius:8px;font:12px Consolas,monospace}.edge-token.hot{border-color:var(--yellow);background:#ffd16618}.edge-token.chosen{border-color:var(--purple);background:#b88cff18}.edge-token.rejected{border-color:var(--red);text-decoration:line-through;opacity:.7}
+    .matrix-grid{display:grid;gap:3px;margin-top:9px}.matrix-cell{min-height:36px;display:grid;place-items:center;background:#14243b;border:1px solid #ffffff10;border-radius:5px;font:13px Consolas,monospace}.matrix-cell.head{color:var(--cyan);background:transparent;border:0}.matrix-cell.changed{background:#54e38e22;border-color:var(--green);color:#baffd2}.matrix-cell.pivot{background:#ffd16620;border-color:var(--yellow);color:var(--yellow)}
+    .comparison-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.comparison-strip>div{padding:14px;border-radius:12px;background:#ffffff07;border:1px solid #ffffff10}.comparison-strip b{display:block;color:var(--cyan);margin-bottom:4px}.comparison-strip span{color:var(--muted);font-size:13px}
+    .pattern{display:grid;grid-template-columns:48px 1fr;gap:14px}.pattern-num{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#4de2ff15;color:var(--cyan);font-weight:800}
+    .decision{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:20px}.decision span{padding:10px;border-radius:10px;background:#ffffff08;color:var(--muted)}.arrow{color:var(--cyan)!important;background:transparent!important}
+    .complexity{font-family:Consolas,monospace;color:var(--yellow)}
+    .quiz-option{display:block;width:100%;text-align:left;margin:8px 0;padding:12px;border-radius:10px;border:1px solid #ffffff17;background:#ffffff07;color:var(--ink)}.quiz-option.correct{border-color:var(--green);background:#54e38e18}.quiz-option.wrong{border-color:var(--red);background:#ff6b7a18}
+    .flashcard{perspective:1000px;height:250px;cursor:pointer}.flash-inner{position:relative;width:100%;height:100%;transition:.55s;transform-style:preserve-3d}.flashcard.flipped .flash-inner{transform:rotateY(180deg)}.face{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:28px;border:1px solid #ffffff16;border-radius:18px;background:linear-gradient(145deg,#172944,#0b1728);backface-visibility:hidden}.back{transform:rotateY(180deg)}.face small{color:var(--muted)}
+    .hour{display:grid;grid-template-columns:80px 1fr;gap:14px;border-left:3px solid var(--blue);padding:12px 15px;background:#ffffff06;margin:8px 0;border-radius:0 12px 12px 0}.hour time{color:var(--cyan);font-weight:800}.hour p{margin:0;color:var(--muted)}
+    .search{width:100%;padding:12px 15px;border:1px solid #ffffff1c;background:#ffffff08;color:white;border-radius:12px;margin:16px 0}
+    .cheat-row{display:grid;grid-template-columns:1.2fr 1.6fr .7fr;gap:12px;padding:11px;border-bottom:1px solid #ffffff10}.cheat-row div:last-child{color:var(--yellow);font-family:Consolas,monospace}
+    footer{text-align:center;color:var(--muted);padding:30px}
+    .presentation aside{display:none}.presentation .app{grid-template-columns:1fr}.presentation section{padding-left:8vw;padding-right:8vw}.present-btn{position:fixed;right:15px;top:15px;z-index:10}.suite-home{position:fixed;right:155px;top:15px;z-index:10;text-decoration:none}
+    @media(max-width:900px){.app{grid-template-columns:1fr}aside{display:none}.card,.card.wide,.card.half{grid-column:1/-1}.lab{grid-template-columns:1fr}section{min-height:auto;padding:55px 20px}.cheat-row{grid-template-columns:1fr}.cheat-row div:last-child{margin-bottom:8px}.comparison-strip{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<a class="control suite-home" href="index.html">← Data structures</a>
+<button class="control present-btn" id="presentBtn">⛶ Presentation</button>
+<div class="app">
+  <aside>
+    <div class="brand"><div class="brand-logo">◉</div><div><h1>Graph Interview Lab</h1><small>60-minute visual sprint</small></div></div>
+    <nav id="nav">
+      <a href="#start">01 · Start here</a><a href="#language">02 · Graph language</a><a href="#represent">03 · Representations</a>
+      <a href="#traversal">04 · BFS & DFS lab</a><a href="#algorithms">05 · Algorithm map</a><a href="#shortest">06 · Dijkstra lab</a>
+      <a href="#theater">07 · Algorithm theater</a><a href="#patterns">08 · Interview patterns</a><a href="#cheat">09 · Cheat sheet</a><a href="#practice">10 · Recall & quiz</a>
+    </nav>
+    <div class="progress-wrap">Presentation progress<div class="bar"><i id="progress"></i></div></div>
+    <div class="side-tip"><b>Keyboard:</b> ←/→ moves sections. Space advances an active animation. Press P for presentation mode.</div>
+  </aside>
+  <main>
+    <section id="start" class="hero">
+      <div class="hero-content">
+        <div class="eyebrow">Interview preparation · interactive edition</div>
+        <h2>Graphs are just <em>things</em> and the <em>relationships</em> between them.</h2>
+        <p class="lede">Learn the vocabulary, choose the right algorithm, and watch the major graph algorithms execute one decision at a time.</p>
+        <div class="chips"><span class="chip">Vertices + edges</span><span class="chip">BFS / DFS</span><span class="chip">Shortest paths</span><span class="chip">Topological sort</span><span class="chip">Union-Find</span><span class="chip">MST</span></div>
+        <button class="cta" onclick="location.href='#language'">Begin the visual sprint →</button>
+        <svg class="mini-graph" viewBox="0 0 340 190" aria-label="Decorative graph">
+          <g stroke="#304766" stroke-width="3"><line x1="55" y1="90" x2="155" y2="38"/><line x1="55" y1="90" x2="150" y2="145"/><line x1="155" y1="38" x2="270" y2="78"/><line x1="150" y1="145" x2="270" y2="78"/><line x1="155" y1="38" x2="150" y2="145"/></g>
+          <g fill="#152944" stroke="#4de2ff" stroke-width="3"><circle cx="55" cy="90" r="19"/><circle cx="155" cy="38" r="19"/><circle cx="150" cy="145" r="19"/><circle cx="270" cy="78" r="19"/></g>
+        </svg>
+      </div>
+    </section>
+
+    <section id="language">
+      <div class="eyebrow">01 · Core language</div><h2>Know the graph before choosing the algorithm.</h2>
+      <p class="lede">Click any card to expand it. These adjectives determine which algorithms are valid.</p>
+      <div class="grid">
+        <div class="card concept"><span class="plus">+</span><h3>Directed vs. undirected</h3><p>Does an edge have an arrow?</p><div class="detail"><b>Directed:</b> follows one-way relationships, like course prerequisites. <b>Undirected:</b> symmetric, like friendship. In-degree counts incoming arrows; out-degree counts outgoing arrows.</div></div>
+        <div class="card concept"><span class="plus">+</span><h3>Weighted vs. unweighted</h3><p>Does each edge have a cost?</p><div class="detail">Use BFS for shortest <i>edge count</i> in unweighted graphs. Use Dijkstra for non-negative weights and Bellman–Ford when negative edges are possible.</div></div>
+        <div class="card concept"><span class="plus">+</span><h3>Cyclic vs. acyclic</h3><p>Can you return to where you started?</p><div class="detail">A DAG is a directed acyclic graph. DAGs support topological ordering and dynamic programming over dependencies.</div></div>
+        <div class="card concept"><span class="plus">+</span><h3>Connected components</h3><p>How many separate “islands” exist?</p><div class="detail">In undirected graphs, repeatedly BFS/DFS from an unvisited node. In directed graphs, “strongly connected” means every node can reach every other node in the component.</div></div>
+        <div class="card concept"><span class="plus">+</span><h3>Tree vs. graph</h3><p>A tree is a constrained graph.</p><div class="detail">A connected undirected graph with no cycles is a tree: exactly <code>V − 1</code> edges and one simple path between every pair. Rooting it adds parent/child semantics.</div></div>
+        <div class="card concept"><span class="plus">+</span><h3>Density</h3><p>How close is E to V²?</p><div class="detail">Sparse graph: <code>E ≈ V</code>, favor adjacency lists. Dense graph: <code>E ≈ V²</code>, a matrix may be appropriate. Complete undirected graph has <code>V(V−1)/2</code> edges.</div></div>
+      </div>
+      <div class="decision"><span>Input relationships</span><span class="arrow">→</span><span>directed?</span><span class="arrow">→</span><span>weighted?</span><span class="arrow">→</span><span>cycles?</span><span class="arrow">→</span><span>choose algorithm</span></div>
+    </section>
+
+    <section id="represent">
+      <div class="eyebrow">02 · Representation</div><h2>The data structure changes the runtime.</h2>
+      <div class="tabs" data-tabs="rep"><button class="tab active" data-tab="list">Adjacency list</button><button class="tab" data-tab="matrix">Adjacency matrix</button><button class="tab" data-tab="edges">Edge list</button></div>
+      <div class="grid">
+        <div class="card half">
+          <div class="tabpane active" data-pane="list"><h3>Adjacency list</h3><p>Store each vertex’s neighbors. Best default for sparse graphs.</p><pre class="representation">A → [B, C]
+B → [A, D, E]
+C → [A, F]
+D → [B]
+E → [B, F]
+F → [C, E]</pre></div>
+          <div class="tabpane" data-pane="matrix"><h3>Adjacency matrix</h3><p>A V×V boolean/weight table. Fast edge lookup, expensive space.</p><pre class="representation">    A B C D E F
+A [ 0 1 1 0 0 0 ]
+B [ 1 0 0 1 1 0 ]
+C [ 1 0 0 0 0 1 ]
+D [ 0 1 0 0 0 0 ]
+E [ 0 1 0 0 0 1 ]
+F [ 0 0 1 0 1 0 ]</pre></div>
+          <div class="tabpane" data-pane="edges"><h3>Edge list</h3><p>Just the edges. Ideal when algorithms sort/process edges directly.</p><pre class="representation">[(A,B), (A,C), (B,D),
+ (B,E), (C,F), (E,F)]</pre></div>
+        </div>
+        <div class="card half"><h3>Complexity tradeoff</h3><table class="compare"><tr><th>Operation</th><th>List</th><th>Matrix</th><th>Edge list</th></tr><tr><td>Space</td><td>O(V+E)</td><td>O(V²)</td><td>O(E)</td></tr><tr><td>Check edge u→v</td><td>O(deg u)</td><td>O(1)</td><td>O(E)</td></tr><tr><td>All neighbors</td><td>O(deg u)</td><td>O(V)</td><td>O(E)</td></tr><tr><td>Add edge</td><td>O(1)*</td><td>O(1)</td><td>O(1)</td></tr></table><p><small>* amortized; duplicate checks may cost more.</small></p></div>
+      </div>
+    </section>
+
+    <section id="traversal">
+      <div class="eyebrow">03 · Interactive traversal lab</div><h2>Watch the frontier move, one operation at a time.</h2>
+      <p class="lede">Choose BFS, iterative DFS, or recursive DFS. Step manually, or play the complete traversal.</p>
+      <div class="lab">
+        <div class="viz">
+          <div class="controls">
+            <select class="control" id="traversalType"><option value="bfs">Breadth-first search</option><option value="dfs">Depth-first search (iterative)</option><option value="recursive">Depth-first search (recursive)</option></select>
+            <label>Start <select class="control" id="startNode"></select></label>
+            <button class="control" id="resetTraversal">↺ Reset</button><button class="control primary" id="stepTraversal">Step →</button><button class="control" id="playTraversal">▶ Play</button>
+          </div>
+          <svg id="traversalSvg" viewBox="0 0 680 430"></svg>
+          <div class="legend"><span><i class="dot" style="background:var(--yellow)"></i>current</span><span><i class="dot" style="background:var(--blue)"></i>frontier</span><span><i class="dot" style="background:var(--green)"></i>visited</span></div>
+        </div>
+        <div class="inspector">
+          <h3 id="travHeading">BFS execution</h3><div class="status" id="travStatus"></div>
+          <div class="ds-title" id="frontierTitle">Queue (front → back)</div><div class="data-structure" id="frontier"></div>
+          <div class="ds-title">Visited order</div><div class="data-structure" id="visitedOrder"></div>
+          <div id="stackArea" hidden><div class="ds-title">Recursive call stack</div><div class="callstack" id="callStack"></div></div>
+          <div class="ds-title">C# walkthrough</div><div class="code" id="travCode"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="algorithms">
+      <div class="eyebrow">04 · Algorithm map</div><h2>Match the question to the graph primitive.</h2>
+      <div class="grid">
+        <div class="card"><h3>Reachability / components</h3><p><b>BFS or DFS</b></p><p>“Can A reach B?”, islands, flood fill, clone graph.</p><span class="pill">O(V + E)</span></div>
+        <div class="card"><h3>Unweighted shortest path</h3><p><b>BFS</b></p><p>Level order guarantees the fewest edges from the source.</p><span class="pill">O(V + E)</span></div>
+        <div class="card"><h3>Weighted shortest path</h3><p><b>Dijkstra</b></p><p>Greedily finalize the smallest tentative distance. No negative weights.</p><span class="pill">O((V+E) log V)</span></div>
+        <div class="card"><h3>Negative edge weights</h3><p><b>Bellman–Ford</b></p><p>Relax all edges V−1 times; one more pass detects a negative cycle.</p><span class="pill">O(VE)</span></div>
+        <div class="card"><h3>All-pairs shortest path</h3><p><b>Floyd–Warshall</b></p><p>DP: allow each vertex as an intermediate in turn.</p><span class="pill">O(V³), O(V²)</span></div>
+        <div class="card"><h3>Dependency ordering</h3><p><b>Topological sort</b></p><p>Kahn’s in-degree BFS or DFS postorder. Only valid on DAGs.</p><span class="pill">O(V + E)</span></div>
+        <div class="card"><h3>Minimum spanning tree</h3><p><b>Kruskal / Prim</b></p><p>Connect every vertex with minimum total edge weight—different from shortest path.</p><span class="pill">O(E log E)</span></div>
+        <div class="card"><h3>Dynamic connectivity</h3><p><b>Union-Find (DSU)</b></p><p>Repeated “connect” and “same component?” queries. Path compression + union by rank.</p><span class="pill">≈ O(α(V)) each</span></div>
+        <div class="card"><h3>Strongly connected</h3><p><b>Tarjan / Kosaraju</b></p><p>Find maximal directed groups where all nodes mutually reach each other.</p><span class="pill">O(V + E)</span></div>
+      </div>
+    </section>
+
+    <section id="shortest">
+      <div class="eyebrow">05 · Dijkstra visual lab</div><h2>Relax edges; finalize the cheapest frontier.</h2>
+      <p class="lede">At each step, take the unsettled node with minimum distance, then see whether routing through it improves its neighbors.</p>
+      <div class="lab">
+        <div class="viz"><div class="controls"><button class="control" id="resetDijkstra">↺ Reset</button><button class="control primary" id="stepDijkstra">Step →</button><button class="control" id="playDijkstra">▶ Play</button></div><svg id="dijkstraSvg" viewBox="0 0 680 430"></svg><div class="legend"><span><i class="dot" style="background:var(--yellow)"></i>current</span><span><i class="dot" style="background:var(--green)"></i>finalized</span><span><i class="dot" style="background:var(--purple)"></i>final shortest path</span></div></div>
+        <div class="inspector"><h3>Source A → target F</h3><div class="status" id="dijkstraStatus"></div><div class="ds-title">Tentative distances</div><div id="distanceTable"></div><div class="ds-title">Priority queue (conceptual)</div><div class="data-structure" id="priorityQueue"></div><div class="ds-title">C# walkthrough</div><div class="code" id="dijkstraCode"></div></div>
+      </div>
+    </section>
+
+    <section id="theater">
+      <div class="eyebrow">06 · Major algorithm theater</div><h2>Build the mental model, not just the pseudocode.</h2>
+      <p class="lede">Switch algorithms and step through the invariant that makes each one correct. Try to predict the next highlighted edge or node before clicking.</p>
+      <div class="lab">
+        <div class="viz">
+          <div class="controls">
+            <select class="control" id="theaterType">
+              <option value="bellman">Bellman–Ford · negative edges</option>
+              <option value="topo">Topological sort · dependencies</option>
+              <option value="kruskal">Kruskal + Union-Find · MST</option>
+              <option value="floyd">Floyd–Warshall · all pairs</option>
+            </select>
+            <button class="control" id="resetTheater">↺ Reset</button><button class="control primary" id="stepTheater">Step →</button><button class="control" id="playTheater">▶ Play</button>
+          </div>
+          <svg id="theaterSvg" viewBox="0 0 680 430"></svg>
+          <div class="legend"><span><i class="dot" style="background:var(--yellow)"></i>being considered</span><span><i class="dot" style="background:var(--green)"></i>processed</span><span><i class="dot" style="background:var(--purple)"></i>chosen structure</span></div>
+        </div>
+        <div class="inspector">
+          <h3 id="theaterHeading"></h3><div class="mental-model" id="theaterMental"></div><div class="status" id="theaterStatus"></div>
+          <div class="ds-title" id="theaterStateTitle"></div><div class="algo-state" id="theaterState"></div>
+          <div id="theaterMatrix"></div>
+          <div class="ds-title">C# walkthrough</div><div class="code" id="theaterRule"></div>
+        </div>
+      </div>
+      <div class="comparison-strip">
+        <div><b>Dijkstra = expanding bubble</b><span>Always finalize the nearest unsettled vertex. The settled bubble only grows; requires non-negative weights.</span></div>
+        <div><b>Bellman–Ford = repeated waves</b><span>Scan every edge again and again. Each full pass can push correct information at least one edge farther.</span></div>
+        <div><b>Floyd–Warshall = widening permission</b><span>First allow no intermediates, then A, then A+B, and so on. Every cell asks whether the new pivot creates a shortcut.</span></div>
+      </div>
+      <div class="grid">
+        <div class="card"><h3>Prim</h3><p>Like growing one connected “ink blot”: repeatedly attach the cheapest edge that leaves the current tree.</p><span class="pill">MST · vertex frontier</span></div>
+        <div class="card"><h3>Tarjan SCC</h3><p>DFS timestamps nodes. A low-link value is the earliest ancestor reachable without leaving the active stack; a root pops one SCC.</p><span class="pill">Directed components</span></div>
+        <div class="card"><h3>A*</h3><p>Dijkstra plus a heuristic compass: prioritize <code>distance so far + estimated distance left</code>. An admissible heuristic never overestimates.</p><span class="pill">Goal-directed path</span></div>
+      </div>
+    </section>
+
+    <section id="patterns">
+      <div class="eyebrow">07 · Interview patterns</div><h2>Most graph questions wear a disguise.</h2>
+      <div class="grid">
+        <div class="card half pattern"><div class="pattern-num">1</div><div><h3>Grid → implicit graph</h3><p>Each cell is a vertex; legal moves are edges. Use direction vectors, bounds checks, and visited marking. Examples: islands, shortest path in maze, rotting oranges.</p></div></div>
+        <div class="card half pattern"><div class="pattern-num">2</div><div><h3>Words → state graph</h3><p>A state is a vertex; one valid transformation is an edge. BFS finds minimum transformations. Example: Word Ladder.</p></div></div>
+        <div class="card half pattern"><div class="pattern-num">3</div><div><h3>Prerequisites → DAG</h3><p>“Must happen before” creates directed edges. Topological sort returns an order; processing fewer than V nodes proves a cycle.</p></div></div>
+        <div class="card half pattern"><div class="pattern-num">4</div><div><h3>Accounts / groups → components</h3><p>Shared identifiers connect records. DFS/BFS works; Union-Find shines when edges stream in or connectivity is repeatedly queried.</p></div></div>
+        <div class="card half pattern"><div class="pattern-num">5</div><div><h3>Cheapest route → weighted path</h3><p>Identify weight constraints first. Non-negative → Dijkstra. Negative → Bellman–Ford. DAG → topological DP can be faster.</p></div></div>
+        <div class="card half pattern"><div class="pattern-num">6</div><div><h3>Copy / serialize → traversal + map</h3><p>Map original node → cloned node before traversing neighbors. The map both prevents cycles and preserves shared references.</p></div></div>
+      </div>
+      <div class="card full" style="margin-top:18px"><h3>Say this out loud in an interview</h3><p>“I’ll model each ___ as a vertex and each ___ as an edge. The graph is [directed/undirected] and [weighted/unweighted]. I need [reachability/shortest path/order/connectivity], so I’ll use ___. I’ll track visited when I enqueue/push to avoid duplicates. Runtime is O(V+E), and space is O(V).”</p></div>
+    </section>
+
+    <section id="cheat">
+      <div class="eyebrow">08 · Searchable cheat sheet</div><h2>Fast lookup under interview pressure.</h2>
+      <input class="search" id="cheatSearch" placeholder="Filter by clue, e.g. shortest, cycle, components, prerequisites…">
+      <div class="card full" id="cheatList">
+        <div class="cheat-row" data-search="traverse reachability connected components islands flood fill"><div><b>BFS / DFS</b></div><div>Reachability, components, exhaustive exploration</div><div>O(V+E)</div></div>
+        <div class="cheat-row" data-search="unweighted shortest minimum moves levels"><div><b>BFS</b></div><div>Fewest edges / minimum moves in an unweighted graph</div><div>O(V+E)</div></div>
+        <div class="cheat-row" data-search="weighted shortest nonnegative priority queue"><div><b>Dijkstra</b></div><div>Single-source shortest path, non-negative weights</div><div>O(E log V)</div></div>
+        <div class="cheat-row" data-search="negative weights cycle shortest"><div><b>Bellman–Ford</b></div><div>Negative edges and negative-cycle detection</div><div>O(VE)</div></div>
+        <div class="cheat-row" data-search="all pairs shortest dynamic programming"><div><b>Floyd–Warshall</b></div><div>Shortest paths between every vertex pair</div><div>O(V³)</div></div>
+        <div class="cheat-row" data-search="dependency prerequisite ordering dag cycle"><div><b>Topological sort</b></div><div>Valid dependency order; cycle detection in directed graph</div><div>O(V+E)</div></div>
+        <div class="cheat-row" data-search="connectivity groups redundant edge union find dsu"><div><b>Union-Find</b></div><div>Dynamic components, redundant connection, Kruskal helper</div><div>≈ O(1)</div></div>
+        <div class="cheat-row" data-search="minimum spanning tree network connect all kruskal prim"><div><b>Kruskal / Prim</b></div><div>Connect all vertices with minimum total weight</div><div>O(E log E)</div></div>
+        <div class="cheat-row" data-search="strongly connected directed mutual tarjan kosaraju"><div><b>Tarjan / Kosaraju</b></div><div>Strongly connected components</div><div>O(V+E)</div></div>
+        <div class="cheat-row" data-search="bridge articulation critical connection tarjan low link"><div><b>Low-link DFS</b></div><div>Bridges and articulation points</div><div>O(V+E)</div></div>
+      </div>
+      <div class="grid">
+        <div class="card half"><h3>Cycle detection</h3><p><b>Undirected:</b> DFS with parent, or Union-Find.</p><p><b>Directed:</b> DFS with 3 colors / recursion-stack set, or Kahn processes fewer than V.</p></div>
+        <div class="card half"><h3>Common traps</h3><p>Mark visited on <b>enqueue/push</b>, not removal. Handle disconnected graphs. Don’t use Dijkstra with negative edges. Distinguish MST from shortest-path tree. Clarify parallel edges and self-loops.</p></div>
+      </div>
+    </section>
+
+    <section id="practice">
+      <div class="eyebrow">09 · Active recall</div><h2>Make the hour stick.</h2>
+      <div class="grid">
+        <div class="card half"><h3>Flashcards</h3><p>Click the card to reveal the answer.</p><div class="flashcard" id="flashcard"><div class="flash-inner"><div class="face front"><div><small>QUESTION</small><h3 id="flashQ"></h3></div></div><div class="face back"><div><small>ANSWER</small><p id="flashA"></p></div></div></div></div><div class="controls" style="margin-top:12px"><button class="control" id="prevFlash">←</button><button class="control" id="nextFlash">Next card →</button></div></div>
+        <div class="card half"><h3>Quick check</h3><p id="quizQuestion"></p><div id="quizOptions"></div><div class="status" id="quizFeedback">Choose an answer.</div><button class="control" id="nextQuiz">Next question →</button></div>
+      </div>
+      <div class="card full" style="margin-top:18px"><h3>Your 60-minute plan</h3>
+        <div class="hour"><time>0–10</time><p>Graph vocabulary + representations. Explain directed, weighted, cyclic, sparse aloud.</p></div>
+        <div class="hour"><time>10–22</time><p>Step through BFS and both DFS modes. Predict the next frontier and highlighted C# line.</p></div>
+        <div class="hour"><time>22–40</time><p>Run Dijkstra, Bellman–Ford, and Floyd–Warshall. Narrate why each distance changes.</p></div>
+        <div class="hour"><time>40–52</time><p>Animate topological sort and Kruskal. Explain the queue and component invariants.</p></div>
+        <div class="hour"><time>52–60</time><p>Map interview patterns, search the cheat sheet, then complete the quiz without notes.</p></div>
+      </div>
+    </section>
+    <footer>Graph Interview Lab · built as a self-contained study artifact</footer>
+  </main>
+</div>
+<script>
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+  // Presentation navigation
+  const sections=$$('section'), navLinks=$$('#nav a');
+  const observer=new IntersectionObserver(entries=>entries.forEach(e=>{
+    if(e.isIntersecting){
+      navLinks.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id));
+      const i=sections.indexOf(e.target); $('#progress').style.width=((i+1)/sections.length*100)+'%';
+    }
+  }),{threshold:.48}); sections.forEach(s=>observer.observe(s));
+  function togglePresentation(){document.body.classList.toggle('presentation');$('#presentBtn').textContent=document.body.classList.contains('presentation')?'✕ Exit':'⛶ Presentation'}
+  $('#presentBtn').onclick=togglePresentation;
+  document.addEventListener('keydown',e=>{
+    if(['INPUT','SELECT'].includes(document.activeElement.tagName))return;
+    if(e.key.toLowerCase()==='p')togglePresentation();
+    if(e.key===' '){e.preventDefault();if(location.hash==='#shortest')$('#stepDijkstra').click();else if(location.hash==='#traversal')$('#stepTraversal').click();else if(location.hash==='#theater')$('#stepTheater').click()}
+    if(['ArrowLeft','ArrowRight'].includes(e.key)){const current=Math.max(0,sections.findIndex(s=>location.hash==='#'+s.id));const n=e.key==='ArrowRight'?Math.min(sections.length-1,current+1):Math.max(0,current-1);sections[n].scrollIntoView()}
+  });
+  $$('.concept').forEach(c=>c.onclick=()=>c.classList.toggle('open'));
+  $$('.tabs').forEach(group=>group.onclick=e=>{
+    if(!e.target.matches('.tab'))return;const root=group.parentElement;
+    group.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===e.target));
+    root.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('active',p.dataset.pane===e.target.dataset.tab));
+  });
+
+  // Shared graph renderer
+  const NS='http://www.w3.org/2000/svg';
+  function el(name,attrs={}){const x=document.createElementNS(NS,name);Object.entries(attrs).forEach(([k,v])=>x.setAttribute(k,v));return x}
+  function renderGraph(svg,nodes,edges,state={},weighted=false){
+    svg.innerHTML='';
+    const defs=el('defs');defs.innerHTML='<marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#607b9f"/></marker>';svg.append(defs);
+    edges.forEach(([a,b,w])=>{
+      const A=nodes[a],B=nodes[b], key=[a,b].sort().join('-'), line=el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,class:'edge '+(state.activeEdge===key?'active ':'')+(state.pathEdges?.has(key)?'path ':'')+(state.rejectedEdges?.has(key)?'rejected':'')});svg.append(line);
+      if(weighted){const tx=(A.x+B.x)/2,ty=(A.y+B.y)/2-10;const bg=el('circle',{cx:tx,cy:ty,r:13,fill:'#07111f',stroke:'#304766'});const t=el('text',{x:tx,y:ty,'font-size':12});t.textContent=w;svg.append(bg,t)}
+    });
+    Object.entries(nodes).forEach(([id,n])=>{
+      const klass=state.pathNodes?.has(id)?'path':state.current===id?'current':state.visited?.includes(id)?'visited':state.frontier?.includes(id)?'frontier':'';
+      const c=el('circle',{cx:n.x,cy:n.y,r:25,class:'node '+klass});const t=el('text',{x:n.x,y:n.y,'font-size':15});t.textContent=id;svg.append(c,t);
+      if(state.labels?.[id]!=null){const d=el('text',{x:n.x,y:n.y+39,'font-size':11,fill:'#9cb0cb'});d.textContent=state.labels[id];svg.append(d)}
+    });
+  }
+
+  // Traversal visualizer
+  const tNodes={A:{x:90,y:215},B:{x:235,y:90},C:{x:235,y:335},D:{x:410,y:55},E:{x:410,y:190},F:{x:410,y:360},G:{x:585,y:195}};
+  const tEdges=[['A','B'],['A','C'],['B','D'],['B','E'],['C','E'],['C','F'],['E','G'],['F','G']];
+  const adj={A:['B','C'],B:['A','D','E'],C:['A','E','F'],D:['B'],E:['B','C','G'],F:['C','G'],G:['E','F']};
+  Object.keys(tNodes).forEach(n=>$('#startNode').add(new Option(n,n)));
+  const codeLines={
+    bfs:['var queue = new Queue<string>();','queue.Enqueue(start); visited.Add(start);','while (queue.Count > 0)','{','    var node = queue.Dequeue();','    foreach (var next in graph[node])','        if (visited.Add(next))','            queue.Enqueue(next);','}'],
+    dfs:['var stack = new Stack<string>();','stack.Push(start);','while (stack.Count > 0)','{','    var node = stack.Pop();','    if (!visited.Add(node)) continue;','    foreach (var next in graph[node].Reverse())','        stack.Push(next);','}'],
+    recursive:['void Dfs(string node)','{','    if (!visited.Add(node)) return;','    foreach (var next in graph[node])','        if (!visited.Contains(next))','            Dfs(next);','}']
+  };
+  let travSteps=[],travIndex=0,travPlaying=false;
+  function buildIterative(type,start){
+    const steps=[],seen=new Set(type==='bfs'?[start]:[]),visited=[],frontier=[start];
+    steps.push({current:null,frontier:[...frontier],visited:[...visited],msg:`Initialize ${type==='bfs'?'queue':'stack'} with ${start}.`,line:1});
+    while(frontier.length){
+      const node=type==='bfs'?frontier.shift():frontier.pop();
+      steps.push({current:node,frontier:[...frontier],visited:[...visited],msg:`Remove ${node} from the ${type==='bfs'?'front':'top'} of the ${type==='bfs'?'queue':'stack'}.`,line:4});
+      if(type==='dfs'&&seen.has(node)){steps.push({current:node,frontier:[...frontier],visited:[...visited],msg:`${node} was already visited, so skip it.`,line:5});continue}
+      seen.add(node);visited.push(node);
+      steps.push({current:node,frontier:[...frontier],visited:[...visited],msg:`Visit ${node}.`,line:type==='bfs'?5:5});
+      const neighbors=type==='bfs'?adj[node]:[...adj[node]].reverse();
+      for(const next of neighbors)if(!seen.has(next)){
+        if(type==='bfs')seen.add(next);frontier.push(next);
+        steps.push({current:node,activeEdge:[node,next].sort().join('-'),frontier:[...frontier],visited:[...visited],msg:`Discover ${next} from ${node}; add it to the ${type==='bfs'?'queue':'stack'}.`,line:7});
+      }
+    }
+    steps.push({current:null,frontier:[],visited:[...visited],msg:`Traversal complete: ${visited.join(' → ')}`,line:2});return steps;
+  }
+  function buildRecursive(start){
+    const steps=[],seen=new Set(),visited=[],stack=[];
+    function dfs(node,from=null){
+      stack.push(node);seen.add(node);visited.push(node);
+      steps.push({current:node,activeEdge:from?[from,node].sort().join('-'):null,frontier:[],visited:[...visited],stack:[...stack],msg:`Enter Dfs(${node}); mark ${node} visited.`,line:2});
+      for(const next of adj[node]){
+        steps.push({current:node,frontier:[],visited:[...visited],stack:[...stack],activeEdge:[node,next].sort().join('-'),msg:`From ${node}, inspect neighbor ${next}.`,line:3});
+        if(!seen.has(next)){steps.push({current:node,frontier:[],visited:[...visited],stack:[...stack],activeEdge:[node,next].sort().join('-'),msg:`${next} is unvisited, so recurse.`,line:5});dfs(next,node)}
+        else steps.push({current:node,frontier:[],visited:[...visited],stack:[...stack],msg:`${next} is already visited; do not recurse.`,line:4});
+      }
+      stack.pop();steps.push({current:stack.at(-1)||null,frontier:[],visited:[...visited],stack:[...stack],msg:`Return from Dfs(${node})${stack.length?` to Dfs(${stack.at(-1)})`:'. Call stack is empty.'}`,line:6});
+    } dfs(start);return steps;
+  }
+  function resetTraversal(){
+    travPlaying=false;$('#playTraversal').textContent='▶ Play';travIndex=0;
+    const type=$('#traversalType').value,start=$('#startNode').value;travSteps=type==='recursive'?buildRecursive(start):buildIterative(type,start);drawTraversal();
+  }
+  function escapeCode(text){return text.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
+  function renderCSharp(lines,line){return lines.map((x,i)=>`<span class="line ${i===line?'active':''}">${escapeCode(x)}</span>`).join('')}
+  function drawCode(type,line){$('#travCode').innerHTML=renderCSharp(codeLines[type],line)}
+  function drawTraversal(){
+    const s=travSteps[travIndex],type=$('#traversalType').value;
+    renderGraph($('#traversalSvg'),tNodes,tEdges,s);
+    $('#travStatus').innerHTML=`<b>Step ${travIndex}/${travSteps.length-1}</b><br>${s.msg}`;
+    $('#travHeading').textContent=type==='bfs'?'BFS execution':type==='dfs'?'Iterative DFS execution':'Recursive DFS execution';
+    $('#frontierTitle').textContent=type==='bfs'?'Queue (front → back)':'Stack (bottom → top)';
+    $('#frontier').innerHTML=s.frontier.map((x,i)=>`<span class="token ${i===(type==='bfs'?0:s.frontier.length-1)?'hot':''}">${x}</span>`).join('')||'<span style="color:var(--muted)">empty</span>';
+    $('#visitedOrder').innerHTML=s.visited.map(x=>`<span class="token">${x}</span>`).join('')||'<span style="color:var(--muted)">none yet</span>';
+    $('#stackArea').hidden=type!=='recursive';$('#callStack').innerHTML=(s.stack||[]).map(x=>`<div class="frame">dfs(${x})</div>`).join('');
+    drawCode(type,s.line);$('#stepTraversal').disabled=travIndex>=travSteps.length-1;
+  }
+  $('#stepTraversal').onclick=()=>{if(travIndex<travSteps.length-1){travIndex++;drawTraversal()}};
+  $('#resetTraversal').onclick=resetTraversal;$('#traversalType').onchange=resetTraversal;$('#startNode').onchange=resetTraversal;
+  $('#playTraversal').onclick=async()=>{
+    travPlaying=!travPlaying;$('#playTraversal').textContent=travPlaying?'❚❚ Pause':'▶ Play';
+    while(travPlaying&&travIndex<travSteps.length-1){await sleep(650);if(!travPlaying)break;travIndex++;drawTraversal()}
+    travPlaying=false;$('#playTraversal').textContent='▶ Play';
+  };
+
+  // Dijkstra visualizer
+  const dNodes={A:{x:75,y:215},B:{x:215,y:80},C:{x:215,y:340},D:{x:400,y:90},E:{x:400,y:330},F:{x:595,y:210}};
+  const dEdges=[['A','B',4],['A','C',2],['B','C',1],['B','D',5],['C','D',8],['C','E',10],['D','E',2],['D','F',6],['E','F',3]];
+  const dAdj={};Object.keys(dNodes).forEach(n=>dAdj[n]=[]);dEdges.forEach(([a,b,w])=>{dAdj[a].push([b,w]);dAdj[b].push([a,w])});
+  const dijkstraCode=[
+    'var distance = vertices.ToDictionary(v => v, _ => int.MaxValue);',
+    'distance[source] = 0;',
+    'var queue = new PriorityQueue<string, int>();',
+    'queue.Enqueue(source, 0);',
+    'while (queue.TryDequeue(out var u, out var cost))',
+    '{',
+    '    if (cost != distance[u]) continue;',
+    '    foreach (var (v, weight) in graph[u])',
+    '    {',
+    '        var candidate = distance[u] + weight;',
+    '        if (candidate >= distance[v]) continue;',
+    '        distance[v] = candidate;',
+    '        parent[v] = u;',
+    '        queue.Enqueue(v, candidate);',
+    '    }',
+    '}'
+  ];
+  let dSteps=[],dIndex=0,dPlaying=false;
+  function buildDijkstra(){
+    const dist=Object.fromEntries(Object.keys(dNodes).map(n=>[n,Infinity])),parent={},done=new Set(),steps=[];dist.A=0;
+    steps.push({current:null,visited:[],dist:{...dist},parent:{},line:1,msg:'Set distance[A] = 0; every other distance starts at ∞.'});
+    while(done.size<Object.keys(dNodes).length){
+      const u=Object.keys(dNodes).filter(n=>!done.has(n)).sort((a,b)=>dist[a]-dist[b])[0];if(dist[u]===Infinity)break;
+      done.add(u);steps.push({current:u,visited:[...done],dist:{...dist},parent:{...parent},line:4,msg:`Dequeue ${u}, the unsettled node with minimum distance ${dist[u]}. Its shortest distance is now final.`});
+      for(const [v,w] of dAdj[u])if(!done.has(v)){
+        const candidate=dist[u]+w,improved=candidate<dist[v];
+        if(improved){dist[v]=candidate;parent[v]=u}
+        steps.push({current:u,activeEdge:[u,v].sort().join('-'),visited:[...done],dist:{...dist},parent:{...parent},line:improved?11:10,msg:`Relax ${u}–${v}: ${dist[u]} + ${w} = ${candidate}. ${improved?`Improve distance[${v}] to ${candidate} and enqueue it.`:`No improvement over ${dist[v]}.`}`});
+      }
+    }
+    const path=[];for(let x='F';x;x=parent[x])path.push(x);path.reverse();const pe=new Set(path.slice(1).map((x,i)=>[path[i],x].sort().join('-')));
+    steps.push({current:null,visited:[...done],dist:{...dist},parent:{...parent},pathNodes:new Set(path),pathEdges:pe,line:15,msg:`The queue is empty. Shortest A→F: ${path.join(' → ')}, total cost ${dist.F}.`});return steps;
+  }
+  function resetDijkstra(){dPlaying=false;$('#playDijkstra').textContent='▶ Play';dSteps=buildDijkstra();dIndex=0;drawDijkstra()}
+  function drawDijkstra(){
+    const s=dSteps[dIndex],labels=Object.fromEntries(Object.entries(s.dist).map(([n,d])=>[n,`d=${d===Infinity?'∞':d}`]));renderGraph($('#dijkstraSvg'),dNodes,dEdges,{...s,labels},true);
+    $('#dijkstraStatus').innerHTML=`<b>Step ${dIndex}/${dSteps.length-1}</b><br>${s.msg}`;
+    $('#distanceTable').innerHTML='<table class="compare"><tr><th>Node</th><th>Distance</th><th>Parent</th></tr>'+Object.keys(dNodes).map(n=>`<tr><td>${n}</td><td>${s.dist[n]===Infinity?'∞':s.dist[n]}</td><td>${s.parent[n]||'—'}</td></tr>`).join('')+'</table>';
+    const q=Object.keys(dNodes).filter(n=>!s.visited.includes(n)&&s.dist[n]<Infinity).sort((a,b)=>s.dist[a]-s.dist[b]);$('#priorityQueue').innerHTML=q.map((n,i)=>`<span class="token ${i===0?'hot':''}">${n}:${s.dist[n]}</span>`).join('')||'<span style="color:var(--muted)">empty</span>';
+    $('#dijkstraCode').innerHTML=renderCSharp(dijkstraCode,s.line);
+    $('#stepDijkstra').disabled=dIndex>=dSteps.length-1;
+  }
+  $('#stepDijkstra').onclick=()=>{if(dIndex<dSteps.length-1){dIndex++;drawDijkstra()}};$('#resetDijkstra').onclick=resetDijkstra;
+  $('#playDijkstra').onclick=async()=>{dPlaying=!dPlaying;$('#playDijkstra').textContent=dPlaying?'❚❚ Pause':'▶ Play';while(dPlaying&&dIndex<dSteps.length-1){await sleep(700);if(!dPlaying)break;dIndex++;drawDijkstra()}dPlaying=false;$('#playDijkstra').textContent='▶ Play'};
+
+  // Algorithm theater
+  const theaterMeta={
+    bellman:{heading:'Bellman–Ford: repeated relaxation waves',mental:'<b>Mental model:</b> Unlike Dijkstra, no node is permanently finalized. Sweep every directed edge V−1 times; shortest-path knowledge propagates across the graph even through negative edges.',state:'Distances from A',code:['var distance = vertices.ToDictionary(v => v, _ => int.MaxValue);','distance[source] = 0;','for (var pass = 1; pass < vertices.Count; pass++)','    foreach (var edge in edges)','        if (distance[edge.From] != int.MaxValue &&','            distance[edge.From] + edge.Weight < distance[edge.To])','            distance[edge.To] = distance[edge.From] + edge.Weight;']},
+    topo:{heading:'Kahn’s topological sort: remove prerequisites',mental:'<b>Mental model:</b> In-degree is the number of locked doors before a task. Every zero-in-degree node is currently unlocked; removing it may unlock its dependents.',state:'Zero-in-degree queue and output',code:['var queue = new Queue<string>(vertices.Where(v => inDegree[v] == 0));','var order = new List<string>();','while (queue.Count > 0)','{','    var node = queue.Dequeue(); order.Add(node);','    foreach (var next in graph[node])','    {','        if (--inDegree[next] == 0) queue.Enqueue(next);','    }','}','var hasCycle = order.Count != vertices.Count;']},
+    kruskal:{heading:'Kruskal + Union-Find: merge cheapest islands',mental:'<b>Mental model:</b> Begin with every vertex as its own island. Consider edges cheapest-first; bridge two different islands, but reject an edge whose endpoints are already connected.',state:'Sorted edges and current components',code:['var sortedEdges = edges.OrderBy(e => e.Weight);','foreach (var edge in sortedEdges)','{','    if (dsu.Find(edge.From) != dsu.Find(edge.To))','    {','        mst.Add(edge); dsu.Union(edge.From, edge.To);','    } // Otherwise reject: it would create a cycle.','}']},
+    floyd:{heading:'Floyd–Warshall: allow one more intermediate',mental:'<b>Mental model:</b> Each round grants permission to route through one new pivot. Every pair (i,j) asks: “Is i → pivot → j cheaper than my current route?”',state:'Distance matrix',code:['for (var k = 0; k < vertexCount; k++)','    for (var i = 0; i < vertexCount; i++)','        for (var j = 0; j < vertexCount; j++)','        {','            var throughK = distance[i, k] + distance[k, j];','            distance[i, j] = Math.Min(distance[i, j], throughK);','        }']}
+  };
+  const bfNodes={A:{x:80,y:215},B:{x:250,y:80},C:{x:420,y:215},D:{x:590,y:80},E:{x:590,y:340}};
+  const bfEdges=[['D','E',2],['C','E',8],['C','D',3],['B','D',6],['B','C',-2],['A','C',5],['A','B',4]];
+  const topoNodes={Plan:{x:80,y:215},Shop:{x:245,y:90},Invite:{x:245,y:335},Cook:{x:430,y:90},Table:{x:430,y:335},Eat:{x:600,y:215}};
+  const topoEdges=[['Plan','Shop'],['Plan','Invite'],['Plan','Table'],['Shop','Cook'],['Invite','Eat'],['Cook','Eat'],['Table','Eat']];
+  const kNodes={A:{x:90,y:215},B:{x:245,y:70},C:{x:245,y:350},D:{x:430,y:90},E:{x:430,y:335},F:{x:600,y:210}};
+  const kEdges=[['A','B',4],['A','C',2],['B','C',1],['B','D',5],['C','D',8],['C','E',6],['D','E',2],['D','F',7],['E','F',3]];
+  const fNodes={A:{x:115,y:100},B:{x:565,y:100},C:{x:565,y:330},D:{x:115,y:330}};
+  const fEdges=[['A','B',3],['A','D',7],['B','A',8],['B','C',2],['C','A',5],['C','D',1],['D','A',2]];
+  let theaterSteps=[],theaterIndex=0,theaterPlaying=false;
+
+  function renderDirectedGraph(svg,nodes,edges,state={},weighted=true){
+    svg.innerHTML='';const defs=el('defs');defs.innerHTML='<marker id="theaterArrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="context-stroke"/></marker>';svg.append(defs);
+    edges.forEach(([a,b,w])=>{
+      const A=nodes[a],B=nodes[b],dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len,key=`${a}>${b}`;
+      const line=el('line',{x1:A.x+ux*28,y1:A.y+uy*28,x2:B.x-ux*32,y2:B.y-uy*32,'marker-end':'url(#theaterArrow)',class:'edge '+(state.activeEdge===key?'active ':'')+(state.pathEdges?.has(key)?'path':'')});svg.append(line);
+      if(weighted&&w!=null){const tx=(A.x+B.x)/2-uy*13,ty=(A.y+B.y)/2+ux*13;const bg=el('circle',{cx:tx,cy:ty,r:14,fill:'#07111f',stroke:w<0?'#ff6b7a':'#304766'}),t=el('text',{x:tx,y:ty,'font-size':11});t.textContent=w;svg.append(bg,t)}
+    });
+    Object.entries(nodes).forEach(([id,n])=>{
+      const klass=state.current===id?'current':state.visited?.includes(id)?'visited':state.frontier?.includes(id)?'frontier':'';
+      const c=el('circle',{cx:n.x,cy:n.y,r:27,class:'node '+klass}),t=el('text',{x:n.x,y:n.y,'font-size':id.length>2?11:15});t.textContent=id;svg.append(c,t);
+      if(state.labels?.[id]!=null){const d=el('text',{x:n.x,y:n.y+42,'font-size':11});d.textContent=state.labels[id];svg.append(d)}
+    });
+  }
+  function cloneDistances(dist){return Object.fromEntries(Object.entries(dist).map(([k,v])=>[k,v]))}
+  function buildBellmanFord(){
+    const names=Object.keys(bfNodes),dist=Object.fromEntries(names.map(n=>[n,Infinity])),steps=[];dist.A=0;
+    steps.push({dist:cloneDistances(dist),pass:0,line:1,msg:'Initialize source A to 0 and all other distances to ∞.'});
+    for(let pass=1;pass<names.length;pass++){
+      let changed=false;steps.push({dist:cloneDistances(dist),pass,line:2,msg:`Begin pass ${pass}. Scan every edge; no vertex is “finalized.”`});
+      for(const [u,v,w] of bfEdges){
+        const old=dist[v],candidate=dist[u]===Infinity?Infinity:dist[u]+w,improved=candidate<old;
+        if(improved){dist[v]=candidate;changed=true}
+        steps.push({dist:cloneDistances(dist),pass,line:improved?6:5,activeEdge:`${u}>${v}`,current:u,msg:`Pass ${pass}: ${u}→${v} (${w}). ${candidate===Infinity?'Source is unreachable so far.':`${dist[u]} + ${w} = ${candidate}.`} ${improved?`Improve ${v}: ${old===Infinity?'∞':old} → ${candidate}.`:'Keep the current distance.'}`});
+      }
+      if(!changed){steps.push({dist:cloneDistances(dist),pass,line:2,msg:`Pass ${pass} made no changes, so all distances have converged. Stop early.`});break}
+    }
+    steps.push({dist:cloneDistances(dist),pass:'check',line:5,msg:'A final scan would detect a reachable negative cycle if any edge could still improve.'});return steps;
+  }
+  function buildTopo(){
+    const indeg=Object.fromEntries(Object.keys(topoNodes).map(n=>[n,0])),out={};Object.keys(topoNodes).forEach(n=>out[n]=[]);
+    topoEdges.forEach(([u,v])=>{indeg[v]++;out[u].push(v)});const queue=Object.keys(indeg).filter(n=>indeg[n]===0),order=[],steps=[];
+    steps.push({indeg:{...indeg},queue:[...queue],order:[],frontier:[...queue],line:0,msg:`Compute in-degrees. Queue every unlocked task: ${queue.join(', ')}.`});
+    while(queue.length){
+      const u=queue.shift();order.push(u);steps.push({indeg:{...indeg},queue:[...queue],order:[...order],current:u,visited:[...order],frontier:[...queue],line:4,msg:`Remove ${u}; append it to the topological order.`});
+      for(const v of out[u]){
+        indeg[v]--;if(indeg[v]===0)queue.push(v);
+        steps.push({indeg:{...indeg},queue:[...queue],order:[...order],current:u,activeEdge:`${u}>${v}`,visited:[...order],frontier:[...queue],line:indeg[v]===0?7:5,msg:`Delete dependency ${u}→${v}. inDegree[${v}] becomes ${indeg[v]}${indeg[v]===0?`, so ${v} is now unlocked and enters the queue.`:'.'}`});
+      }
+    }
+    steps.push({indeg:{...indeg},queue:[],order:[...order],visited:[...order],line:10,msg:`All ${order.length} tasks were removed: ${order.join(' → ')}. If fewer than V were removed, a cycle would remain.`});return steps;
+  }
+  function buildKruskal(){
+    const edges=[...kEdges].sort((a,b)=>a[2]-b[2]),parent=Object.fromEntries(Object.keys(kNodes).map(n=>[n,n])),rank=Object.fromEntries(Object.keys(kNodes).map(n=>[n,0])),chosen=new Set(),rejected=new Set(),steps=[];
+    const find=x=>parent[x]===x?x:(parent[x]=find(parent[x]));
+    const groups=()=>{const g={};Object.keys(kNodes).forEach(n=>{const r=find(n);(g[r]??=[]).push(n)});return Object.values(g)};
+    steps.push({chosen:new Set(),rejected:new Set(),groups:groups(),edgeIndex:-1,line:0,msg:'Sort edges by weight. Every vertex begins as a separate component.'});
+    edges.forEach(([u,v,w],i)=>{
+      const key=[u,v].sort().join('-'),ru=find(u),rv=find(v);
+      steps.push({chosen:new Set(chosen),rejected:new Set(rejected),groups:groups(),activeEdge:key,edgeIndex:i,line:3,msg:`Consider ${u}–${v} (weight ${w}). Roots are ${ru} and ${rv}.`});
+      if(ru!==rv){
+        if(rank[ru]<rank[rv])parent[ru]=rv;else if(rank[ru]>rank[rv])parent[rv]=ru;else{parent[rv]=ru;rank[ru]++}
+        chosen.add(key);steps.push({chosen:new Set(chosen),rejected:new Set(rejected),groups:groups(),activeEdge:key,edgeIndex:i,line:5,msg:`Different components: accept ${u}–${v} and union the two islands.`});
+      }else{rejected.add(key);steps.push({chosen:new Set(chosen),rejected:new Set(rejected),groups:groups(),activeEdge:key,edgeIndex:i,line:6,msg:`Same component: reject ${u}–${v}; adding it would create a cycle.`})}
+    });
+    const cost=edges.filter(([u,v])=>chosen.has([u,v].sort().join('-'))).reduce((s,e)=>s+e[2],0);steps.push({chosen:new Set(chosen),rejected:new Set(rejected),groups:groups(),edgeIndex:edges.length,line:7,msg:`MST complete with V−1 edges and total weight ${cost}.`});return {steps,edges};
+  }
+  function buildFloyd(){
+    const names=Object.keys(fNodes),dist=Object.fromEntries(names.map(i=>[i,Object.fromEntries(names.map(j=>[j,i===j?0:Infinity]))]));fEdges.forEach(([u,v,w])=>dist[u][v]=w);
+    const copy=()=>Object.fromEntries(names.map(i=>[i,{...dist[i]}])),steps=[{dist:copy(),pivot:null,changed:[],line:0,msg:'Start with direct-edge distances. ∞ means no route is known.'}];
+    for(const k of names){
+      const changed=[];
+      for(const i of names)for(const j of names){const via=dist[i][k]+dist[k][j];if(via<dist[i][j]){dist[i][j]=via;changed.push(`${i}>${j}`)}}
+      steps.push({dist:copy(),pivot:k,current:k,changed,line:5,msg:`Allow ${k} as an intermediate. ${changed.length?`Shortcuts found: ${changed.map(x=>x.replace('>','→')).join(', ')}.`:'No pair gets a shorter route.'}`});
+    }
+    steps.push({dist:copy(),pivot:null,changed:[],line:6,msg:'Every vertex is now allowed as an intermediate. The matrix contains all-pairs shortest distances.'});return steps;
+  }
+  let kruskalSorted=[];
+  function resetTheater(){
+    theaterPlaying=false;$('#playTheater').textContent='▶ Play';theaterIndex=0;const type=$('#theaterType').value;
+    if(type==='bellman')theaterSteps=buildBellmanFord();
+    if(type==='topo')theaterSteps=buildTopo();
+    if(type==='kruskal'){const built=buildKruskal();theaterSteps=built.steps;kruskalSorted=built.edges}
+    if(type==='floyd')theaterSteps=buildFloyd();
+    drawTheater();
+  }
+  function distanceTokens(dist){return Object.entries(dist).map(([n,d])=>`<span class="token">${n}:${d===Infinity?'∞':d}</span>`).join('')}
+  function drawFloydMatrix(s){
+    const names=Object.keys(fNodes),cols=names.length+1;$('#theaterMatrix').innerHTML=`<div class="matrix-grid" style="grid-template-columns:repeat(${cols},1fr)"><div class="matrix-cell head">via ${s.pivot||'—'}</div>${names.map(n=>`<div class="matrix-cell head ${n===s.pivot?'pivot':''}">${n}</div>`).join('')}${names.map(i=>`<div class="matrix-cell head ${i===s.pivot?'pivot':''}">${i}</div>${names.map(j=>`<div class="matrix-cell ${s.changed.includes(`${i}>${j}`)?'changed':''} ${i===s.pivot||j===s.pivot?'pivot':''}">${s.dist[i][j]===Infinity?'∞':s.dist[i][j]}</div>`).join('')}`).join('')}</div>`;
+  }
+  function drawTheater(){
+    const type=$('#theaterType').value,s=theaterSteps[theaterIndex],meta=theaterMeta[type];$('#theaterHeading').textContent=meta.heading;$('#theaterMental').innerHTML=meta.mental;$('#theaterRule').innerHTML=renderCSharp(meta.code,s.line);$('#theaterStateTitle').textContent=meta.state;$('#theaterStatus').innerHTML=`<b>Step ${theaterIndex}/${theaterSteps.length-1}</b><br>${s.msg}`;$('#theaterMatrix').innerHTML='';
+    if(type==='bellman'){
+      const labels=Object.fromEntries(Object.entries(s.dist).map(([n,d])=>[n,`d=${d===Infinity?'∞':d}`]));renderDirectedGraph($('#theaterSvg'),bfNodes,bfEdges,{...s,labels});$('#theaterState').innerHTML=distanceTokens(s.dist)+`<span class="pill">pass ${s.pass}</span>`;
+    }else if(type==='topo'){
+      const labels=Object.fromEntries(Object.entries(s.indeg).map(([n,d])=>[n,`in=${d}`]));renderDirectedGraph($('#theaterSvg'),topoNodes,topoEdges,{...s,labels},false);$('#theaterState').innerHTML=`<span class="pill">queue: ${s.queue.join(', ')||'empty'}</span><span class="pill">order: ${s.order.join(' → ')||'empty'}</span>`;
+    }else if(type==='kruskal'){
+      renderGraph($('#theaterSvg'),kNodes,kEdges,{activeEdge:s.activeEdge,pathEdges:s.chosen,rejectedEdges:s.rejected},true);
+      $('#theaterState').innerHTML=kruskalSorted.map((e,i)=>{const key=[e[0],e[1]].sort().join('-'),cl=s.chosen.has(key)?'chosen':s.rejected.has(key)?'rejected':i===s.edgeIndex?'hot':'';return `<span class="edge-token ${cl}">${e[0]}–${e[1]}:${e[2]}</span>`}).join('')+`<div style="flex-basis:100%;color:var(--muted)">Components: ${s.groups.map(g=>`{${g.join(',')}}`).join(' ')}</div>`;
+    }else{
+      renderDirectedGraph($('#theaterSvg'),fNodes,fEdges,{current:s.current},true);$('#theaterState').innerHTML=`<span class="pill">allowed pivot: ${s.pivot||'none yet'}</span><span class="pill">${s.changed.length} updates</span>`;drawFloydMatrix(s);
+    }
+    $('#stepTheater').disabled=theaterIndex>=theaterSteps.length-1;
+  }
+  $('#stepTheater').onclick=()=>{if(theaterIndex<theaterSteps.length-1){theaterIndex++;drawTheater()}};
+  $('#resetTheater').onclick=resetTheater;$('#theaterType').onchange=resetTheater;
+  $('#playTheater').onclick=async()=>{theaterPlaying=!theaterPlaying;$('#playTheater').textContent=theaterPlaying?'❚❚ Pause':'▶ Play';while(theaterPlaying&&theaterIndex<theaterSteps.length-1){await sleep(720);if(!theaterPlaying)break;theaterIndex++;drawTheater()}theaterPlaying=false;$('#playTheater').textContent='▶ Play'};
+
+  // Cheat sheet + practice
+  $('#cheatSearch').oninput=e=>{const q=e.target.value.toLowerCase();$$('.cheat-row').forEach(r=>r.style.display=(r.textContent+' '+r.dataset.search).toLowerCase().includes(q)?'grid':'none')};
+  const flashes=[
+    ['When does BFS guarantee a shortest path?','When every edge has equal cost (usually an unweighted graph). It minimizes the number of edges.'],
+    ['Why mark visited when enqueuing?','It prevents the same node from entering the frontier multiple times, preserving O(V+E).'],
+    ['What proves an undirected graph is a tree?','It is connected and acyclic; equivalently, connected with exactly V−1 edges.'],
+    ['Dijkstra or minimum spanning tree?','Dijkstra minimizes distance from one source. An MST minimizes the total weight needed to connect all vertices.'],
+    ['How does Kahn’s algorithm detect a cycle?','Repeatedly remove in-degree-0 nodes. If fewer than V nodes are removed, a directed cycle remains.'],
+    ['What are DFS edge cases?','Disconnected components, cycles, deep recursion/stack overflow, and marking visited at the right time.']
+  ];let fi=0;
+  function drawFlash(){$('#flashcard').classList.remove('flipped');$('#flashQ').textContent=flashes[fi][0];$('#flashA').textContent=flashes[fi][1]}
+  $('#flashcard').onclick=()=>$('#flashcard').classList.toggle('flipped');$('#nextFlash').onclick=()=>{fi=(fi+1)%flashes.length;drawFlash()};$('#prevFlash').onclick=()=>{fi=(fi-1+flashes.length)%flashes.length;drawFlash()};
+  const quizzes=[
+    {q:'You need the minimum number of flights between two airports. Every flight counts equally. What do you use?',o:['DFS','BFS','Dijkstra','Kruskal'],a:1,why:'BFS explores by edge-count layers, so the first arrival is minimal.'},
+    {q:'A dependency graph must produce a valid build order. What is the key algorithm?',o:['Topological sort','Prim','Floyd–Warshall','Union-Find'],a:0,why:'A build order is a topological ordering of a DAG.'},
+    {q:'Which algorithm is invalid when an edge may have negative weight?',o:['Bellman–Ford','DFS','Dijkstra','Floyd–Warshall'],a:2,why:'Dijkstra’s greedy finalization relies on non-negative edge weights.'},
+    {q:'You repeatedly add friendships and ask whether two users are connected. Best fit?',o:['BFS from scratch','Union-Find','Topological sort','Bellman–Ford'],a:1,why:'Union-Find efficiently supports repeated unions and connectivity queries.'},
+    {q:'Runtime of BFS with an adjacency list?',o:['O(V²)','O(E log V)','O(V+E)','O(VE)'],a:2,why:'Every vertex and edge is processed at most a constant number of times.'}
+  ];let qi=0;
+  function drawQuiz(){const q=quizzes[qi];$('#quizQuestion').textContent=q.q;$('#quizOptions').innerHTML=q.o.map((x,i)=>`<button class="quiz-option" data-i="${i}">${x}</button>`).join('');$('#quizFeedback').textContent='Choose an answer.'}
+  $('#quizOptions').onclick=e=>{if(!e.target.matches('.quiz-option'))return;const q=quizzes[qi],i=+e.target.dataset.i;$$('.quiz-option').forEach((b,j)=>{b.disabled=true;if(j===q.a)b.classList.add('correct');else if(j===i)b.classList.add('wrong')});$('#quizFeedback').innerHTML=`<b>${i===q.a?'Correct.':'Not quite.'}</b><br>${q.why}`};
+  $('#nextQuiz').onclick=()=>{qi=(qi+1)%quizzes.length;drawQuiz()};
+
+  resetTraversal();resetDijkstra();resetTheater();drawFlash();drawQuiz();
+</script>
+</body>
+</html>

@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI Agents Mental Model Lab</title>
+  <link rel="stylesheet" href="../assets/css/lab.css">
+  <style>
+    :root{--agent:#ff9f43}.agent-logo{color:var(--agent)!important;border-color:#ff9f4366!important;background:#ff9f4314!important}
+    .flow{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-height:260px}.flow-node{position:relative;min-width:115px;padding:17px 12px;text-align:center;border:2px solid #607da5;border-radius:13px;background:#152944;transition:.25s}.flow-node small{display:block;color:var(--muted);margin-top:4px}.flow-node.active{border-color:var(--yellow);background:#ffd16625;transform:scale(1.06);box-shadow:0 0 25px #ffd16622}.flow-node.done{border-color:var(--green);background:#54e38e18}.flow-arrow{color:var(--cyan);font-size:24px}
+    .boundary{position:relative;width:min(620px,100%);min-height:350px;border:3px dashed var(--purple);border-radius:22px;padding:32px;background:#b88cff09}.boundary-label{position:absolute;top:-14px;left:22px;background:var(--bg);padding:2px 10px;color:var(--purple);font-weight:800}.zone{padding:15px;border:1px solid #ffffff1b;border-radius:13px;background:#10213a;margin:10px}.zone.active{border-color:var(--yellow);box-shadow:0 0 20px #ffd1661c}.trust-line{height:2px;background:repeating-linear-gradient(90deg,var(--red),var(--red) 8px,transparent 8px,transparent 15px);margin:18px 0;position:relative}.trust-line:after{content:"TRUST BOUNDARY";position:absolute;right:0;top:5px;color:var(--red);font-size:10px}
+    .identity-flow{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;gap:8px}.identity-card{text-align:center;padding:15px 8px;border:1px solid #ffffff1b;border-radius:12px;background:#ffffff07}.identity-card.active{border-color:var(--yellow);background:#ffd16618}.identity-arrow{text-align:center;color:var(--cyan);font-size:24px}
+    .layer-stack{width:min(620px,100%)}.layer{padding:16px 18px;margin:7px;border:2px solid #607da5;border-radius:12px;background:#14243b}.layer b{color:var(--cyan)}.layer.danger{border-color:var(--red)}.layer.safe{border-color:var(--green)}
+    .threat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:11px}.threat{padding:15px;border-left:3px solid var(--red);background:#ff6b7a09;border-radius:0 12px 12px 0}.threat b{display:block;color:#ff9aa5}.threat span{color:var(--muted);font-size:13px}
+    .matrix{width:100%;border-collapse:collapse}.matrix th,.matrix td{text-align:left;padding:11px;border-bottom:1px solid #ffffff12}.matrix th{color:var(--cyan)}.matrix td{color:var(--muted)}.matrix td:first-child{color:var(--ink);font-weight:700}
+    .toggle-row{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.mode{padding:9px 13px;border:1px solid #ffffff1a;border-radius:999px;background:transparent;color:var(--muted)}.mode.active{color:var(--cyan);border-color:#4de2ff77;background:#4de2ff15}
+    .check-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.check{padding:11px;border:1px solid #ffffff14;border-radius:9px;color:var(--muted);background:#ffffff05}.check:before{content:"✓";color:var(--green);font-weight:900;margin-right:8px}
+    .cache-architecture{position:relative;min-height:430px;overflow:hidden;border-radius:14px;background:radial-gradient(circle,#ffffff0b 1px,transparent 1px);background-size:22px 22px}.cache-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.cache-link{stroke:#607da5;stroke-width:.65;fill:none}.cache-link.done{stroke:var(--green)}.cache-link.active{stroke:var(--yellow);stroke-width:1.1;stroke-dasharray:3 2}.cache-link-label{fill:#afc2da;font-size:2.6px;text-anchor:middle;paint-order:stroke;stroke:#0b1728;stroke-width:1.1px;stroke-linejoin:round}.cache-component{position:absolute;width:132px;min-height:67px;padding:10px;translate:-50% -50%;border:2px solid #607da5;border-radius:12px;background:#152944;text-align:center;transition:border-color .2s,background .2s}.cache-component b{display:block;font-size:13px}.cache-component small{display:block;margin-top:4px;color:var(--muted);font-size:10px}.cache-component.done{border-color:var(--green);background:#54e38e16}.cache-component.active{border-color:var(--yellow);background:#ffd16624}.cache-component.risk{border-color:var(--red);background:#ff6b7a16}.cache-facts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.cache-fact{padding:11px;border:1px solid #ffffff14;border-radius:10px;background:#ffffff05}.cache-fact b{display:block;color:var(--cyan);font-size:12px}.cache-fact span{color:var(--muted);font-size:12px}.formula{padding:14px;border:1px solid #4de2ff44;border-radius:12px;background:#4de2ff09;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#c8f6ff}.callout-risk{border-left:3px solid var(--red);padding:12px;background:#ff6b7a09;color:var(--muted)}
+    .sources a{color:var(--cyan)}.mini{font-size:13px;color:var(--muted)}
+    @media(max-width:900px){.identity-flow{grid-template-columns:1fr}.identity-arrow{transform:rotate(90deg)}.cache-component{width:112px}.cache-facts{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<button class="control present" id="present">⛶ Presentation</button>
+<div class="progress"><i id="progress"></i></div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo agent-logo">◎</div><div><b>AI Agents</b><small>Mental model lab</small></div></div>
+    <a class="back" href="../index.html">← All tracks</a>
+    <nav>
+      <a href="#start">01 · What is an agent?</a><a href="#loop">02 · Agent loop</a><a href="#rag">03 · RAG</a>
+      <a href="#mcp">04 · MCP</a><a href="#identity">05 · Agentic identity</a><a href="#sandbox">06 · Sandboxes</a>
+      <a href="#memory">07 · Context & memory</a><a href="#inference-cache">08 · Inference caches</a>
+      <a href="#orchestration">09 · Orchestration</a><a href="#production">10 · Production systems</a>
+      <a href="#security">11 · Security</a><a href="#cheat">12 · Cheat sheet</a>
+    </nav>
+  </aside>
+  <main>
+    <section id="start">
+      <div class="eyebrow">AI systems interview lab</div><h1>An agent is a <span style="color:var(--agent)">controlled decision loop</span>.</h1>
+      <p class="lede">A model proposes the next step; software supplies context, tools, identity, policy, execution, memory, and verification. The model is one component—not the security boundary and not the whole system.</p>
+      <div class="chips"><span class="chip">Model</span><span class="chip">Instructions</span><span class="chip">Context</span><span class="chip">Tools</span><span class="chip">Memory</span><span class="chip">Identity</span><span class="chip">Policy</span><span class="chip">Evaluator</span></div>
+      <div class="grid">
+        <div class="card"><h3>Agent ≠ chatbot</h3><p>A chatbot produces text. An agent can observe state, choose actions, call tools, evaluate results, and continue toward a goal.</p></div>
+        <div class="card"><h3>Autonomy is a spectrum</h3><p>One tool call, a bounded workflow, or an open-ended loop are different risk classes. Grant only the autonomy the task requires.</p></div>
+        <div class="card"><h3>Deterministic shell</h3><p>Keep permissions, schemas, retries, approvals, budgets, and state transitions in code. Use the model for ambiguity—not everything.</p></div>
+      </div>
+      <div class="hero-note"><b>Core equation:</b> Agent system = probabilistic decision-maker + deterministic control plane + constrained execution environment.</div>
+    </section>
+
+    <section id="loop">
+      <div class="eyebrow">The execution loop</div><h2>Observe → decide → act → verify.</h2>
+      <p class="lede">Step through one turn. Notice that tool results become new observations, and the loop ends only when a stop condition—not “model confidence”—says it should.</p>
+      <div class="lab"><div class="stage"><div class="controls"><button class="control" data-reset="agent">↺ Reset</button><button class="control primary" data-step="agent">Step →</button><button class="control" data-play="agent">▶ Play</button></div><div class="visual"><div class="flow" id="agentFlow"></div></div></div><div class="inspector"><h3 id="agentTitle"></h3><div class="status" id="agentStatus"></div><div class="label">State at this boundary</div><div class="code" id="agentState"></div><div class="label">Invariant</div><p class="muted">Every action must be authorized, validated, bounded, observable, and attributable—even when the model requested it.</p></div></div>
+    </section>
+
+    <section id="rag">
+      <div class="eyebrow">Retrieval-augmented generation</div><h2>RAG is open-book generation, not memory.</h2>
+      <p class="lede">RAG injects relevant external evidence into the current context. It does not change model weights, guarantee truth, or authorize access.</p>
+      <div class="lab"><div class="stage"><div class="controls"><button class="control" data-reset="rag">↺ Reset</button><button class="control primary" data-step="rag">Step →</button><button class="control" data-play="rag">▶ Play</button></div><div class="visual"><div class="flow" id="ragFlow"></div></div></div><div class="inspector"><h3 id="ragTitle"></h3><div class="status" id="ragStatus"></div><div class="label">What can go wrong?</div><p class="muted" id="ragRisk"></p><div class="label">Quality lever</div><p class="muted" id="ragLever"></p></div></div>
+      <div class="grid">
+        <div class="card"><h3>Ingestion path</h3><p>Load → parse → normalize → chunk → enrich metadata → embed → index. Preserve source URI, version, timestamp, owner, tenant, and ACL metadata.</p></div>
+        <div class="card"><h3>Query path</h3><p>Rewrite/decompose → retrieve → filter by authorization → hybrid rank → rerank → pack context → generate with citations.</p></div>
+        <div class="card"><h3>Evaluation</h3><p>Measure retrieval recall/precision separately from answer faithfulness, relevance, citation correctness, latency, and cost.</p></div>
+        <div class="card"><h3>Chunking</h3><p>Too small loses meaning; too large dilutes relevance and consumes context. Structure-aware chunks often beat fixed token windows.</p></div>
+        <div class="card"><h3>Hybrid retrieval</h3><p>Lexical search catches exact names and IDs; vectors catch semantic similarity. Fusion and reranking combine their strengths.</p></div>
+        <div class="card"><h3>Security rule</h3><p>Retrieved documents are untrusted data. Apply access checks before retrieval/output, isolate tenants, and never obey instructions found in documents.</p></div>
+      </div>
+    </section>
+
+    <section id="mcp">
+      <div class="eyebrow">Model Context Protocol</div><h2>MCP standardizes connection—not trust.</h2>
+      <p class="lede">The host orchestrates multiple clients. Each client connects one-to-one with a focused server. Servers expose capabilities; the host keeps the full conversation and policy decisions.</p>
+      <div class="lab"><div class="stage"><div class="controls"><button class="control" data-reset="mcp">↺ Reset</button><button class="control primary" data-step="mcp">Step →</button><button class="control" data-play="mcp">▶ Play</button></div><div class="visual"><div class="flow" id="mcpFlow"></div></div></div><div class="inspector"><h3 id="mcpTitle"></h3><div class="status" id="mcpStatus"></div><div class="label">Boundary rule</div><p class="muted" id="mcpRule"></p></div></div>
+      <div class="grid">
+        <div class="card"><h3>Tools</h3><p>Actions/functions the model may request. Inputs and outputs are schema-described. Side effects require policy and often confirmation.</p></div>
+        <div class="card"><h3>Resources</h3><p>Addressable context such as files, records, or documents. Reading a resource is data access, so authorization still applies.</p></div>
+        <div class="card"><h3>Prompts</h3><p>Discoverable reusable prompt templates. They improve consistency but are not an authorization mechanism.</p></div>
+        <div class="card"><h3>Host</h3><p>Owns orchestration, user consent, context aggregation, client lifecycle, and cross-server security boundaries.</p></div>
+        <div class="card"><h3>Client</h3><p>A protocol connection managed by the host, attached to exactly one server. Handles requests, responses, capabilities, and notifications.</p></div>
+        <div class="card"><h3>Server</h3><p>A focused provider of tools, resources, and prompts. It should receive only the context needed for its operation—not the entire conversation.</p></div>
+      </div>
+    </section>
+
+    <section id="identity">
+      <div class="eyebrow">Agentic identity and authorization</div><h2>Who is acting, for whom, with what authority?</h2>
+      <p class="lede">Identity answers “who.” Authentication proves it. Authorization decides whether this exact action on this exact resource is allowed. Delegation must preserve both agent and user attribution.</p>
+      <div class="toggle-row"><button class="mode active" data-mode="delegated">Delegated / on-behalf-of</button><button class="mode" data-mode="app">App-only workload</button><button class="mode" data-mode="jit">JIT elevated action</button></div>
+      <div class="card full"><div class="identity-flow" id="identityFlow"></div><div class="status" id="identityStatus"></div></div>
+      <div class="grid">
+        <div class="card"><h3>Agent identity</h3><p>Stable, unique, lifecycle-managed principal with an owner, purpose, environment, allowed tools, and revocation path.</p></div>
+        <div class="card"><h3>Delegated authority</h3><p>The agent acts within the intersection of its permissions and the user’s permissions. Preserve “on behalf of” claims and audit both actors.</p></div>
+        <div class="card"><h3>Workload authority</h3><p>Agent acts as itself for scheduled or service tasks. Prefer managed/federated identity and short-lived tokens over static secrets.</p></div>
+        <div class="card"><h3>Tool binding</h3><p>Possessing a token should not unlock every tool. Bind identity, permitted action, resource scope, tenant, and environment.</p></div>
+        <div class="card"><h3>Downstream enforcement</h3><p>Every service revalidates authorization. Never trust the orchestrator’s claim that a request was approved.</p></div>
+        <div class="card"><h3>Audit chain</h3><p>Correlate user, agent, model decision, policy decision, tool, normalized arguments, resource, result, and approval.</p></div>
+      </div>
+    </section>
+
+    <section id="sandbox">
+      <div class="eyebrow">Sandboxing and containment</div><h2>A sandbox limits blast radius; policy limits intent.</h2>
+      <p class="lede">Assume generated code and tool arguments may be wrong or hostile. Constrain every channel by which execution can affect the world.</p>
+      <div class="lab"><div class="stage"><div class="visual"><div class="boundary"><span class="boundary-label">EPHEMERAL SANDBOX</span><div class="zone safe"><b>Process</b><br><span class="mini">Non-root, syscall filtering, process-count and CPU limits</span></div><div class="zone safe"><b>Filesystem</b><br><span class="mini">Read-only base, scoped workspace, quotas, explicit artifact export</span></div><div class="zone danger"><b>Network egress</b><br><span class="mini">Deny by default; allowlist hosts, protocols, DNS, and request sizes</span></div><div class="zone safe"><b>Secrets</b><br><span class="mini">Broker short-lived scoped credentials; never place broad secrets in environment or prompt</span></div></div></div></div><div class="inspector"><h3>Containment checklist</h3><div class="check-grid"><div class="check">Fresh environment per task</div><div class="check">Non-root execution</div><div class="check">Read-only system image</div><div class="check">Workspace path allowlist</div><div class="check">Network deny-by-default</div><div class="check">CPU, memory, disk quotas</div><div class="check">Wall-clock timeout</div><div class="check">Process/syscall controls</div><div class="check">Ephemeral credentials</div><div class="check">Artifact scanning</div><div class="check">Full action audit</div><div class="check">Guaranteed teardown</div></div></div></div>
+      <div class="grid">
+        <div class="card"><h3>Sandbox vs. container</h3><p>A container is packaging plus namespace isolation. A strong hostile-code boundary may also require hardened runtimes, microVMs, seccomp, mandatory access control, and separate tenancy.</p></div>
+        <div class="card"><h3>Broker capabilities</h3><p>Do not inject powerful credentials. Let a trusted broker issue narrow, short-lived capabilities for approved operations.</p></div>
+        <div class="card"><h3>Artifact boundary</h3><p>Files leaving the sandbox are outputs crossing a trust boundary. Validate type, size, malware risk, secrets, and destination.</p></div>
+      </div>
+    </section>
+
+    <section id="memory">
+      <div class="eyebrow">Context engineering and memory</div><h2>The context window is working memory, not a database.</h2>
+      <table class="matrix"><tr><th>Layer</th><th>Mental model</th><th>Use</th><th>Main risk</th></tr>
+        <tr><td>Instructions</td><td>Operating policy</td><td>Role, constraints, tool guidance</td><td>Conflict and injection</td></tr>
+        <tr><td>Working context</td><td>RAM for this turn</td><td>Goal, plan, observations, evidence</td><td>Overflow and distraction</td></tr>
+        <tr><td>Conversation history</td><td>Event log</td><td>Continuity and user intent</td><td>Stale assumptions</td></tr>
+        <tr><td>Semantic memory</td><td>Searchable notebook</td><td>Relevant durable facts</td><td>Poisoning and cross-user leakage</td></tr>
+        <tr><td>Episodic memory</td><td>Past-run lessons</td><td>Prior outcomes and preferences</td><td>Overfitting to old runs</td></tr>
+        <tr><td>External state</td><td>Source of truth</td><td>Databases, files, APIs, workflow state</td><td>Authorization and consistency</td></tr>
+      </table>
+      <div class="grid">
+        <div class="card"><h3>Write policy</h3><p>Store only validated, scoped, useful facts. Tag source, owner, tenant, timestamp, confidence, expiry, and sensitivity.</p></div>
+        <div class="card"><h3>Read policy</h3><p>Retrieve by relevance <i>and</i> authorization. Prefer fresh source-of-truth reads for consequential decisions.</p></div>
+        <div class="card"><h3>Compaction</h3><p>Summaries save tokens but lose detail. Preserve decisions, unresolved questions, evidence links, and exact constraints.</p></div>
+      </div>
+    </section>
+
+    <section id="inference-cache">
+      <div class="eyebrow">LLM inference performance</div><h2>Prefix caching avoids repeated prefill; KV caching avoids repeated attention work.</h2>
+      <p class="lede">These terms are related but not interchangeable. A request-local KV cache stores attention keys and values already computed for prior tokens. A prefix cache lets later requests reuse compatible KV blocks from an identical token prefix. Neither is the same as caching the final answer.</p>
+
+      <table class="matrix"><tr><th>Cache</th><th>Key → value</th><th>What it saves</th><th>Correctness boundary</th></tr>
+        <tr><td>Response cache</td><td>Exact request → final response</td><td>Entire inference</td><td>Only safe when the answer may be reused as-is</td></tr>
+        <tr><td>Semantic response cache</td><td>Similar meaning → prior response</td><td>Entire inference</td><td>Approximate; dangerous for fresh, personal, or consequential answers</td></tr>
+        <tr><td>Prompt / prefix cache</td><td>Exact token blocks → reusable KV blocks</td><td>Repeated prefill for the shared prefix</td><td>Model execution identity, exact tokens, positions, tenant, and policy must match</td></tr>
+        <tr><td>Active KV cache</td><td>Sequence + layer + position → K/V tensors</td><td>Recomputing earlier tokens during decode</td><td>Belongs to that sequence except explicitly shared immutable prefix pages</td></tr>
+        <tr><td>RAG / tool cache</td><td>Authorized query or call → evidence/result</td><td>Retrieval, embedding, or tool latency</td><td>Freshness, ACL, tenant, arguments, and side effects define reuse</td></tr>
+      </table>
+
+      <div class="lab" style="margin-top:18px"><div class="stage"><div class="controls"><button class="control" id="kvReset">↺ Reset</button><button class="control primary" id="kvStep">Step →</button></div><div class="visual"><div class="cache-architecture" id="kvArchitecture"></div></div></div><div class="inspector"><h3 id="kvTitle"></h3><div class="status" id="kvStatus"></div><div class="cache-facts"><div class="cache-fact"><b>Performance effect</b><span id="kvSaving"></span></div><div class="cache-fact"><b>Correctness / security check</b><span id="kvRisk"></span></div></div></div></div>
+
+      <div class="grid">
+        <div class="card"><h3>Prefill vs. decode</h3><p><b>Prefill</b> processes all prompt tokens in parallel and creates per-layer K/V tensors. <b>Decode</b> generates one token at a time, reading prior K/V and appending one new position. Prefix caching mainly reduces time to first token; active KV caching makes autoregressive decode practical.</p></div>
+        <div class="card"><h3>What makes a prefix reusable?</h3><p>The token IDs and their order must match through a block boundary. The cache key also needs the model/version, tokenizer and template, adapter or LoRA, positional configuration, and isolation scope. Sampling temperature does not change prefill tensors, but changing an earlier token invalidates every later block.</p></div>
+        <div class="card"><h3>Stable prefix first</h3><p>Place stable system instructions, tool schemas, and reusable documents before volatile user input. Keep ordering and serialization deterministic. A timestamp, random ID, or reordered tool list near the front destroys the longest-prefix match.</p></div>
+        <div class="card"><h3>Paged attention</h3><p>Store KV tensors in fixed-size physical blocks rather than one contiguous allocation. A block table maps logical token positions to pages, allowing non-contiguous allocation, prefix sharing, copy-on-write after divergence, and less fragmentation.</p></div>
+        <div class="card"><h3>Radix tree / block hash index</h3><p>A radix tree finds the longest cached token prefix; a content-addressed block index hashes each token block plus its parent identity. Entries reference immutable KV pages. Hash equality must still be scoped to compatible execution and security domains.</p></div>
+        <div class="card"><h3>Continuous batching</h3><p>The scheduler mixes prefill and one-token decode work from many requests. Chunked prefill prevents a large prompt from starving decode. Prefix hits free compute, but active sequences still consume KV memory and scheduler slots.</p></div>
+        <div class="card"><h3>Eviction and admission</h3><p>KV memory is finite. Track block reference counts, pin active pages, and evict only unreferenced prefixes using LRU/LFU, size-aware, or cost-aware policy. Admission may reject one-off prefixes whose storage cost exceeds expected reuse.</p></div>
+        <div class="card"><h3>Distributed serving</h3><p>A prefix hit is useful only where its KV pages reside. Use sticky routing, cache-aware scheduling, replicated hot prefixes, or disaggregated KV storage. Moving large KV tensors across the network can erase the compute savings.</p></div>
+        <div class="card"><h3>Metrics that matter</h3><p>Track token/block hit rate, reused prompt tokens, prefill tokens per second, time to first token, inter-token latency, KV bytes, fragmentation, eviction churn, queue time, and hit rate segmented by tenant and prompt class.</p></div>
+      </div>
+
+      <div class="grid">
+        <div class="card full"><h3>KV memory sizing</h3><div class="formula">bytes ≈ 2 × layers × tokens × KV-heads × head-dimension × bytes-per-element</div><p>The factor 2 is for keys and values. With grouped-query attention, use <b>KV heads</b>, not total query heads. Example: 32 layers × 8 KV heads × 128 dimensions × 8,192 tokens × BF16 × K/V ≈ <b>1 GiB per sequence</b> before allocator overhead. Quantized KV reduces memory at a possible quality or kernel cost.</p></div>
+        <div class="card"><h3>Reuse example</h3><p>Requests share a 20K-token policy manual and differ only in the final question. The first request performs full prefill. Later exact-prefix hits attach the shared immutable KV pages, prefill only the suffix, then allocate private pages as generation diverges.</p></div>
+        <div class="card"><h3>What a hit does not save</h3><p>The model still decodes new output tokens, attends over the context, reserves active KV capacity, and may rerun any unmatched suffix. A high prefix-token hit rate does not guarantee low queueing or low inter-token latency.</p></div>
+        <div class="card"><h3>Isolation failure</h3><p>Never use a cross-tenant cache key based only on raw tokens. Scope or encrypt entries, avoid logging sensitive prompts, prevent timing-based cache probes, and purge data according to retention policy. Shared public prefixes and private conversation prefixes need different policy.</p></div>
+        <div class="card"><h3>Related caches</h3><p>Model-weight residency avoids reloads; tokenizer and compiled-kernel caches reduce setup; embedding and retrieval caches reduce RAG work; tool caches reduce deterministic read calls. Each needs its own freshness, authorization, invalidation, and observability contract.</p></div>
+      </div>
+      <div class="callout-risk"><b>Interview trap:</b> “KV cache” is not a map from prompts to answers. Describe where tensors live, whether reuse is within one sequence or across requests, how exact prefixes are identified, what invalidates a page, and how the scheduler protects isolation and memory.</div>
+    </section>
+
+    <section id="orchestration">
+      <div class="eyebrow">Orchestration patterns</div><h2>Use the least-agentic architecture that works.</h2>
+      <table class="matrix"><tr><th>Pattern</th><th>Shape</th><th>Best when</th><th>Cost / risk</th></tr>
+        <tr><td>Single tool call</td><td>Model → tool → answer</td><td>One bounded operation</td><td>Lowest</td></tr>
+        <tr><td>Deterministic workflow</td><td>Code controls stages</td><td>Known process, auditability matters</td><td>Low</td></tr>
+        <tr><td>Router</td><td>Classify → specialist</td><td>Distinct intents or domains</td><td>Misrouting</td></tr>
+        <tr><td>Planner–executor</td><td>Plan → execute steps</td><td>Long, adaptive tasks</td><td>Plan drift</td></tr>
+        <tr><td>Evaluator loop</td><td>Generate → critique → revise</td><td>Quality can be scored</td><td>Cost and self-bias</td></tr>
+        <tr><td>Supervisor + workers</td><td>Delegate → aggregate</td><td>Parallel independent work</td><td>Coordination and trust</td></tr>
+        <tr><td>Event-driven agents</td><td>Events → durable state machine</td><td>Long-running operations</td><td>Consistency</td></tr>
+      </table>
+      <div class="hero-note"><b>Rule of thumb:</b> multi-agent is an organizational technique, not an intelligence upgrade. Add an agent only when isolation, specialization, parallelism, or ownership clearly outweighs coordination cost.</div>
+    </section>
+
+    <section id="production">
+      <div class="eyebrow">Reliability, evaluation, and operations</div><h2>Production agents are distributed systems.</h2>
+      <div class="grid">
+        <div class="card"><h3>Durable state</h3><p>Persist workflow state outside the model. Use checkpoints so retries resume safely after crashes, timeouts, or human approval.</p></div>
+        <div class="card"><h3>Idempotency</h3><p>Attach stable operation IDs. Retrying “create ticket” should return the existing ticket, not create another.</p></div>
+        <div class="card"><h3>Budgets</h3><p>Bound turns, tokens, time, tool calls, recursion depth, money, and result size. Stop predictably when exhausted.</p></div>
+        <div class="card"><h3>Error taxonomy</h3><p>Separate retryable transport failures, tool validation errors, authorization denial, model refusal, and semantic failure.</p></div>
+        <div class="card"><h3>Observability</h3><p>Trace model calls, retrieval, tool arguments/results, policy decisions, identity, latency, tokens, cost, and correlation IDs.</p></div>
+        <div class="card"><h3>Evaluation pyramid</h3><p>Unit-test tools → contract-test workflows → offline scenario evals → adversarial tests → canary deployment → online quality signals.</p></div>
+        <div class="card"><h3>Compensation</h3><p>Multi-step side effects need rollback or compensating actions. “Undo” belongs in the design before autonomy.</p></div>
+        <div class="card"><h3>Human control</h3><p>Preview exact high-impact actions, bind approval to normalized parameters, expire approvals, and allow cancellation.</p></div>
+        <div class="card"><h3>Model fallbacks</h3><p>Fallbacks require capability-aware behavior and evaluation. A cheaper model may not safely support the same autonomy.</p></div>
+      </div>
+    </section>
+
+    <section id="security">
+      <div class="eyebrow">Threat model</div><h2>Treat model output as untrusted input.</h2>
+      <div class="threat-grid">
+        <div class="threat"><b>Indirect prompt injection</b><span>A document or webpage contains instructions. Keep data/instructions separate and authorize every resulting action.</span></div>
+        <div class="threat"><b>Tool abuse</b><span>A valid tool is called with dangerous arguments. Use schemas, allowlists, policy middleware, previews, and approvals.</span></div>
+        <div class="threat"><b>Confused deputy</b><span>The agent’s authority is misused for a caller lacking that authority. Bind user, agent, action, resource, and tenant.</span></div>
+        <div class="threat"><b>Data exfiltration</b><span>Sensitive context leaves through output, URLs, DNS, logs, or tool parameters. Restrict egress and inspect boundaries.</span></div>
+        <div class="threat"><b>Memory poisoning</b><span>Malicious content persists and affects future runs. Validate writes, isolate users, expire entries, preserve provenance.</span></div>
+        <div class="threat"><b>RAG poisoning</b><span>Compromised indexed content manipulates answers. Trust-rank sources, track provenance, and treat retrieval as data.</span></div>
+        <div class="threat"><b>Denial of wallet</b><span>Loops trigger unbounded model/tool consumption. Enforce budgets, deadlines, quotas, and circuit breakers.</span></div>
+        <div class="threat"><b>Multi-agent cascade</b><span>One compromised worker influences others. Isolate context, identity, permissions, and validate handoffs.</span></div>
+        <div class="threat"><b>Supply-chain compromise</b><span>Tools, MCP servers, models, packages, or indexes change underneath you. Pin, attest, review, and monitor dependencies.</span></div>
+      </div>
+      <div class="hero-note"><b>Security invariant:</b> instructions can suggest an action; only trusted code and downstream policy can authorize and execute it.</div>
+    </section>
+
+    <section id="cheat">
+      <div class="eyebrow">Interview cheat sheet</div><h2>Explain the whole system in five layers.</h2>
+      <div class="grid">
+        <div class="card"><h3>1 · Cognition</h3><p>Model, system instructions, planning, structured output, uncertainty.</p></div>
+        <div class="card"><h3>2 · Knowledge</h3><p>Context assembly, RAG, memory, provenance, freshness, citations.</p></div>
+        <div class="card"><h3>3 · Action</h3><p>Tools/MCP, schemas, validation, retries, idempotency, side effects.</p></div>
+        <div class="card"><h3>4 · Authority</h3><p>User + agent identity, delegation, scopes, JIT access, approvals, audit.</p></div>
+        <div class="card"><h3>5 · Containment</h3><p>Sandbox, egress, secrets, quotas, policy enforcement, monitoring, kill switch.</p></div>
+        <div class="card"><h3>Success criteria</h3><p>Task quality, groundedness, safety, latency, cost, completion rate, human escalation rate.</p></div>
+      </div>
+      <div class="card full" style="margin-top:18px"><h3>A strong system-design answer</h3><p>“I would keep orchestration and authorization deterministic. The model receives only task-relevant context, proposes schema-valid actions, and calls allowlisted tools through a policy layer. Each call uses a short-lived identity scoped to the user, agent, action, and resource. Untrusted retrieval is treated as data. Code runs in a deny-by-default sandbox. High-impact actions require parameter-bound approval. Durable checkpoints, idempotency keys, budgets, traces, and offline/online evaluations make the loop operable.”</p></div>
+      <div class="card full sources" style="margin-top:18px"><h3>Authoritative references</h3><p><a href="https://modelcontextprotocol.io/specification/2026-07-28/architecture">MCP Architecture Specification</a> · <a href="https://learn.microsoft.com/en-us/security/zero-trust/sfi/least-privilege-for-ai-agents">Microsoft: Least privilege for AI agents</a> · <a href="https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html">OWASP AI Agent Security Cheat Sheet</a></p></div>
+    </section>
+  </main>
+</div>
+<script>
+  const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const flows={
+    agent:{nodes:[['Goal','bounded outcome'],['Observe','context + state'],['Retrieve','needed evidence'],['Plan','next safe action'],['Act','tool call'],['Verify','result + policy'],['Stop','done / blocked']],steps:[
+      ['Receive a bounded goal','Translate the user request into explicit success criteria and stop conditions.','goal = deploy preview; budget = 8 turns; writes require approval'],
+      ['Assemble observations','Load only relevant conversation state, environment facts, and current workflow state.','context = instructions + task + authorized state'],
+      ['Retrieve missing evidence','Use search or RAG for facts; keep provenance and authorization filters.','evidence = Retrieve(query, userScope)'],
+      ['Choose the next action','The model proposes one structured action; deterministic code validates its schema.','proposal = { tool: "build", args: {...} }'],
+      ['Authorize and execute','Policy checks identity, scope, risk, approval, and budget before the tool runs.','result = await policy.ExecuteAsync(identity, proposal)'],
+      ['Verify the result','Inspect actual state—not merely a success-shaped message. Update the plan or compensate.','verified = await CheckPostconditionAsync(result)'],
+      ['Stop deliberately','Return when success, blocked, unsafe, or out of budget. Persist a resumable checkpoint.','return verified ? Complete() : Escalate()']
+    ]},
+    rag:{nodes:[['Question','user intent'],['Rewrite','search queries'],['Retrieve','candidate chunks'],['Authorize','ACL filter'],['Rerank','best evidence'],['Pack','context budget'],['Generate','cited answer']],steps:[
+      ['Understand the question','Resolve ambiguity and identify the kind of evidence needed.','Wrong intent produces perfectly retrieved irrelevant documents.','Use conversation context sparingly; preserve the original question.'],
+      ['Rewrite or decompose','Create lexical and semantic queries, or split a multi-part question.','A rewrite can silently change user intent.','Evaluate query transformations against retrieval recall.'],
+      ['Retrieve candidates','Search vector, lexical, graph, or structured indexes.','Similarity is not truth, freshness, or authorization.','Hybrid retrieval usually handles both concepts and exact identifiers.'],
+      ['Apply authorization','Filter documents by the effective user/agent resource scope.','Post-generation filtering is too late; restricted data already entered context.','Push tenant and ACL filters into retrieval whenever possible.'],
+      ['Rerank evidence','Use a stronger relevance model to order a smaller candidate set.','A poisoned source can rank highly.','Include trust, freshness, and source quality—not relevance alone.'],
+      ['Pack the context','Deduplicate, preserve citations, and fit evidence into the context budget.','Too much context lowers signal and may hide critical evidence.','Prefer diverse, directly supporting passages.'],
+      ['Generate grounded output','Answer from evidence, cite claims, and abstain when support is insufficient.','The model can still synthesize unsupported claims.','Evaluate faithfulness and citation entailment separately.']
+    ]},
+    mcp:{nodes:[['User','intent + consent'],['Host','policy + orchestration'],['Client','1:1 connection'],['Server','focused capability'],['Resource / Tool','data or action']],steps:[
+      ['User initiates an action','The host owns the user experience, consent, and overall authorization decision.','Do not let a server infer blanket consent from a connection.'],
+      ['Host selects a capability','The host decides which server receives what minimal context.','The host—not the model—is the cross-server security boundary.'],
+      ['Client sends protocol request','One host-managed client communicates with exactly one MCP server.','Validate protocol version, declared capabilities, schemas, and destination.'],
+      ['Server handles focused request','The server exposes tools, resources, or prompts without seeing unrelated conversation context.','A discovered tool is available, not automatically authorized.'],
+      ['Capability accesses a resource','The downstream service independently authenticates and authorizes the operation.','Validate tool output before it re-enters model context.']
+    ]}
+  };
+  const state={agent:0,rag:0,mcp:0},playing={agent:false,rag:false,mcp:false};
+  function drawFlow(name){
+    const f=flows[name],i=state[name],step=f.steps[i];
+    $(`#${name}Flow`).innerHTML=f.nodes.map((n,j)=>`<div class="flow-node ${j===i?'active':j<i?'done':''}"><b>${n[0]}</b><small>${n[1]}</small></div>${j<f.nodes.length-1?'<span class="flow-arrow">→</span>':''}`).join('');
+    $(`#${name}Title`).textContent=step[0];$(`#${name}Status`).textContent=step[1];
+    if(name==='agent')$('#agentState').textContent=step[2];
+    if(name==='rag'){$('#ragRisk').textContent=step[2];$('#ragLever').textContent=step[3]}
+    if(name==='mcp')$('#mcpRule').textContent=step[2];
+    $(`[data-step="${name}"]`).disabled=i===f.steps.length-1;
+  }
+  async function play(name){playing[name]=!playing[name];const b=$(`[data-play="${name}"]`);b.textContent=playing[name]?'❚❚ Pause':'▶ Play';while(playing[name]&&state[name]<flows[name].steps.length-1){await sleep(850);if(playing[name]){state[name]++;drawFlow(name)}}playing[name]=false;b.textContent='▶ Play'}
+  ['agent','rag','mcp'].forEach(name=>{drawFlow(name);$(`[data-step="${name}"]`).onclick=()=>{if(state[name]<flows[name].steps.length-1){state[name]++;drawFlow(name)}};$(`[data-reset="${name}"]`).onclick=()=>{playing[name]=false;state[name]=0;drawFlow(name)};$(`[data-play="${name}"]`).onclick=()=>play(name)});
+  const identities={
+    delegated:{cards:['User','Agent identity','Token service','Tool/API','User resource'],status:'The agent acts on behalf of the user. Effective authority should be the intersection of user permission, agent permission, consent, tool policy, and resource policy.'},
+    app:{cards:['Scheduler','Agent identity','Token service','Tool/API','Scoped resource'],status:'The agent acts as itself. Use a dedicated managed or federated workload identity, short-lived tokens, narrow resource roles, and no shared secrets.'},
+    jit:{cards:['Agent proposal','Policy engine','Human approval','JIT token','High-impact action'],status:'Elevation is temporary and bound to the exact normalized action, target, approver, expiry, and correlation ID. The executor independently verifies it.'}
+  };
+  const kvArchitecture={
+    components:[
+      ['client','Request','stable prefix + unique suffix',11,20],
+      ['tokenizer','Tokenizer','deterministic token IDs',33,20],
+      ['index','Prefix index','longest block match',57,20],
+      ['prefill','Prefill engine','compute missing K/V',82,20],
+      ['pool','KV block pool','paged GPU memory',57,57],
+      ['decode','Decode scheduler','continuous batching',82,57],
+      ['output','Token stream','new tokens to client',82,86]
+    ],
+    links:[
+      [0,1,'tokenize'],[1,2,'lookup token blocks'],[2,4,'attach cached pages'],
+      [2,3,'send unmatched suffix'],[3,4,'store new K/V pages'],
+      [4,5,'read prior K/V'],[5,4,'append one position'],[5,6,'stream token']
+    ],
+    steps:[
+      [0,0,[],[],'Tokenize the complete request','The server uses the exact chat template and tokenizer to produce stable token IDs.','No saving yet. Prefix identity begins at tokenization.','A template, tokenizer, model, adapter, or positional-config change must produce a different cache namespace.'],
+      [1,2,[0],[0,1],'Find the longest cached prefix','The prefix index matches immutable token blocks from the start of the request.','A hit skips prefill for all matched blocks and lowers time to first token.','Match exact tokens and positions; scope the lookup by tenant and execution identity.'],
+      [2,4,[0,1],[0,1,2],'Attach shared KV pages','The sequence block table references existing K/V pages and increments their reference counts.','Many requests can share one physical copy of a large stable prefix.','Shared pages stay immutable; use copy-on-write when sequences diverge.'],
+      [3,3,[0,1,2],[0,1,2,4],'Prefill only the unmatched suffix','Attention computes K/V for the first uncached block onward, including the unique user query.','Compute cost is proportional to the miss suffix rather than the full prompt.','One changed early token invalidates all descendant blocks, so stable content belongs first.'],
+      [4,4,[0,1,2,3],[0,1,2,3],'Store reusable new blocks','Completed full blocks enter the pool and index; private or low-value blocks may remain request-local.','Future compatible requests can extend the cached prefix.','Admission, TTL, reference counts, and eviction must prevent memory churn or active-page removal.'],
+      [5,5,[0,1,2,3,4],[0,1,2,3,4],'Decode one token at a time','The scheduler reads prior K/V, emits one token, and appends that token’s new K/V position.','Active KV avoids recomputing every prior token on each decode step.','Long contexts still increase attention and memory cost; enforce per-request token and KV budgets.'],
+      [7,6,[0,1,2,3,4,5,6],[0,1,2,3,4,5],'Stream output and release pages','Tokens stream to the client. On completion, private pages are freed and shared-prefix references are decremented.','Prompt work may be reused while generated output remains request-specific.','Cancellation and disconnect paths must release references; leaked pages become GPU-memory leaks.']
+    ]
+  };
+  let kvStep=0;
+  function drawKv(){
+    const step=kvArchitecture.steps[kvStep];
+    const width=100,height=100;
+    const links=kvArchitecture.links.map(([from,to,label],index)=>{
+      const a=kvArchitecture.components[from],b=kvArchitecture.components[to],state=index===step[0]?'active':step[2].includes(index)?'done':'';
+      const mx=(a[3]+b[3])/2,my=(a[4]+b[4])/2;
+      return `<line class="cache-link ${state}" x1="${a[3]}" y1="${a[4]}" x2="${b[3]}" y2="${b[4]}" marker-end="url(#kvArrow)"></line><text class="cache-link-label" x="${mx}" y="${my-1.5}">${label}</text>`;
+    }).join('');
+    const components=kvArchitecture.components.map((component,index)=>{
+      const state=index===step[1]?'active':step[3].includes(index)?'done':'';
+      return `<div class="cache-component ${state}" style="left:${component[3]}%;top:${component[4]}%"><b>${component[1]}</b><small>${component[2]}</small></div>`;
+    }).join('');
+    $('#kvArchitecture').innerHTML=`<svg class="cache-links" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><defs><marker id="kvArrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="context-stroke"></path></marker></defs>${links}</svg>${components}`;
+    $('#kvTitle').textContent=`Step ${kvStep+1}/${kvArchitecture.steps.length} · ${step[4]}`;
+    $('#kvStatus').textContent=step[5];$('#kvSaving').textContent=step[6];$('#kvRisk').textContent=step[7];
+    $('#kvStep').disabled=kvStep===kvArchitecture.steps.length-1;
+  }
+  $('#kvReset').onclick=()=>{kvStep=0;drawKv()};$('#kvStep').onclick=()=>{if(kvStep<kvArchitecture.steps.length-1){kvStep++;drawKv()}};drawKv();
+  function drawIdentity(mode){const d=identities[mode];$('#identityFlow').innerHTML=d.cards.map((x,i)=>`<div class="identity-card active">${x}</div>${i<d.cards.length-1?'<div class="identity-arrow">→</div>':''}`).join('');$('#identityStatus').textContent=d.status;$$('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode))}
+  $$('.mode').forEach(b=>b.onclick=()=>drawIdentity(b.dataset.mode));drawIdentity('delegated');
+  $('#present').onclick=()=>{document.body.classList.toggle('presentation');$('#present').textContent=document.body.classList.contains('presentation')?'✕ Exit':'⛶ Presentation'};
+  const sections=$$('section'),links=$$('nav a');new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.hash==='#'+e.target.id));$('#progress').style.width=`${(sections.indexOf(e.target)+1)/sections.length*100}%`}}),{threshold:.42}).observe(sections[0]);sections.slice(1).forEach(s=>new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('active',a.hash==='#'+e.target.id));$('#progress').style.width=`${(sections.indexOf(e.target)+1)/sections.length*100}%`}}),{threshold:.42}).observe(s));
+  document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='p')$('#present').click();if(['ArrowLeft','ArrowRight'].includes(e.key)){const i=Math.max(0,sections.findIndex(s=>location.hash==='#'+s.id)),n=e.key==='ArrowRight'?Math.min(sections.length-1,i+1):Math.max(0,i-1);sections[n].scrollIntoView()}});
+</script>
+</body>
+</html>
